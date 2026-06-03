@@ -34,6 +34,13 @@
 
       <div class="control-panel">
         <div class="status-display" id="status-text">Свободный анализ</div>
+
+        <!-- ВОТ ЭТОТ БЛОК МЫ ДОБАВИЛИ (Ветки вариантов) -->
+        <div id="branch-panel" class="hidden-panel" style="background: rgba(37, 128, 57, 0.1); border-left: 4px solid #258039; padding: 10px; margin-bottom: 15px; border-radius: 4px;">
+          <div style="font-size: 0.8rem; color: #258039; font-weight: bold; text-transform: uppercase; margin-bottom: 8px;">Варианты в этой позиции:</div>
+          <div id="branch-choices" style="display: flex; flex-wrap: wrap; gap: 8px;"></div>
+        </div>
+
         <div id="analysis-engine-panel" class="analysis-engine-panel" style="max-height: none;">
           <div class="analysis-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
             <div id="analysis-engine-title-text" class="analysis-engine-title">ИИ Анализ</div>
@@ -41,16 +48,44 @@
               <input type="checkbox" id="engine-toggle" checked> ИИ
             </label>
           </div>
+          
+          <div class="engine-settings" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; background: rgba(0,0,0,0.2); padding: 8px; border-radius: 4px;">
+            <div>
+              <label style="font-size: 0.7rem; color: #888;">Линии:</label>
+              <select id="select-multipv" style="width: 100%; background: #333; color: #fff; border: 1px solid #444;">
+                <option value="1">1</option>
+                <option value="3" selected>3</option>
+                <option value="5">5</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size: 0.7rem; color: #888;">Ядра:</label>
+              <select id="select-threads" style="width: 100%; background: #333; color: #fff; border: 1px solid #444;">
+                <option value="1">1</option>
+                <option value="4" selected>4</option>
+              </select>
+            </div>
+          </div>
+
           <div id="multipv-container" class="multipv-container"></div>
         </div>
+
         <div class="move-history">
           <div id="move-log" class="move-log-content"></div>
         </div>
+
         <div class="actions">
           <button id="btn-new-game" class="btn">Очистить доску</button>
           <button id="btn-flip" class="btn btn-secondary">Повернуть доску</button>
         </div>
       </div>
+    </div>
+  </div>
+
+  <div id="promotion-modal" class="modal hidden">
+    <div class="modal-content">
+      <h3>Выберите фигуру</h3>
+      <div class="promotion-choices"></div>
     </div>
   </div>
 
