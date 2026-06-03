@@ -282,23 +282,32 @@ function updateBranchSelector() {
   const container = document.getElementById('branch-choices');
   if (!panel || !container) return;
 
-  // Если у ТЕКУЩЕГО узла (или у его родителя в той же позиции) есть выбор
-  const parent = activeNode.parent;
-  if (parent && parent.children.length > 1) {
-    panel.classList.remove('hidden-panel'); 
-    container.innerHTML = '';
+  // Ищем варианты: либо у текущего узла (будущие ветки), либо у родителя (альтернативы текущему)
+  let choices = [];
+  if (activeNode.children && activeNode.children.length > 1) {
+    choices = activeNode.children;
+  } else if (activeNode.parent && activeNode.parent.children.length > 1) {
+    choices = activeNode.parent.children;
+  }
+
+  if (choices.length > 1) {
+    // ПОКАЗЫВАЕМ ПАНЕЛЬ
+    panel.classList.remove('hidden-panel');
+    panel.style.display = 'block'; 
     
-    // Показываем все варианты хода из этой же позиции
-    parent.children.forEach(c => {
+    container.innerHTML = '';
+    choices.forEach(c => {
       const btn = document.createElement('button');
-      btn.className = `btn btn-secondary branch-btn ${c === activeNode ? 'active-branch' : ''}`;
-      btn.style.margin = "2px";
+      // Даем кнопке классы для стиля
+      btn.className = `branch-btn ${c === activeNode ? 'active-branch' : ''}`;
       btn.textContent = c.move.san;
       btn.onclick = () => jumpToMoveNode(c);
       container.appendChild(btn);
     });
   } else {
+    // СКРЫВАЕМ ПАНЕЛЬ
     panel.classList.add('hidden-panel');
+    panel.style.display = 'none';
   }
 }
 
