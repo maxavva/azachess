@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Lichess Lite (Analysis Board)</title>
+  <title>Azachess - Анализ</title>
   <link rel="stylesheet" href="analysis-style.css">
   <script src="https://cdn.jsdelivr.net/npm/chess.js@0.10.3/chess.min.js"></script>
 </head>
@@ -11,10 +11,9 @@
 
   <div class="game-wrapper-root">
     <div class="nav-bar">
-  <a href="index.html" class="nav-link">← На главную</a>
-  <a href="play.html" class="nav-link">Играть</a>
-  <a href="analysis.html" class="nav-link active">Анализ</a>
-</div>
+      <a href="index.html" class="nav-link">← На главную</a>
+      <span class="nav-link active">Режим анализа</span>
+    </div>
 
     <div class="game-container">
       <div class="board-wrapper">
@@ -25,78 +24,36 @@
           </div>
           <div id="board" class="chessboard"></div>
         </div>
-
         <div class="navigation-controls">
           <button id="btn-nav-first" class="btn btn-secondary nav-btn">|&lt;</button>
           <button id="btn-nav-prev" class="btn btn-secondary nav-btn">&lt;</button>
           <button id="btn-nav-next" class="btn btn-secondary nav-btn">&gt;</button>
           <button id="btn-nav-last" class="btn btn-secondary nav-btn">&gt;|</button>
         </div>
-        
-        <div id="promotion-modal" class="modal hidden">
-          <div class="modal-content">
-            <h3>Превращение пешки</h3>
-            <div class="promotion-choices"></div>
-          </div>
-        </div>
       </div>
 
       <div class="control-panel">
-        <div class="panel-header">
-          <h2>Анализ</h2>
-          <div id="status-text" class="status-display">Свободный анализ</div>
-        </div>
-
-        <div id="branch-panel" class="analysis-engine-panel hidden-panel" style="border-left-color: var(--color-accent); max-height: none;">
-          <div class="analysis-engine-title" style="color: var(--color-accent);">Варианты</div>
-          <div id="branch-choices" class="promotion-choices" style="justify-content: flex-start; flex-wrap: wrap; gap: 6px;"></div>
-        </div>
-
+        <div class="status-display" id="status-text">Свободный анализ</div>
         <div id="analysis-engine-panel" class="analysis-engine-panel" style="max-height: none;">
           <div class="analysis-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-            <div id="analysis-engine-title-text" class="analysis-engine-title" style="margin-bottom: 0;">Анализ позиции</div>
+            <div id="analysis-engine-title-text" class="analysis-engine-title">ИИ Анализ</div>
             <label style="font-size: 0.8rem; display: flex; align-items: center; gap: 5px; cursor: pointer;">
               <input type="checkbox" id="engine-toggle" checked> ИИ
             </label>
           </div>
-
-          <div class="engine-settings" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; background: rgba(0,0,0,0.2); padding: 8px; border-radius: 4px;">
-            <div>
-              <label style="font-size: 0.7rem; color: #888;">Линии:</label>
-              <select id="select-multipv" style="width: 100%; background: #333; color: #fff; border: 1px solid #444;">
-                <option value="1">1</option>
-                <option value="3" selected>3</option>
-                <option value="5">5</option>
-              </select>
-            </div>
-            <div>
-              <label style="font-size: 0.7rem; color: #888;">Ядра:</label>
-              <select id="select-threads" style="width: 100%; background: #333; color: #fff; border: 1px solid #444;">
-                <option value="1">1</option>
-                <option value="4" selected>4</option>
-              </select>
-            </div>
-          </div>
-          <div class="analysis-engine-stats">
-            <div>Оценка: <strong id="engine-eval-val">0.00</strong></div>
-          </div>
           <div id="multipv-container" class="multipv-container"></div>
         </div>
-
         <div class="move-history">
-          <div class="history-title">История ходов</div>
           <div id="move-log" class="move-log-content"></div>
         </div>
-
         <div class="actions">
-          <button id="btn-new-game" class="btn">Очистить</button>
-          <button id="btn-flip" class="btn btn-secondary">Повернуть</button>
+          <button id="btn-new-game" class="btn">Очистить доску</button>
+          <button id="btn-flip" class="btn btn-secondary">Повернуть доску</button>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- СКРИПТЫ В КОНЦЕ BODY -->
   <script src="sounds.js"></script>
   <script src="analysis-app.js"></script>
 </body>
