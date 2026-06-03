@@ -3,17 +3,17 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Lichess Lite (Play vs AI)</title>
+  <title>Azachess - Игра</title>
   <link rel="stylesheet" href="style.css">
-  <!-- Сначала загружаем правила игры -->
   <script src="https://cdn.jsdelivr.net/npm/chess.js@0.10.3/chess.min.js"></script>
 </head>
 <body>
 
   <div class="game-wrapper-root">
     <div class="nav-bar">
-      <a href="index.html" class="nav-link active">Играть против ИИ</a>
-      <a href="analysis.html" target="_blank" class="nav-link">Анализ партии ↗</a>
+      <a href="index.html" class="nav-link">← На главную</a>
+      <a href="play.html" class="nav-link active">Играть</a>
+      <a href="analysis.html" class="nav-link">Анализ ↗</a>
     </div>
 
     <div class="game-container">
@@ -42,20 +42,6 @@
           <div id="clock-bottom" class="clock">--:--</div>
         </div>
 
-        <div class="time-selection-area">
-          <label style="display: block; margin-bottom: 10px; color: #888; font-size: 0.8rem;">Контроль времени:</label>
-          <div class="time-grid">
-            <button class="time-btn" data-time="1+0">1+0</button>
-            <button class="time-btn" data-time="3+0">3+0</button>
-            <button class="time-btn" data-time="3+2">3+2</button>
-            <button class="time-btn" data-time="5+0">5+0</button>
-            <button class="time-btn active" data-time="5+3">5+3</button>
-            <button class="time-btn" data-time="10+5">10+5</button>
-            <button class="time-btn" data-time="30+0">30+0</button>
-            <button class="time-btn" data-time="none">Без времени</button>
-          </div>
-        </div>
-
         <div class="select-wrapper">
           <label>Сложность ИИ:</label>
           <select id="ai-depth">
@@ -79,7 +65,6 @@
     </div>
   </div>
 
-  <!-- СКРИПТЫ В КОНЦЕ BODY: сначала звуки, потом логика -->
   <script src="sounds.js"></script>
   <script src="app.js"></script>
 </body>
