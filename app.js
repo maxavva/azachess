@@ -279,9 +279,15 @@ function onMoveExecution() {
 }
 
 function resetGameSettings() {
-  stopTimer(); game = new Chess(); fullMoveHistory = []; currentMoveIndex = 0; isGameStarted = false;
-  const activeBtn = document.querySelector('.time-btn.active');
-  const timeVal = activeBtn ? activeBtn.getAttribute('data-time') : '5+3';
+  stopTimer();
+  game = new Chess();
+  fullMoveHistory = [];
+  currentMoveIndex = 0;
+  isGameStarted = false;
+
+  // Читаем выбор с главной страницы
+  const timeVal = localStorage.getItem('selected-time-control') || '5+3';
+
   if (timeVal === 'none') {
     isClockEnabled = false;
     document.getElementById('clocks-wrapper').style.display = 'none';
@@ -289,9 +295,16 @@ function resetGameSettings() {
     isClockEnabled = true;
     document.getElementById('clocks-wrapper').style.display = 'flex';
     const parts = timeVal.split('+');
-    whiteTime = parseInt(parts[0]) * 60; blackTime = whiteTime; increment = parseInt(parts[1]) || 0;
+    whiteTime = parseInt(parts[0]) * 60;
+    blackTime = whiteTime;
+    increment = parseInt(parts[1]) || 0;
   }
-  updateClockDisplay(); clearSelection(); updateMoveLog(); updateStatus(); renderBoard(true);
+
+  updateClockDisplay();
+  clearSelection();
+  updateMoveLog();
+  updateStatus();
+  renderBoard(true);
 }
 
 function startTimer() {
