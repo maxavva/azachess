@@ -1,28 +1,19 @@
-// Используем максимально надежные ссылки
+// Самый надежный CDN (Lichess Assets)
 const soundUrls = {
-    move: 'https://raw.githubusercontent.com/maxavva/azachess/main/move.mp3', // Резерв на случай, если основные упадут
-    capture: 'https://raw.githubusercontent.com/clime-ch/chess-sounds/master/capture.mp3',
-    check: 'https://raw.githubusercontent.com/clime-ch/chess-sounds/master/check.mp3',
-    gameEnd: 'https://raw.githubusercontent.com/clime-ch/chess-sounds/master/notify.mp3',
-    promote: 'https://raw.githubusercontent.com/clime-ch/chess-sounds/master/promote.mp3'
-};
-
-// Если те ссылки не сработают, используем эти (Lichess)
-const backupUrls = {
-    move: 'https://cdn.jsdelivr.net/gh/lichess-org/lila@master/public/sound/standard/Move.mp3',
-    capture: 'https://cdn.jsdelivr.net/gh/lichess-org/lila@master/public/sound/standard/Capture.mp3',
-    check: 'https://cdn.jsdelivr.net/gh/lichess-org/lila@master/public/sound/standard/Check.mp3',
-    gameEnd: 'https://cdn.jsdelivr.net/gh/lichess-org/lila@master/public/sound/standard/GenericNotify.mp3',
-    promote: 'https://cdn.jsdelivr.net/gh/lichess-org/lila@master/public/sound/standard/Promote.mp3'
+    move: 'https://lichess1.org/assets/sound/standard/Move.mp3',
+    capture: 'https://lichess1.org/assets/sound/standard/Capture.mp3',
+    check: 'https://lichess1.org/assets/sound/standard/Check.mp3',
+    gameEnd: 'https://lichess1.org/assets/sound/standard/GenericNotify.mp3',
+    promote: 'https://lichess1.org/assets/sound/standard/Promote.mp3'
 };
 
 const chessSounds = {};
-let isAudioUnlocked = false;
+let isAudioReady = false;
 
-// Предварительная настройка
+// Инициализация
 function initSounds() {
-    for (let key in backupUrls) {
-        const audio = new Audio(backupUrls[key]);
+    for (let key in soundUrls) {
+        const audio = new Audio(soundUrls[key]);
         audio.preload = 'auto';
         audio.crossOrigin = "anonymous";
         chessSounds[key] = audio;
@@ -30,71 +21,74 @@ function initSounds() {
 }
 initSounds();
 
-// ФУНКЦИЯ "ПРОГРЕВА" - Самая важная часть
-function unlockAllSounds() {
-    if (isAudioUnlocked) return;
+// ФУНКЦИЯ РАЗБЛОКИРОВКИ (должна сработать от клика)
+function unlockAudio() {
+    if (isAudioReady) return;
     
-    console.log("Инициализация аудио-контекста...");
+    console.log("Активация звукового движка...");
     
     for (let key in chessSounds) {
         const sound = chessSounds[key];
-        // Устанавливаем минимальную громкость и проигрываем
-        sound.volume = 0.1;
-        const playPromise = sound.play();
-        
-        if (playPromise !== undefined) {
-            playPromise.then(() => {
-                // Мгновенно ставим на паузу и возвращаем в начало
+        // Важнейший момент: "играем" тишину
+        const promise = sound.play();
+        if (promise !== undefined) {
+            promise.then(() => {
                 sound.pause();
                 sound.currentTime = 0;
-                sound.volume = 1.0; // Возвращаем полную громкость для игры
-            }).catch(e => {
-                console.log("Блокировка всё еще активна для: " + key);
+            }).catch(err => {
+                console.warn("Браузер всё еще блокирует звук: " + key);
             });
         }
     }
     
-    isAudioUnlocked = true;
+    isAudioReady = true;
+    // Убираем слушателей
+    window.removeEventListener('mousedown', unlockAudio);
+    window.removeEventListener('touchstart', unlockAudio);
+    window.removeEventListener('keydown', unlockAudio);
 }
 
-// Привязываем прогрев к ЛЮБОМУ клику по документу
-document.addEventListener('click', unlockAllSounds, { once: true });
-document.addEventListener('touchstart', unlockAllSounds, { once: true });
+// Ждем любого действия от пользователя
+window.addEventListener('mousedown', unlockAudio);
+window.addEventListener('touchstart', unlockAudio);
+window.addEventListener('keydown', unlockAudio);
 
 function playMoveSound(result) {
-    if (!result || !isAudioUnlocked) return;
+    if (!result) return;
+    
+    // Если ИИ делает ход, а пользователь еще не кликнул - звук не сработает (защита браузера)
+    if (!isAudioReady) return;
 
     try {
-        let soundToPlay = chessSounds.move;
+        let sound = chessSounds.move;
 
-        // Проверка через глобальный объект game (из app.js)
-        const isCheck = (typeof game !== 'undefined' && game && game.in_check()) ? true : false;
-        const isGameOver = (typeof game !== 'undefined' && game && game.game_over()) ? true : false;
+        // Проверка через объект game (который должен быть в app.js)
+        const chessGame = window.game; 
+        const isCheck = (chessGame && typeof chessGame.in_check === 'function') ? chessGame.in_check() : false;
+        const isOver = (chessGame && typeof chessGame.game_over === 'function') ? chessGame.game_over() : false;
 
         if (isCheck) {
-            soundToPlay = chessSounds.check;
+            sound = chessSounds.check;
         } else if (result.flags && (result.flags.includes('c') || result.flags.includes('e'))) {
-            soundToPlay = chessSounds.capture;
+            sound = chessSounds.capture;
         } else if (result.flags && result.flags.includes('p')) {
-            soundToPlay = chessSounds.promote;
+            sound = chessSounds.promote;
         }
 
-        if (soundToPlay) {
-            soundToPlay.currentTime = 0;
-            soundToPlay.play().catch(() => {
-                // Если всё равно не вышло, просто молчим
-            });
+        if (sound) {
+            sound.currentTime = 0;
+            sound.play().catch(() => {});
         }
 
-        if (isGameOver) {
+        if (isOver) {
             setTimeout(() => {
                 if (chessSounds.gameEnd) {
                     chessSounds.gameEnd.currentTime = 0;
                     chessSounds.gameEnd.play().catch(() => {});
                 }
-            }, 500);
+            }, 450);
         }
     } catch (e) {
-        console.error("Ошибка звука:", e);
+        console.error("Audio Error:", e);
     }
 }
