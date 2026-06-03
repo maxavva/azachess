@@ -23,13 +23,13 @@ var liveGame = new Chess();
 var displayGame = new Chess();
 let fullMoveHistory = [], currentMoveIndex = 0; 
 let whiteTime = 300, blackTime = 300, increment = 3, isClockEnabled = true, isGameStarted = false, timerInterval = null;
-let isFlipped = false, isDragging = false, dragStartX = 0, dragStartY = 0, dragClone = null, draggedPieceImg = null, draggedSquare = null;
+let isFlipped = false, isDragging = false, dragMovedEnough = false, dragStartX = 0, dragStartY = 0, dragClone = null, draggedPieceImg = null, draggedSquare = null;
+let selectedSquare = null, validMoves = []; // Переменные для точек и кликов
 let stockfishWorker = null, isStockfishReady = false, isWaitingForAIMove = false;
 const DRAG_THRESHOLD = 5;
 
 document.addEventListener('DOMContentLoaded', () => {
   initStockfish();
-  
   const bind = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = fn; };
   bind('btn-new-game', startNewGame);
   bind('btn-flip', flipBoard);
@@ -42,7 +42,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.key === 'ArrowLeft') jumpToMoveIndex(currentMoveIndex - 1);
     if (e.key === 'ArrowRight') jumpToMoveIndex(currentMoveIndex + 1);
   });
-
   resetGameSettings();
 });
 
@@ -53,6 +52,7 @@ function initStockfish() {
     if (e.data === 'readyok') { isStockfishReady = true; checkAndTriggerAI(); }
     if (e.data.startsWith('bestmove') && isWaitingForAIMove) {
       isWaitingForAIMove = false;
+      if (isClockEnabled && (whiteTime <= 0 || blackTime <= 0)) return;
       const move = e.data.split(' ')[1];
       if (move && move !== '(none)') {
         const res = liveGame.move({ from: move.substring(0,2), to: move.substring(2,4), promotion: move[4]||'q' });
@@ -88,40 +88,74 @@ function renderBoard(rebuild = false) {
       }
     }
   }
+
   boardEl.querySelectorAll('.square').forEach(sq => {
     const name = sq.dataset.square, piece = displayGame.get(name);
     sq.classList.remove('last-move', 'selected', 'check');
     const last = fullMoveHistory[currentMoveIndex - 1];
     if (last && (name === last.from || name === last.to)) sq.classList.add('last-move');
+    if (selectedSquare === name) sq.classList.add('selected');
     if (displayGame.in_check() && piece && piece.type === 'k' && piece.color === displayGame.turn()) sq.classList.add('check');
+    
     let img = sq.querySelector('.piece');
     if (piece) {
       const src = pieceImagePaths[`${piece.color}${piece.type.toUpperCase()}`];
       if (!img) { img = document.createElement('img'); img.className = 'piece'; img.draggable = false; sq.appendChild(img); }
       img.src = src;
     } else if (img) sq.removeChild(img);
+
+    // ОТРИСОВКА ТОЧЕК (Markers)
+    let m = sq.querySelector('.move-dest, .move-dest-capture');
+    if (validMoves.includes(name)) {
+      const cls = piece ? 'move-dest-capture' : 'move-dest';
+      if (!m || m.className !== cls) {
+        if (m) sq.removeChild(m);
+        m = document.createElement('div'); m.className = cls; sq.appendChild(m);
+      }
+    } else if (m) sq.removeChild(m);
   });
 }
 
 function handlePointerDown(e, sq) {
   if (typeof unlockAudio === 'function') unlockAudio();
-  if (currentMoveIndex < fullMoveHistory.length || isWaitingForAIMove || liveGame.game_over()) return;
+  if (e.button !== 0 || isWaitingForAIMove || liveGame.game_over()) return;
+  
+  // Если кликнули на точку (завершение хода кликом)
+  if (selectedSquare && validMoves.includes(sq)) {
+    attemptMove(selectedSquare, sq);
+    return;
+  }
+
+  // Если листаем историю - запрещаем ходы
+  if (currentMoveIndex < fullMoveHistory.length) return;
+
   const piece = liveGame.get(sq);
-  if (piece && piece.color === (isFlipped ? 'b' : 'w')) {
-    isDragging = true; draggedSquare = sq; dragStartX = e.clientX; dragStartY = e.clientY;
+  const playerColor = isFlipped ? 'b' : 'w';
+  
+  if (piece && piece.color === playerColor) {
+    isDragging = true; dragMovedEnough = false; draggedSquare = sq;
+    dragStartX = e.clientX; dragStartY = e.clientY;
     draggedPieceImg = e.target.classList.contains('piece') ? e.target : e.target.querySelector('.piece');
-    window.onpointermove = handlePointerMove; window.onpointerup = handlePointerUp;
+    
+    selectedSquare = sq;
+    validMoves = liveGame.moves({ square: sq, verbose: true }).map(m => m.to);
+    renderBoard(false);
+
+    window.onpointermove = handlePointerMove;
+    window.onpointerup = handlePointerUp;
     try { e.target.setPointerCapture(e.pointerId); } catch(err) {}
+  } else {
+    clearSelection();
   }
 }
 
 function handlePointerMove(e) {
   if (!isDragging || !draggedPieceImg) return;
   if (Math.hypot(e.clientX - dragStartX, e.clientY - dragStartY) > 5) {
+    dragMovedEnough = true;
     if (!dragClone) {
       dragClone = draggedPieceImg.cloneNode(true);
       dragClone.className = 'piece drag-clone';
-      // ФИКС РАЗМЕРА ФИГУРЫ:
       dragClone.style.width = draggedPieceImg.offsetWidth + 'px';
       dragClone.style.height = draggedPieceImg.offsetHeight + 'px';
       document.body.appendChild(dragClone);
@@ -133,24 +167,41 @@ function handlePointerMove(e) {
 }
 
 function handlePointerUp(e) {
+  if (!isDragging) return;
   isDragging = false; window.onpointermove = null; window.onpointerup = null;
   if (dragClone) { document.body.removeChild(dragClone); dragClone = null; }
   if (draggedPieceImg) draggedPieceImg.style.visibility = 'visible';
+
   const el = document.elementFromPoint(e.clientX, e.clientY);
   const target = el?.closest('.square')?.dataset.square;
-  if (target) {
-    const res = liveGame.move({ from: draggedSquare, to: target, promotion: 'q' });
-    if (res) {
-      if (window.playMoveSound) playMoveSound(res);
-      fullMoveHistory.push(res); currentMoveIndex = fullMoveHistory.length;
-      syncDisplayGame(); onMoveExecution();
-    }
+
+  if (dragMovedEnough && target && validMoves.includes(target)) {
+    attemptMove(draggedSquare, target);
+  } else if (!dragMovedEnough) {
+    // Если это был просто клик, мы уже выделили фигуру в PointerDown
+  } else {
+    clearSelection();
+  }
+}
+
+function attemptMove(from, to) {
+  if (isClockEnabled && isGameStarted && (whiteTime <= 0 || blackTime <= 0)) return clearSelection();
+  const res = liveGame.move({ from: from, to: to, promotion: 'q' });
+  if (res) {
+    if (window.playMoveSound) playMoveSound(res);
+    fullMoveHistory.push(res); 
+    currentMoveIndex = fullMoveHistory.length;
+    syncDisplayGame(); 
+    onMoveExecution();
+  } else {
+    clearSelection();
   }
 }
 
 function onMoveExecution() {
   if (!isGameStarted) isGameStarted = true;
   if (isClockEnabled) { if (liveGame.turn() === 'b') whiteTime += increment; else blackTime += increment; }
+  selectedSquare = null; validMoves = []; // Очистка после хода
   updateMoveLog(); updateStatus(); updateClockDisplay(); renderBoard(false);
   if (!liveGame.game_over()) { if (isClockEnabled) startTimer(); checkAndTriggerAI(); }
   else stopTimer();
@@ -164,7 +215,10 @@ function syncDisplayGame() {
 
 function jumpToMoveIndex(idx) {
   if (idx < 0 || idx > fullMoveHistory.length) return;
-  currentMoveIndex = idx; syncDisplayGame(); updateMoveLog();
+  currentMoveIndex = idx;
+  selectedSquare = null; validMoves = [];
+  syncDisplayGame();
+  updateMoveLog();
 }
 
 function startTimer() {
@@ -187,17 +241,19 @@ function updateClockDisplay() {
   (isFlipped ? t : b).textContent = format(whiteTime);
   (isFlipped ? b : t).textContent = format(blackTime);
   const turn = liveGame.turn();
-  const active = isGameStarted && !liveGame.game_over() && whiteTime > 0 && blackTime > 0;
+  const active = isGameStarted && !liveGame.game_over();
   t.classList.toggle('active', active && ((isFlipped && turn === 'w') || (!isFlipped && turn === 'b')));
   b.classList.toggle('active', active && ((!isFlipped && turn === 'w') || (isFlipped && turn === 'b')));
 }
 
 function resetGameSettings() {
   stopTimer(); liveGame = new Chess(); displayGame = new Chess(); fullMoveHistory = []; currentMoveIndex = 0; isGameStarted = false;
+  selectedSquare = null; validMoves = [];
   const timeVal = localStorage.getItem('selected-time-control') || '5+3';
-  if (timeVal === 'none') { isClockEnabled = false; document.getElementById('clocks-wrapper').style.display = 'none'; }
+  const cw = document.getElementById('clocks-wrapper');
+  if (timeVal === 'none') { isClockEnabled = false; if(cw) cw.style.display = 'none'; }
   else {
-    isClockEnabled = true; document.getElementById('clocks-wrapper').style.display = 'flex';
+    isClockEnabled = true; if(cw) cw.style.display = 'flex';
     const parts = timeVal.split('+');
     whiteTime = parseInt(parts[0]) * 60; blackTime = whiteTime; increment = parseInt(parts[1]) || 0;
   }
@@ -205,7 +261,6 @@ function resetGameSettings() {
 }
 
 function stopTimer() { if (timerInterval) clearInterval(timerInterval); timerInterval = null; }
-
 function updateStatus() {
   const s = document.getElementById('status-text'); if (!s) return;
   if (isClockEnabled && isGameStarted && whiteTime <= 0) s.textContent = 'Белые: время вышло!';
@@ -213,12 +268,10 @@ function updateStatus() {
   else if (liveGame.in_checkmate()) s.textContent = 'Мат!';
   else s.textContent = liveGame.turn()==='w' ? 'Ход белых' : 'Ход черных';
 }
-
 function checkAndTriggerAI() {
   const pc = isFlipped ? 'b' : 'w';
   if (liveGame.turn() !== pc && !liveGame.game_over()) triggerEngineMove();
 }
-
 function triggerEngineMove() {
   if (!isStockfishReady || isWaitingForAIMove) return;
   const lv = localStorage.getItem('selected-ai-level') || 3;
@@ -227,10 +280,9 @@ function triggerEngineMove() {
   stockfishWorker.postMessage(`position fen ${liveGame.fen()}`);
   stockfishWorker.postMessage(`go depth ${cfg.depth}`);
 }
-
 function flipBoard() { isFlipped = !isFlipped; renderBoard(true); updateClockDisplay(); checkAndTriggerAI(); }
 function startNewGame() { resetGameSettings(); }
-
+function clearSelection() { selectedSquare = null; validMoves = []; renderBoard(false); }
 function updateMoveLog() {
   const log = document.getElementById('move-log'); if(!log) return; log.innerHTML = '';
   for (let i = 0; i < fullMoveHistory.length; i += 2) {
