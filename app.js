@@ -19,16 +19,17 @@ const AI_LEVELS = {
   7: { skill: 20, depth: 15 }, 8: { skill: 20, depth: 20 }
 };
 
-// Источники правды
-var liveGame = null; // Актуальная позиция (для ИИ и времени)
-var displayGame = null; // То, что на экране (для листания)
-window.game = null; // Глобальная ссылка для sounds.js
+// Глобальные игровые движки
+var liveGame = new Chess();   // Реальная игра (логика, ИИ, таймер)
+var displayGame = new Chess(); // Визуальная игра (то, что на доске сейчас)
+window.game = liveGame;        // Для sounds.js
 
 let fullMoveHistory = [], currentMoveIndex = 0; 
 let whiteTime = 300, blackTime = 300, increment = 3, isClockEnabled = true, isGameStarted = false, timerInterval = null;
 let isFlipped = false, isDragging = false, dragMovedEnough = false, dragStartX = 0, dragStartY = 0, dragClone = null, draggedPieceImg = null, draggedSquare = null;
 let selectedSquare = null, validMoves = [];
 let stockfishWorker = null, isStockfishReady = false, isWaitingForAIMove = false;
+let promotionFrom = null, promotionTo = null;
 const DRAG_THRESHOLD = 5;
 
 // ИНИЦИАЛИЗАЦИЯ
@@ -37,14 +38,8 @@ function initApp() {
     setTimeout(initApp, 100);
     return;
   }
-  
-  liveGame = new Chess();
-  displayGame = new Chess();
-  window.game = liveGame; // Связываем для звуков
-  
   initStockfish();
   
-  // Привязка кнопок
   const setupBtn = (id, fn) => { 
     const el = document.getElementById(id); 
     if (el) el.onclick = fn; 
@@ -68,29 +63,30 @@ function initApp() {
 document.addEventListener('DOMContentLoaded', initApp);
 
 function initStockfish() {
-  try {
-    const blobCode = `importScripts('https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js');`;
-    stockfishWorker = new Worker(URL.createObjectURL(new Blob([blobCode], { type: 'application/javascript' })));
-    stockfishWorker.onmessage = (e) => {
-      if (e.data === 'readyok') isStockfishReady = true;
-      if (e.data.startsWith('bestmove') && isWaitingForAIMove) {
-        isWaitingForAIMove = false;
-        const move = e.data.split(' ')[1];
-        if (move && move !== '(none)') {
-          const res = liveGame.move({ from: move.substring(0, 2), to: move.substring(2, 4), promotion: move[4] || 'q' });
-          if (res) {
-            if (window.playMoveSound) playMoveSound(res);
-            fullMoveHistory.push(res);
-            if (currentMoveIndex === fullMoveHistory.length - 1) currentMoveIndex = fullMoveHistory.length;
-            syncDisplayGame();
-            onMoveExecution();
+  const blobCode = `importScripts('https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js');`;
+  stockfishWorker = new Worker(URL.createObjectURL(new Blob([blobCode], { type: 'application/javascript' })));
+  stockfishWorker.onmessage = (e) => {
+    if (e.data === 'readyok') isStockfishReady = true;
+    if (e.data.startsWith('bestmove') && isWaitingForAIMove) {
+      isWaitingForAIMove = false;
+      const move = e.data.split(' ')[1];
+      if (move && move !== '(none)') {
+        const res = liveGame.move({ from: move.substring(0, 2), to: move.substring(2, 4), promotion: move[4] || 'q' });
+        if (res) {
+          if (window.playMoveSound) playMoveSound(res);
+          fullMoveHistory.push(res);
+          // Если пользователь смотрел "живой" эфир, двигаем его за новым ходом
+          if (currentMoveIndex === fullMoveHistory.length - 1) {
+            currentMoveIndex = fullMoveHistory.length;
           }
+          syncDisplayGame();
+          onMoveExecution();
         }
       }
-    };
-    stockfishWorker.postMessage('uci');
-    stockfishWorker.postMessage('isready');
-  } catch (err) { console.error("Stockfish Error:", err); }
+    }
+  };
+  stockfishWorker.postMessage('uci');
+  stockfishWorker.postMessage('isready');
 }
 
 function renderBoard(rebuildSquares = false) {
@@ -117,7 +113,7 @@ function renderBoard(rebuildSquares = false) {
 
   boardEl.querySelectorAll('.square').forEach(sq => {
     const name = sq.dataset.square;
-    const piece = displayGame.get(name);
+    const piece = displayGame.get(name); // Отображаем фигуры из displayGame
     sq.classList.remove('last-move', 'selected', 'check');
     
     const last = fullMoveHistory[currentMoveIndex - 1];
@@ -135,9 +131,9 @@ function renderBoard(rebuildSquares = false) {
       img.src = src;
     } else if (img) sq.removeChild(img);
 
-    // Точки
+    // Точки (рисуем только если мы в текущем моменте игры)
     let m = sq.querySelector('.move-dest, .move-dest-capture');
-    if (validMoves.includes(name)) {
+    if (currentMoveIndex === fullMoveHistory.length && validMoves.includes(name)) {
       const cls = piece ? 'move-dest-capture' : 'move-dest';
       if (!m || m.className !== cls) {
         if (m) sq.removeChild(m);
@@ -151,13 +147,13 @@ function handlePointerDown(e, square) {
   if (typeof unlockAudio === 'function') unlockAudio();
   if (e.button !== 0 || liveGame.game_over() || isWaitingForAIMove) return;
 
-  // Если кликнули на точку (ход кликом)
-  if (selectedSquare && validMoves.includes(square)) {
+  // Если кликнули на точку завершения хода
+  if (currentMoveIndex === fullMoveHistory.length && selectedSquare && validMoves.includes(square)) {
     attemptMove(selectedSquare, square);
     return;
   }
 
-  // Листание истории блокирует ходы
+  // Если смотрим историю - ходы запрещены
   if (currentMoveIndex < fullMoveHistory.length) return;
 
   const playerColor = isFlipped ? 'b' : 'w';
@@ -209,7 +205,7 @@ function handlePointerUp(e) {
   if (dragMovedEnough && target && validMoves.includes(target)) {
     attemptMove(draggedSquare, target);
   } else if (!dragMovedEnough) {
-    // Просто клик - оставляем выбор
+    // Клик
   } else {
     clearSelection();
   }
@@ -244,17 +240,78 @@ function onMoveExecution() {
   } else stopTimer();
 }
 
-function checkAndTriggerAI() {
-  const playerColor = isFlipped ? 'b' : 'w';
-  if (liveGame.turn() !== playerColor && !liveGame.game_over()) {
-    triggerEngineMove();
-  }
-}
-
 function syncDisplayGame() {
   displayGame = new Chess();
   fullMoveHistory.slice(0, currentMoveIndex).forEach(m => displayGame.move(m));
   renderBoard(false);
+}
+
+function jumpToMoveIndex(idx) {
+  if (idx < 0 || idx > fullMoveHistory.length) return;
+  currentMoveIndex = idx;
+  selectedSquare = null; validMoves = [];
+  syncDisplayGame();
+  updateMoveLog();
+  // Часы и статус обновляются по liveGame, поэтому тут их не трогаем
+}
+
+function startTimer() {
+  stopTimer();
+  if (!isClockEnabled || !isGameStarted) return;
+  timerInterval = setInterval(() => {
+    if (liveGame.turn() === 'w') whiteTime--; else blackTime--;
+    if (whiteTime <= 0 || blackTime <= 0) {
+      whiteTime = Math.max(0, whiteTime);
+      blackTime = Math.max(0, blackTime);
+      stopTimer(); updateStatus(); updateClockDisplay();
+      if (window.chessSounds) chessSounds.gameEnd.play();
+    } else {
+      updateClockDisplay();
+    }
+  }, 1000);
+}
+
+function stopTimer() { if (timerInterval) clearInterval(timerInterval); timerInterval = null; }
+
+function updateClockDisplay() {
+  const t = document.getElementById('clock-top'), b = document.getElementById('clock-bottom');
+  if (!t || !b || !isClockEnabled) return;
+  
+  const format = (s) => `${Math.floor(s/60)}:${(s%60).toString().padStart(2, '0')}`;
+  (isFlipped ? t : b).textContent = format(whiteTime);
+  (isFlipped ? b : t).textContent = format(blackTime);
+  
+  const realTurn = liveGame.turn();
+  const isActive = isGameStarted && !liveGame.game_over() && whiteTime > 0 && blackTime > 0;
+  
+  t.classList.toggle('active', isActive && ((isFlipped && realTurn === 'w') || (!isFlipped && realTurn === 'b')));
+  b.classList.toggle('active', isActive && ((!isFlipped && realTurn === 'w') || (isFlipped && realTurn === 'b')));
+}
+
+function updateStatus() {
+  const s = document.getElementById('status-text'); if (!s) return;
+  if (isClockEnabled && isGameStarted && whiteTime <= 0) s.textContent = 'Белые: время вышло!';
+  else if (isClockEnabled && isGameStarted && blackTime <= 0) s.textContent = 'Черные: время вышло!';
+  else if (liveGame.in_checkmate()) s.textContent = 'Мат!';
+  else if (liveGame.in_draw()) s.textContent = 'Ничья';
+  else s.textContent = liveGame.turn()==='w' ? 'Ход белых' : 'Ход черных';
+}
+
+function triggerEngineMove() {
+  if (!isStockfishReady || isWaitingForAIMove || liveGame.game_over()) return;
+  if (isClockEnabled && (whiteTime <= 0 || blackTime <= 0)) return;
+
+  const lv = localStorage.getItem('selected-ai-level') || 3;
+  const cfg = AI_LEVELS[lv];
+  isWaitingForAIMove = true;
+  stockfishWorker.postMessage(`setoption name Skill Level value ${cfg.skill}`);
+  stockfishWorker.postMessage(`position fen ${liveGame.fen()}`);
+  stockfishWorker.postMessage(`go depth ${cfg.depth}`);
+}
+
+function checkAndTriggerAI() {
+  const pc = isFlipped ? 'b' : 'w';
+  if (liveGame.turn() !== pc && !liveGame.game_over()) triggerEngineMove();
 }
 
 function resetGameSettings() {
@@ -289,64 +346,6 @@ function resetGameSettings() {
   checkAndTriggerAI();
 }
 
-function startTimer() {
-  stopTimer();
-  if (!isClockEnabled || !isGameStarted) return;
-  timerInterval = setInterval(() => {
-    if (liveGame.turn() === 'w') whiteTime--; else blackTime--;
-    if (whiteTime <= 0 || blackTime <= 0) {
-      whiteTime = Math.max(0, whiteTime);
-      blackTime = Math.max(0, blackTime);
-      stopTimer();
-      updateStatus();
-      if (window.chessSounds) chessSounds.gameEnd.play();
-    }
-    updateClockDisplay();
-  }, 1000);
-}
-
-function stopTimer() { if (timerInterval) clearInterval(timerInterval); timerInterval = null; }
-
-function updateClockDisplay() {
-  const t = document.getElementById('clock-top'), b = document.getElementById('clock-bottom');
-  if (!t || !b || !isClockEnabled) return;
-  
-  const format = (s) => `${Math.floor(s/60)}:${(s%60).toString().padStart(2, '0')}`;
-  (isFlipped ? t : b).textContent = format(whiteTime);
-  (isFlipped ? b : t).textContent = format(blackTime);
-  
-  const turn = liveGame.turn();
-  const active = isGameStarted && !liveGame.game_over();
-  t.classList.toggle('active', active && ((isFlipped && turn === 'w') || (!isFlipped && turn === 'b')));
-  b.classList.toggle('active', active && ((!isFlipped && turn === 'w') || (isFlipped && turn === 'b')));
-}
-
-function updateStatus() {
-  const s = document.getElementById('status-text'); if (!s) return;
-  if (isClockEnabled && whiteTime <= 0) s.textContent = 'Белые: время вышло!';
-  else if (isClockEnabled && blackTime <= 0) s.textContent = 'Черные: время вышло!';
-  else if (liveGame.in_checkmate()) s.textContent = 'Мат!';
-  else s.textContent = liveGame.turn()==='w' ? 'Ход белых' : 'Ход черных';
-}
-
-function triggerEngineMove() {
-  if (!isStockfishReady || isWaitingForAIMove) return;
-  const lv = localStorage.getItem('selected-ai-level') || 3;
-  const cfg = AI_LEVELS[lv];
-  isWaitingForAIMove = true;
-  stockfishWorker.postMessage(`setoption name Skill Level value ${cfg.skill}`);
-  stockfishWorker.postMessage(`position fen ${liveGame.fen()}`);
-  stockfishWorker.postMessage(`go depth ${cfg.depth}`);
-}
-
-function jumpToMoveIndex(idx) {
-  if (idx < 0 || idx > fullMoveHistory.length) return;
-  currentMoveIndex = idx;
-  selectedSquare = null; validMoves = [];
-  syncDisplayGame();
-  updateMoveLog();
-}
-
 function startNewGame() { resetGameSettings(); }
 function clearSelection() { selectedSquare = null; validMoves = []; renderBoard(false); }
 function flipBoard() { isFlipped = !isFlipped; renderBoard(true); updateClockDisplay(); checkAndTriggerAI(); }
@@ -356,7 +355,7 @@ function updateMoveLog() {
   log.innerHTML = '';
   for (let i = 0; i < fullMoveHistory.length; i += 2) {
     const row = document.createElement('div'); row.className = 'move-row';
-    row.innerHTML = `<span style="color:#666;width:25px;display:inline-block;">${(i/2)+1}.</span>
+    row.innerHTML = `<span style="color:#666;width:25px;display:inline-block;">${Math.floor(i/2)+1}.</span>
       <span class="move-text ${i+1===currentMoveIndex?'active-move':''}" style="cursor:pointer;" onclick="jumpToMoveIndex(${i+1})">${fullMoveHistory[i].san}</span>
       ${fullMoveHistory[i+1] ? `<span class="move-text ${i+2===currentMoveIndex?'active-move':''}" style="cursor:pointer;" onclick="jumpToMoveIndex(${i+2})">${fullMoveHistory[i+1].san}</span>` : ''}`;
     log.appendChild(row);
