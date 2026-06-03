@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Azachess — Главная</title>
+  <!-- ВАЖНО: ПРОВЕРЬ ЭТУ ССЫЛКУ -->
   <link rel="stylesheet" href="home-style.css">
 </head>
 <body>
@@ -11,14 +12,12 @@
   <div class="hub-container">
     <header class="hub-header">
       <h1 class="logo">AZA<span>CHESS</span></h1>
-      <p class="tagline">Шахматы как искусство и азарт</p>
+      <p class="tagline">Начни свою партию</p>
     </header>
 
     <main class="hub-content">
-      
-      <!-- Контроль времени -->
       <section class="mode-section">
-        <h2 class="section-title">1. Контроль времени</h2>
+        <h2 class="section-title">1. Выберите время</h2>
         <div class="time-grid" id="time-grid">
           <div class="time-card" data-time="1+0"><span class="val">1+0</span><span class="lab">Пуля</span></div>
           <div class="time-card" data-time="3+2"><span class="val">3+2</span><span class="lab">Блиц</span></div>
@@ -29,9 +28,8 @@
         </div>
       </section>
 
-      <!-- Сложность ИИ -->
       <section class="mode-section">
-        <h2 class="section-title">2. Сложность ИИ (Level)</h2>
+        <h2 class="section-title">2. Выберите уровень ИИ</h2>
         <div class="level-grid" id="level-grid">
           <button class="level-btn" data-lv="1">1</button>
           <button class="level-btn" data-lv="2">2</button>
@@ -44,25 +42,21 @@
         </div>
       </section>
 
-      <!-- Кнопки действия -->
       <div class="main-actions">
-        <button class="start-btn" onclick="startGame()">ИГРАТЬ ПРОТИВ ИИ</button>
-        <a href="analysis.html" class="start-btn secondary">РЕЖИМ АНАЛИЗА</a>
+        <button class="start-btn" onclick="startGame()">ИГРАТЬ</button>
+        <a href="analysis.html" class="start-btn secondary">АНАЛИЗ</a>
       </div>
-
     </main>
 
     <footer class="hub-footer">
-      <p>&copy; 2026 Azachess. Powered by Stockfish 10 Engine.</p>
+      <p>&copy; 2026 Azachess Project</p>
     </footer>
   </div>
 
   <script>
-    // Установка дефолтов если пусто
     if(!localStorage.getItem('selected-time-control')) localStorage.setItem('selected-time-control', '5+3');
     if(!localStorage.getItem('selected-ai-level')) localStorage.setItem('selected-ai-level', '3');
 
-    // Клик по времени
     document.querySelectorAll('#time-grid .time-card').forEach(card => {
       card.onclick = () => {
         document.querySelectorAll('#time-grid .time-card').forEach(c => c.classList.remove('active'));
@@ -71,7 +65,6 @@
       };
     });
 
-    // Клик по ИИ
     document.querySelectorAll('#level-grid .level-btn').forEach(btn => {
       btn.onclick = () => {
         document.querySelectorAll('#level-grid .level-btn').forEach(b => b.classList.remove('active'));
