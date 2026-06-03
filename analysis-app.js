@@ -82,9 +82,12 @@ function initStockfish() {
   } catch (err) { isStockfishReady = false; }
 }
 
-function handleUCIResponse(message) {
+function handlePointerDown(e, square) {
+  // Вызываем разблокировку при КАЖДОМ нажатии, пока она не сработает
   if (typeof unlockAllSounds === 'function') unlockAllSounds();
-  if (message === 'readyok') { isStockfishReady = true; runAnalysisTask(); return; }
+  
+  if (e.button !== 0 || !game || game.game_over() || isWaitingForAIMove) return;
+  // ... дальше твой код
   if (message.startsWith('info')) {
     const dMatch = message.match(/depth (\d+)/);
     if (dMatch) document.getElementById('analysis-engine-title-text').textContent = `Анализ (глубина ${dMatch[1]})`;
