@@ -463,5 +463,15 @@ body {
 
 /* Кнопка "Без времени" на всю ширину */
 .time-btn[data-time="none"] {
+
+.chessboard {
+  touch-action: none; /* Запрещает скролл страницы пальцем на доске */
+}
+
+.piece {
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
   grid-column: span 3;
 }
