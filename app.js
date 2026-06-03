@@ -19,7 +19,11 @@ const AI_LEVELS = {
   7: { skill: 20, depth: 15 }, 8: { skill: 20, depth: 20 }
 };
 
-var game = null;
+// liveGame - актуальное состояние (таймер, ИИ)
+// displayGame - то, что мы видим на экране
+var liveGame = new Chess();
+var displayGame = new Chess();
+
 let selectedSquare = null, validMoves = [], isFlipped = false, fullMoveHistory = [], currentMoveIndex = 0; 
 let timerInterval = null, whiteTime = 300, blackTime = 300, increment = 3, isClockEnabled = true, isGameStarted = false;
 let isDragging = false, dragMovedEnough = false, dragStartX = 0, dragStartY = 0, dragClone = null, draggedPieceImg = null, draggedSquare = null;
@@ -32,7 +36,6 @@ function initApp() {
     setTimeout(initApp, 100);
     return;
   }
-  game = new Chess();
   initStockfish();
   
   const setupBtn = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = fn; };
@@ -59,11 +62,14 @@ function initStockfish() {
         if (isClockEnabled && (whiteTime <= 0 || blackTime <= 0)) return;
         const move = e.data.split(' ')[1];
         if (move && move !== '(none)') {
-          const res = game.move({ from: move.substring(0, 2), to: move.substring(2, 4), promotion: move[4] || 'q' });
+          const res = liveGame.move({ from: move.substring(0, 2), to: move.substring(2, 4), promotion: move[4] || 'q' });
           if (res) {
             if (window.playMoveSound) playMoveSound(res);
-            fullMoveHistory.push({ from: res.from, to: res.to, promotion: res.promotion, san: res.san });
-            currentMoveIndex = fullMoveHistory.length;
+            fullMoveHistory.push(res);
+            // Если мы смотрим последний ход, автоматически двигаем доску вперед
+            const wasAtEnd = (currentMoveIndex === fullMoveHistory.length - 1);
+            if (wasAtEnd) currentMoveIndex = fullMoveHistory.length;
+            syncDisplayGame();
             onMoveExecution();
           }
         }
@@ -100,12 +106,14 @@ function renderBoard(rebuildSquares = false) {
   }
 
   boardEl.querySelectorAll('.square').forEach(sq => {
-    const name = sq.dataset.square, piece = game.get(name);
+    const name = sq.dataset.square, piece = displayGame.get(name);
     sq.classList.remove('last-move', 'selected', 'check');
+    
+    // Подсветка последнего хода в ИСТОРИИ
     const last = fullMoveHistory[currentMoveIndex - 1];
     if (last && (name === last.from || name === last.to)) sq.classList.add('last-move');
     if (selectedSquare === name) sq.classList.add('selected');
-    if (game.in_check() && piece && piece.type === 'k' && piece.color === game.turn()) sq.classList.add('check');
+    if (displayGame.in_check() && piece && piece.type === 'k' && piece.color === displayGame.turn()) sq.classList.add('check');
     
     let img = sq.querySelector('.piece');
     if (piece) {
@@ -129,13 +137,14 @@ function renderBoard(rebuildSquares = false) {
 }
 
 function handlePointerDown(e, square) {
-  // Вызываем разблокировку при КАЖДОМ нажатии, пока она не сработает
-  if (typeof unlockAllSounds === 'function') unlockAllSounds();
+  if (e.button !== 0 || liveGame.game_over() || isWaitingForAIMove) return;
   
-  if (e.button !== 0 || !game || game.game_over() || isWaitingForAIMove) return;
-  // ... дальше твой код
-  const piece = game.get(square);
-  const myTurn = game.turn() === (isFlipped ? 'b' : 'w');
+  // Если мы листаем историю - запрещаем делать ходы
+  if (currentMoveIndex < fullMoveHistory.length) return;
+
+  const piece = liveGame.get(square);
+  const playerColor = isFlipped ? 'b' : 'w';
+  const myTurn = liveGame.turn() === playerColor;
   
   if (!myTurn) return;
 
@@ -143,8 +152,8 @@ function handlePointerDown(e, square) {
   dragStartX = e.clientX; dragStartY = e.clientY;
   draggedPieceImg = e.target.classList.contains('piece') ? e.target : e.target.querySelector('.piece');
   
-  if (piece && piece.color === (isFlipped ? 'b' : 'w')) {
-    validMoves = game.moves({ square: square, verbose: true }).map(m => m.to);
+  if (piece && piece.color === playerColor) {
+    validMoves = liveGame.moves({ square: square, verbose: true }).map(m => m.to);
     renderBoard(false); 
   }
   window.onpointermove = handlePointerMove;
@@ -181,12 +190,13 @@ function handlePointerUp(e) {
   if (dragMovedEnough && target && validMoves.includes(target)) {
     attemptMove(draggedSquare, target);
   } else if (!dragMovedEnough) {
-    const piece = game.get(draggedSquare);
-    if (piece && piece.color === (isFlipped ? 'b' : 'w')) {
+    const piece = liveGame.get(draggedSquare);
+    const playerColor = isFlipped ? 'b' : 'w';
+    if (piece && piece.color === playerColor) {
       if (selectedSquare === draggedSquare) clearSelection();
       else { 
         selectedSquare = draggedSquare; 
-        validMoves = game.moves({ square: draggedSquare, verbose: true }).map(m => m.to); 
+        validMoves = liveGame.moves({ square: draggedSquare, verbose: true }).map(m => m.to); 
         renderBoard(false); 
       }
     } else if (selectedSquare && validMoves.includes(draggedSquare)) {
@@ -197,25 +207,23 @@ function handlePointerUp(e) {
 
 function attemptMove(from, to) {
   if (isClockEnabled && isGameStarted && (whiteTime <= 0 || blackTime <= 0)) return clearSelection();
-  const moves = game.moves({ square: from, verbose: true });
+  const moves = liveGame.moves({ square: from, verbose: true });
   const move = moves.find(m => m.to === to);
-  
   if (!move) return clearSelection();
 
   if (move.flags.includes('p')) {
-    promotionFrom = from;
-    promotionTo = to;
-    const modal = document.getElementById('promotion-modal');
-    if (modal) modal.classList.remove('hidden');
+    promotionFrom = from; promotionTo = to;
+    document.getElementById('promotion-modal').classList.remove('hidden');
     renderPromotionChoices();
     return;
   }
 
-  const res = game.move({ from: from, to: to });
+  const res = liveGame.move({ from: from, to: to });
   if (res) {
     if (window.playMoveSound) playMoveSound(res);
-    fullMoveHistory.push({ from: res.from, to: res.to, promotion: res.promotion, san: res.san });
+    fullMoveHistory.push(res);
     currentMoveIndex = fullMoveHistory.length;
+    syncDisplayGame();
     onMoveExecution();
   }
 }
@@ -224,18 +232,18 @@ function renderPromotionChoices() {
   const container = document.querySelector('.promotion-choices');
   if (!container) return;
   container.innerHTML = '';
-  const turn = game.turn();
+  const turn = liveGame.turn();
   ['q', 'r', 'b', 'n'].forEach(p => {
     const btn = document.createElement('button');
     btn.className = 'promo-btn';
-    const pieceKey = turn + p.toUpperCase();
-    btn.innerHTML = `<img src="${pieceImagePaths[pieceKey]}" style="width:100%;">`;
+    btn.innerHTML = `<img src="${pieceImagePaths[turn + p.toUpperCase()]}" style="width:100%;">`;
     btn.onclick = () => {
-      const res = game.move({ from: promotionFrom, to: promotionTo, promotion: p });
+      const res = liveGame.move({ from: promotionFrom, to: promotionTo, promotion: p });
       if (res) {
         if (window.playMoveSound) playMoveSound(res);
-        fullMoveHistory.push({ from: res.from, to: res.to, promotion: res.promotion, san: res.san });
+        fullMoveHistory.push(res);
         currentMoveIndex = fullMoveHistory.length;
+        syncDisplayGame();
         document.getElementById('promotion-modal').classList.add('hidden');
         onMoveExecution();
       }
@@ -246,16 +254,31 @@ function renderPromotionChoices() {
 
 function onMoveExecution() {
   if (!isGameStarted) isGameStarted = true;
-  if (isClockEnabled) { if (game.turn() === 'b') whiteTime += increment; else blackTime += increment; }
+  if (isClockEnabled) {
+    if (liveGame.turn() === 'b') whiteTime += increment;
+    else blackTime += increment;
+  }
   clearSelection(); updateMoveLog(); updateStatus(); updateClockDisplay();
-  if (!game.game_over()) {
+  if (!liveGame.game_over()) {
     if (isClockEnabled) startTimer();
-    if (game.turn() !== (isFlipped ? 'b' : 'w')) triggerEngineMove();
+    checkAndTriggerAI();
   } else stopTimer();
 }
 
+function checkAndTriggerAI() {
+  const playerColor = isFlipped ? 'b' : 'w';
+  if (liveGame.turn() !== playerColor && !liveGame.game_over()) {
+    triggerEngineMove();
+  }
+}
+
 function resetGameSettings() {
-  stopTimer(); game = new Chess(); fullMoveHistory = []; currentMoveIndex = 0; isGameStarted = false;
+  stopTimer(); 
+  liveGame = new Chess(); 
+  displayGame = new Chess();
+  fullMoveHistory = []; 
+  currentMoveIndex = 0; 
+  isGameStarted = false;
   const timeVal = localStorage.getItem('selected-time-control') || '5+3';
   const cw = document.getElementById('clocks-wrapper');
   if (timeVal === 'none') { isClockEnabled = false; if(cw) cw.style.display = 'none'; }
@@ -265,12 +288,15 @@ function resetGameSettings() {
     whiteTime = parseInt(parts[0]) * 60; blackTime = whiteTime; increment = parseInt(parts[1]) || 0;
   }
   updateClockDisplay(); clearSelection(); updateMoveLog(); updateStatus(); renderBoard(true);
+  checkAndTriggerAI();
 }
 
 function startTimer() {
-  stopTimer(); if (!isClockEnabled || !isGameStarted) return;
+  stopTimer();
+  if (!isClockEnabled || !isGameStarted) return;
   timerInterval = setInterval(() => {
-    if (game.turn() === 'w') whiteTime--; else blackTime--;
+    // ВРЕМЯ ВСЕГДА СЛЕДУЕТ ЗА liveGame
+    if (liveGame.turn() === 'w') whiteTime--; else blackTime--;
     if (whiteTime <= 0 || blackTime <= 0) {
       whiteTime = Math.max(0, whiteTime); blackTime = Math.max(0, blackTime);
       stopTimer(); updateStatus();
@@ -284,58 +310,70 @@ function stopTimer() { if (timerInterval) clearInterval(timerInterval); timerInt
 
 function updateClockDisplay() {
   const t = document.getElementById('clock-top'), b = document.getElementById('clock-bottom');
-  if (!t || !b || !game) return;
+  if (!t || !b) return;
   const format = (s) => `${Math.floor(s/60)}:${(s%60).toString().padStart(2, '0')}`;
-  const turn = game.turn();
-  (isFlipped ? t : b).textContent = format(whiteTime);
-  (isFlipped ? b : t).textContent = format(blackTime);
-  const active = isGameStarted && !game.game_over();
-  t.classList.toggle('active', active && ((isFlipped && turn === 'w') || (!isFlipped && turn === 'b')));
-  b.classList.toggle('active', active && ((!isFlipped && turn === 'w') || (isFlipped && turn === 'b')));
+  
+  const wClock = isFlipped ? t : b;
+  const bClock = isFlipped ? b : t;
+  wClock.textContent = format(whiteTime);
+  bClock.textContent = format(blackTime);
+  
+  // ПОДСВЕТКА ВСЕГДА ПО liveGame
+  const turn = liveGame.turn();
+  const isActive = isGameStarted && !liveGame.game_over() && whiteTime > 0 && blackTime > 0;
+  t.classList.toggle('active', isActive && ((isFlipped && turn === 'w') || (!isFlipped && turn === 'b')));
+  b.classList.toggle('active', isActive && ((!isFlipped && turn === 'w') || (isFlipped && turn === 'b')));
 }
 
 function updateStatus() {
   const s = document.getElementById('status-text'); if (!s) return;
-  if (isClockEnabled && isGameStarted && whiteTime <= 0) s.textContent = 'Белые проиграли по времени!';
-  else if (isClockEnabled && isGameStarted && blackTime <= 0) s.textContent = 'Черные проиграли по времени!';
-  else if (game.in_checkmate()) s.textContent = `Мат!`;
-  else s.textContent = game.turn()==='w' ? 'Ход белых' : 'Ход черных';
+  if (isClockEnabled && isGameStarted && whiteTime <= 0) s.textContent = 'Белые: время вышло!';
+  else if (isClockEnabled && isGameStarted && blackTime <= 0) s.textContent = 'Черные: время вышло!';
+  else if (liveGame.in_checkmate()) s.textContent = `Мат!`;
+  else s.textContent = liveGame.turn()==='w' ? 'Ход белых' : 'Ход черных';
 }
 
 function triggerEngineMove() {
   if (!isStockfishReady || isWaitingForAIMove) return;
-
-  // ПРОВЕРКА: Если время вышло, ИИ не должен ходить
-  if (isClockEnabled && isGameStarted && (whiteTime <= 0 || blackTime <= 0)) return;
-
-  // ЧИТАЕМ УРОВЕНЬ ИЗ ПАМЯТИ
-  const savedLevel = localStorage.getItem('selected-ai-level') || 3;
-  const cfg = AI_LEVELS[savedLevel] || AI_LEVELS[3];
-
+  const lv = localStorage.getItem('selected-ai-level') || 3;
+  const cfg = AI_LEVELS[lv] || AI_LEVELS[3];
   isWaitingForAIMove = true;
-  document.getElementById('status-text').textContent = `ИИ (Ур. ${savedLevel}) думает...`;
-  
   stockfishWorker.postMessage(`setoption name Skill Level value ${cfg.skill}`);
-  stockfishWorker.postMessage(`position fen ${game.fen()}`);
+  stockfishWorker.postMessage(`position fen ${liveGame.fen()}`);
   stockfishWorker.postMessage(`go depth ${cfg.depth}`);
 }
 
 function startNewGame() { resetGameSettings(); }
 function clearSelection() { selectedSquare = null; validMoves = []; renderBoard(false); }
 function flipBoard() { isFlipped = !isFlipped; clearSelection(); renderBoard(true); updateClockDisplay(); }
+
 function updateMoveLog() {
   const log = document.getElementById('move-log'); if(!log) return;
   log.innerHTML = '';
   for (let i = 0; i < fullMoveHistory.length; i += 2) {
     const row = document.createElement('div'); row.className = 'move-row';
+    const wMove = fullMoveHistory[i];
+    const bMove = fullMoveHistory[i+1];
+    
     row.innerHTML = `<span class="move-number">${Math.floor(i/2)+1}.</span>
-      <span class="move-text clickable-move ${i+1===currentMoveIndex?'active-move':''}" onclick="jumpToMoveIndex(${i+1})">${fullMoveHistory[i].san}</span>
-      <span class="move-text clickable-move ${i+2===currentMoveIndex?'active-move':''}" onclick="jumpToMoveIndex(${i+2})">${fullMoveHistory[i+1]?fullMoveHistory[i+1].san:''}</span>`;
+      <span class="move-text clickable-move ${i+1===currentMoveIndex?'active-move':''}" onclick="jumpToMoveIndex(${i+1})">${wMove.san}</span>
+      ${bMove ? `<span class="move-text clickable-move ${i+2===currentMoveIndex?'active-move':''}" onclick="jumpToMoveIndex(${i+2})">${bMove.san}</span>` : ''}`;
     log.appendChild(row);
   }
 }
+
 function jumpToMoveIndex(idx) {
-  if (!game || idx < 0 || idx > fullMoveHistory.length) return;
-  const tempGame = new Chess(); for (let i = 0; i < idx; i++) tempGame.move(fullMoveHistory[i]);
-  game = tempGame; currentMoveIndex = idx; clearSelection(); updateMoveLog(); updateStatus(); updateClockDisplay();
+  if (idx < 0 || idx > fullMoveHistory.length) return;
+  currentMoveIndex = idx;
+  syncDisplayGame();
+  renderBoard(false);
+  updateMoveLog();
+  // updateStatus и updateClockDisplay теперь не зависят от просматриваемого хода
+}
+
+function syncDisplayGame() {
+  displayGame = new Chess();
+  for (let i = 0; i < currentMoveIndex; i++) {
+    displayGame.move(fullMoveHistory[i]);
+  }
 }
