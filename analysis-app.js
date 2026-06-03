@@ -19,7 +19,6 @@ let moveHistoryTree = { id: "root", parent: null, move: null, children: [] };
 let activeNode = moveHistoryTree;
 let isDragging = false, dragStartX = 0, dragStartY = 0, dragClone = null, draggedPieceImg = null, draggedSquare = null;
 let stockfishWorker = null, isStockfishReady = false, analysisLines = [];
-let promotionFrom = null, promotionTo = null;
 
 document.addEventListener('DOMContentLoaded', () => {
   initStockfish();
@@ -27,14 +26,21 @@ document.addEventListener('DOMContentLoaded', () => {
   updateStatus();
   updateMoveLog();
 
-  document.getElementById('btn-new-game').onclick = startNewGame;
-  document.getElementById('btn-flip').onclick = flipBoard;
-  document.getElementById('btn-nav-first').onclick = () => jumpToMoveNode(moveHistoryTree);
-  document.getElementById('btn-nav-prev').onclick = navigatePrev;
-  document.getElementById('btn-nav-next').onclick = navigateNext;
-  document.getElementById('btn-nav-last').onclick = navigateLast;
+  const bind = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = fn; };
+  bind('btn-new-game', startNewGame);
+  bind('btn-flip', flipBoard);
+  bind('btn-nav-first', () => jumpToMoveNode(moveHistoryTree));
+  bind('btn-nav-prev', navigatePrev);
+  bind('btn-nav-next', navigateNext);
+  bind('btn-nav-last', navigateLast);
 
-  document.getElementById('engine-toggle').onchange = (e) => {
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowLeft') navigatePrev();
+    if (e.key === 'ArrowRight') navigateNext();
+  });
+
+  const toggle = document.getElementById('engine-toggle');
+  if (toggle) toggle.onchange = (e) => {
     if (!e.target.checked) {
       if (stockfishWorker) stockfishWorker.postMessage('stop');
       analysisLines = []; renderMultiPV();
@@ -137,7 +143,7 @@ function handlePointerMove(e) {
     if (!dragClone) {
       dragClone = draggedPieceImg.cloneNode(true);
       dragClone.className = 'piece drag-clone';
-      // ФИКС РАЗМЕРА ФИГУРЫ
+      // ИСПРАВЛЕНИЕ: фиксированный размер
       dragClone.style.width = draggedPieceImg.offsetWidth + 'px';
       dragClone.style.height = draggedPieceImg.offsetHeight + 'px';
       document.body.appendChild(dragClone);
