@@ -1,20 +1,27 @@
-// Используем максимально надежные ссылки через jsDelivr (копия звуков Lichess)
+// Используем прямые и стабильные ссылки на звуки Lichess
 const soundUrls = {
-    move: 'https://cdn.jsdelivr.net/gh/lichess-org/lila@master/public/sound/standard/Move.mp3',
-    capture: 'https://cdn.jsdelivr.net/gh/lichess-org/lila@master/public/sound/standard/Capture.mp3',
-    check: 'https://cdn.jsdelivr.net/gh/lichess-org/lila@master/public/sound/standard/Check.mp3',
-    gameEnd: 'https://cdn.jsdelivr.net/gh/lichess-org/lila@master/public/sound/standard/GenericNotify.mp3',
-    promote: 'https://cdn.jsdelivr.net/gh/lichess-org/lila@master/public/sound/standard/Promote.mp3'
+    move: 'https://raw.githubusercontent.com/clime-ch/chess-sounds/master/move.mp3',
+    capture: 'https://raw.githubusercontent.com/clime-ch/chess-sounds/master/capture.mp3',
+    check: 'https://raw.githubusercontent.com/clime-ch/chess-sounds/master/check.mp3',
+    gameEnd: 'https://raw.githubusercontent.com/clime-ch/chess-sounds/master/notify.mp3',
+    promote: 'https://raw.githubusercontent.com/clime-ch/chess-sounds/master/promote.mp3'
 };
 
 const chessSounds = {};
 
 // Инициализация звукового движка
 function initSounds() {
+    console.log("Загрузка звуковых ресурсов...");
     for (let key in soundUrls) {
         const audio = new Audio(soundUrls[key]);
         audio.preload = 'auto';
+        audio.crossOrigin = "anonymous"; // Чтобы избежать проблем с доступом
         chessSounds[key] = audio;
+
+        // Проверка загрузки
+        audio.addEventListener('error', (e) => {
+            console.warn(`Не удалось загрузить звук: ${key}. Проверьте соединение.`);
+        });
     }
 }
 
@@ -25,11 +32,10 @@ function unlockAudio() {
     console.log("Звуковая система Azachess активирована");
     for (let key in chessSounds) {
         const s = chessSounds[key];
-        // Пытаемся воспроизвести тишину, чтобы браузер разрешил звук
         s.play().then(() => { 
             s.pause(); 
             s.currentTime = 0; 
-        }).catch(e => console.log("Браузер ждет клика для звука: " + key));
+        }).catch(e => {});
     }
     window.removeEventListener('click', unlockAudio);
     window.removeEventListener('touchstart', unlockAudio);
@@ -40,37 +46,38 @@ window.addEventListener('touchstart', unlockAudio);
 
 // Основная функция воспроизведения
 function playMoveSound(result) {
-    if (!result || !chessSounds.move) return;
+    if (!result) return;
     
     try {
         let soundToPlay = chessSounds.move;
 
-        // Определяем тип звука
-        if (typeof game !== 'undefined' && game.in_check()) {
+        // Определяем тип звука (обязательно проверяем существование game)
+        const isCheck = (typeof game !== 'undefined' && game && typeof game.in_check === 'function') ? game.in_check() : false;
+        const isGameOver = (typeof game !== 'undefined' && game && typeof game.game_over === 'function') ? game.game_over() : false;
+
+        if (isCheck) {
             soundToPlay = chessSounds.check;
-        } else if (result.flags.includes('c') || result.flags.includes('e')) {
+        } else if (result.flags && (result.flags.includes('c') || result.flags.includes('e'))) {
             soundToPlay = chessSounds.capture;
-        } else if (result.flags.includes('p')) {
+        } else if (result.flags && result.flags.includes('p')) {
             soundToPlay = chessSounds.promote;
         }
 
         // Воспроизведение
         if (soundToPlay) {
             soundToPlay.currentTime = 0;
-            const playPromise = soundToPlay.play();
-            
-            if (playPromise !== undefined) {
-                playPromise.catch(error => {
-                    console.warn("Браузер заблокировал звук. Кликните по доске.");
-                });
-            }
+            soundToPlay.play().catch(error => {
+                console.log("Браузер заблокировал звук. Требуется клик по странице.");
+            });
         }
 
         // Звук финала
-        if (typeof game !== 'undefined' && game.game_over()) {
+        if (isGameOver) {
             setTimeout(() => {
-                chessSounds.gameEnd.currentTime = 0;
-                chessSounds.gameEnd.play().catch(() => {});
+                if (chessSounds.gameEnd) {
+                    chessSounds.gameEnd.currentTime = 0;
+                    chessSounds.gameEnd.play().catch(() => {});
+                }
             }, 600);
         }
     } catch (e) {
