@@ -1,3 +1,4 @@
+// Конфигурация
 const pieceImagePaths = {
   'wP': 'https://upload.wikimedia.org/wikipedia/commons/4/45/Chess_plt45.svg',
   'wR': 'https://upload.wikimedia.org/wikipedia/commons/7/72/Chess_rlt45.svg',
@@ -19,17 +20,25 @@ const AI_LEVELS = {
   7: { skill: 20, depth: 15 }, 8: { skill: 20, depth: 20 }
 };
 
-var game = new Chess();
+// Состояние
+var game = null;
 let selectedSquare = null, validMoves = [], isFlipped = false, fullMoveHistory = [], currentMoveIndex = 0; 
 let timerInterval = null, whiteTime = 300, blackTime = 300, increment = 3, isClockEnabled = true, isGameStarted = false;
 let isDragging = false, dragMovedEnough = false, dragStartX = 0, dragStartY = 0, dragClone = null, draggedPieceImg = null, draggedSquare = null;
-let stockfishWorker = null, isStockfishReady = false, isWaitingForAIMove = false, stockfishWatchdogTimer = null;
+let stockfishWorker = null, isStockfishReady = false, isWaitingForAIMove = false;
 const DRAG_THRESHOLD = 5;
 
-document.addEventListener('DOMContentLoaded', () => {
+// Инициализация
+function initApp() {
+  if (typeof Chess === 'undefined') {
+    console.log("Ожидание Chess.js...");
+    setTimeout(initApp, 100);
+    return;
+  }
+  
+  game = new Chess();
   initStockfish();
   
-  // Безопасная привязка кнопок
   const bind = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = fn; };
   bind('btn-new-game', startNewGame);
   bind('btn-flip', flipBoard);
@@ -44,7 +53,10 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   resetGameSettings();
-});
+  console.log("Игра инициализирована успешно");
+}
+
+document.addEventListener('DOMContentLoaded', initApp);
 
 function initStockfish() {
   try {
@@ -54,12 +66,11 @@ function initStockfish() {
       if (e.data === 'readyok') isStockfishReady = true;
       if (e.data.startsWith('bestmove') && isWaitingForAIMove) {
         isWaitingForAIMove = false;
-        if (isClockEnabled && (whiteTime <= 0 || blackTime <= 0)) return;
         const move = e.data.split(' ')[1];
         if (move && move !== '(none)') {
           const res = game.move({ from: move.substring(0, 2), to: move.substring(2, 4), promotion: move[4] || 'q' });
           if (res) {
-            if (typeof playMoveSound === 'function') playMoveSound(res);
+            if (window.playMoveSound) playMoveSound(res);
             fullMoveHistory.push({ from: res.from, to: res.to, promotion: res.promotion, san: res.san });
             currentMoveIndex = fullMoveHistory.length;
             onMoveExecution();
@@ -75,6 +86,7 @@ function initStockfish() {
 function renderBoard(rebuildSquares = false) {
   const boardEl = document.getElementById('board');
   if (!boardEl) return;
+  
   if (rebuildSquares) {
     const savedTheme = localStorage.getItem('chess-board-theme') || 'theme-brown';
     boardEl.classList.remove('theme-brown', 'theme-green', 'theme-blue');
@@ -91,7 +103,7 @@ function renderBoard(rebuildSquares = false) {
         const sq = document.createElement('div');
         sq.className = `square ${(row + col) % 2 !== 0 ? 'light' : 'dark'}`;
         sq.dataset.square = squareName;
-        sq.addEventListener('pointerdown', (e) => handlePointerDown(e, squareName));
+        sq.onpointerdown = (e) => handlePointerDown(e, squareName);
         boardEl.appendChild(sq);
       }
     }
@@ -127,7 +139,7 @@ function renderBoard(rebuildSquares = false) {
 }
 
 function handlePointerDown(e, square) {
-  if (e.button !== 0 || game.game_over() || isWaitingForAIMove || (isClockEnabled && (whiteTime <= 0 || blackTime <= 0))) return;
+  if (e.button !== 0 || !game || game.game_over() || isWaitingForAIMove || (isClockEnabled && (whiteTime <= 0 || blackTime <= 0))) return;
   const piece = game.get(square);
   isDragging = true; dragMovedEnough = false; draggedSquare = square;
   dragStartX = e.clientX; dragStartY = e.clientY;
@@ -180,18 +192,12 @@ function attemptMove(from, to) {
   if (isClockEnabled && (whiteTime <= 0 || blackTime <= 0)) return clearSelection();
   const move = game.moves({ square: from, verbose: true }).find(m => m.to === to);
   if (!move) return clearSelection();
-  if (move.flags.includes('p')) {
-    promotionFrom = from; promotionTo = to;
-    document.getElementById('promotion-modal').classList.remove('hidden');
-    renderPromotionChoices();
-  } else {
-    const res = game.move({ from, to });
-    if (res) {
-      if (typeof playMoveSound === 'function') playMoveSound(res);
-      fullMoveHistory.push({ from: res.from, to: res.to, promotion: res.promotion, san: res.san });
-      currentMoveIndex = fullMoveHistory.length;
-      onMoveExecution();
-    }
+  const res = game.move({ from, to });
+  if (res) {
+    if (window.playMoveSound) playMoveSound(res);
+    fullMoveHistory.push({ from: res.from, to: res.to, promotion: res.promotion, san: res.san });
+    currentMoveIndex = fullMoveHistory.length;
+    onMoveExecution();
   }
 }
 
@@ -225,7 +231,6 @@ function startTimer() {
     if (whiteTime <= 0 || blackTime <= 0) {
       whiteTime = Math.max(0, whiteTime); blackTime = Math.max(0, blackTime);
       stopTimer(); updateStatus();
-      if (window.chessSounds && chessSounds.gameEnd) chessSounds.gameEnd.play();
     }
     updateClockDisplay();
   }, 1000);
@@ -234,24 +239,21 @@ function startTimer() {
 function stopTimer() { if (timerInterval) clearInterval(timerInterval); timerInterval = null; }
 
 function updateClockDisplay() {
-  if (!isClockEnabled) return;
   const t = document.getElementById('clock-top'), b = document.getElementById('clock-bottom');
   if (!t || !b) return;
   const format = (s) => `${Math.floor(s/60)}:${(s%60).toString().padStart(2, '0')}`;
-  const turn = game.turn();
   (isFlipped ? t : b).textContent = format(whiteTime);
   (isFlipped ? b : t).textContent = format(blackTime);
   const active = isGameStarted && !game.game_over();
-  t.classList.toggle('active', active && ((isFlipped && turn === 'w') || (!isFlipped && turn === 'b')));
-  b.classList.toggle('active', active && ((!isFlipped && turn === 'w') || (isFlipped && turn === 'b')));
+  t.classList.toggle('active', active && ((isFlipped && game.turn() === 'w') || (!isFlipped && game.turn() === 'b')));
+  b.classList.toggle('active', active && ((!isFlipped && turn === 'w') || (isFlipped && game.turn() === 'b')));
 }
 
 function updateStatus() {
   const s = document.getElementById('status-text'); if (!s) return;
   if (isClockEnabled && whiteTime <= 0) s.textContent = 'Белые проиграли по времени!';
   else if (isClockEnabled && blackTime <= 0) s.textContent = 'Черные проиграли по времени!';
-  else if (game.in_checkmate()) s.textContent = `Мат! Победили ${game.turn()==='w'?'Черные':'Белые'}`;
-  else if (game.in_draw()) s.textContent = 'Ничья';
+  else if (game.in_checkmate()) s.textContent = `Мат!`;
   else s.textContent = game.turn()==='w' ? 'Ход белых' : 'Ход черных';
 }
 
@@ -283,24 +285,7 @@ function updateMoveLog() {
 }
 
 function jumpToMoveIndex(idx) {
-  if (idx < 0 || idx > fullMoveHistory.length) return;
+  if (!game || idx < 0 || idx > fullMoveHistory.length) return;
   game = new Chess(); for (let i = 0; i < idx; i++) game.move(fullMoveHistory[i]);
   currentMoveIndex = idx; clearSelection(); updateMoveLog(); updateStatus(); updateClockDisplay();
-}
-
-function renderPromotionChoices() {
-  const container = document.querySelector('.promotion-choices'); if(!container) return;
-  container.innerHTML = '';
-  ['q','r','b','n'].forEach(p => {
-    const btn = document.createElement('button'); btn.className = 'promo-btn';
-    btn.innerHTML = `<img src="${pieceImagePaths[game.turn()+p.toUpperCase()]}" class="piece">`;
-    btn.onclick = () => {
-      const res = game.move({ from: promotionFrom, to: promotionTo, promotion: p });
-      fullMoveHistory.push({ from: res.from, to: res.to, promotion: res.promotion, san: res.san });
-      currentMoveIndex = fullMoveHistory.length;
-      document.getElementById('promotion-modal').classList.add('hidden');
-      onMoveExecution();
-    };
-    container.appendChild(btn);
-  });
 }
