@@ -13,156 +13,186 @@ const pieceImagePaths = {
   'bK': 'https://upload.wikimedia.org/wikipedia/commons/f/f0/Chess_kdt45.svg'
 };
 
-var game = new Chess();
-let selectedSquare = null, validMoves = [], isFlipped = false;
+const AI_LEVELS = {
+  1: { skill: 0, depth: 1 }, 2: { skill: 3, depth: 2 }, 3: { skill: 6, depth: 4 },
+  4: { skill: 10, depth: 6 }, 5: { skill: 14, depth: 8 }, 6: { skill: 17, depth: 12 },
+  7: { skill: 20, depth: 15 }, 8: { skill: 20, depth: 20 }
+};
 
-// СИСТЕМА ДЕРЕВА ХОДОВ
-let moveHistoryTree = { id: "root", parent: null, move: null, children: [] };
-let activeNode = moveHistoryTree;
+// Источники правды
+var liveGame = null; // Актуальная позиция (для ИИ и времени)
+var displayGame = null; // То, что на экране (для листания)
+window.game = null; // Глобальная ссылка для sounds.js
 
-// Управление
-let isDragging = false, dragStartX = 0, dragStartY = 0, dragClone = null, draggedPieceImg = null, draggedSquare = null;
-let stockfishWorker = null, isStockfishReady = false, analysisLines = [];
-const DRAG_THRESHOLD = 8;
+let fullMoveHistory = [], currentMoveIndex = 0; 
+let whiteTime = 300, blackTime = 300, increment = 3, isClockEnabled = true, isGameStarted = false, timerInterval = null;
+let isFlipped = false, isDragging = false, dragMovedEnough = false, dragStartX = 0, dragStartY = 0, dragClone = null, draggedPieceImg = null, draggedSquare = null;
+let selectedSquare = null, validMoves = [];
+let stockfishWorker = null, isStockfishReady = false, isWaitingForAIMove = false;
+const DRAG_THRESHOLD = 5;
 
-document.addEventListener('DOMContentLoaded', () => {
+// ИНИЦИАЛИЗАЦИЯ
+function initApp() {
+  if (typeof Chess === 'undefined') {
+    setTimeout(initApp, 100);
+    return;
+  }
+  
+  liveGame = new Chess();
+  displayGame = new Chess();
+  window.game = liveGame; // Связываем для звуков
+  
   initStockfish();
-  renderBoard(true);
-  updateStatus();
-  updateMoveLog();
-
-  const bind = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = fn; };
-  bind('btn-new-game', startNewGame);
-  bind('btn-flip', flipBoard);
-  bind('btn-nav-first', () => jumpToMoveNode(moveHistoryTree));
-  bind('btn-nav-prev', navigatePrev);
-  bind('btn-nav-next', navigateNext);
-  bind('btn-nav-last', navigateLast);
+  
+  // Привязка кнопок
+  const setupBtn = (id, fn) => { 
+    const el = document.getElementById(id); 
+    if (el) el.onclick = fn; 
+  };
+  
+  setupBtn('btn-new-game', startNewGame);
+  setupBtn('btn-flip', flipBoard);
+  setupBtn('btn-nav-first', () => jumpToMoveIndex(0));
+  setupBtn('btn-nav-prev', () => jumpToMoveIndex(currentMoveIndex - 1));
+  setupBtn('btn-nav-next', () => jumpToMoveIndex(currentMoveIndex + 1));
+  setupBtn('btn-nav-last', () => jumpToMoveIndex(fullMoveHistory.length));
 
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'ArrowLeft') navigatePrev();
-    if (e.key === 'ArrowRight') navigateNext();
+    if (e.key === 'ArrowLeft') jumpToMoveIndex(currentMoveIndex - 1);
+    if (e.key === 'ArrowRight') jumpToMoveIndex(currentMoveIndex + 1);
   });
 
-  const toggle = document.getElementById('engine-toggle');
-  if (toggle) toggle.onchange = (e) => {
-    if (!e.target.checked) {
-      if (stockfishWorker) stockfishWorker.postMessage('stop');
-      analysisLines = []; renderMultiPV();
-    } else runAnalysisTask();
-  };
-});
+  resetGameSettings();
+}
 
-// --- ЛОГИКА ДВИЖКА ---
+document.addEventListener('DOMContentLoaded', initApp);
+
 function initStockfish() {
   try {
-    const workerCode = `importScripts('https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js');`;
-    stockfishWorker = new Worker(URL.createObjectURL(new Blob([workerCode], { type: 'application/javascript' })));
+    const blobCode = `importScripts('https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js');`;
+    stockfishWorker = new Worker(URL.createObjectURL(new Blob([blobCode], { type: 'application/javascript' })));
     stockfishWorker.onmessage = (e) => {
-      if (e.data === 'readyok') { isStockfishReady = true; runAnalysisTask(); }
-      if (e.data.startsWith('info')) handleAnalysisData(e.data);
+      if (e.data === 'readyok') isStockfishReady = true;
+      if (e.data.startsWith('bestmove') && isWaitingForAIMove) {
+        isWaitingForAIMove = false;
+        const move = e.data.split(' ')[1];
+        if (move && move !== '(none)') {
+          const res = liveGame.move({ from: move.substring(0, 2), to: move.substring(2, 4), promotion: move[4] || 'q' });
+          if (res) {
+            if (window.playMoveSound) playMoveSound(res);
+            fullMoveHistory.push(res);
+            if (currentMoveIndex === fullMoveHistory.length - 1) currentMoveIndex = fullMoveHistory.length;
+            syncDisplayGame();
+            onMoveExecution();
+          }
+        }
+      }
     };
     stockfishWorker.postMessage('uci');
     stockfishWorker.postMessage('isready');
-  } catch (err) { console.error(err); }
+  } catch (err) { console.error("Stockfish Error:", err); }
 }
 
-function handleAnalysisData(data) {
-  const multipvMatch = data.match(/multipv (\d+)/);
-  const pvIndex = multipvMatch ? parseInt(multipvMatch[1]) - 1 : 0;
-  let score = "0.00";
-  if (data.includes('score cp')) {
-    let cp = parseInt(data.match(/score cp (-?\d+)/)[1]);
-    if (game.turn() === 'b') cp = -cp;
-    score = (cp / 100).toFixed(2);
-    if (pvIndex === 0) updateEvaluationBar(cp);
-  } else if (data.includes('score mate')) {
-    score = "M" + Math.abs(data.match(/score mate (-?\d+)/)[1]);
-  }
-  const pvMatch = data.match(/ pv (.+)/);
-  if (pvMatch) {
-    const pvMoves = pvMatch[1].split(' ');
-    analysisLines[pvIndex] = { score, move: pvMoves[0].substring(0,2)+"→"+pvMoves[0].substring(2,4), path: pvMoves.slice(1, 4).join(' ') };
-    renderMultiPV();
-  }
-}
-
-function runAnalysisTask() {
-  const toggle = document.getElementById('engine-toggle');
-  if (!isStockfishReady || (toggle && !toggle.checked)) return;
-  stockfishWorker.postMessage('stop');
-  stockfishWorker.postMessage('setoption name MultiPV value 3');
-  stockfishWorker.postMessage(`position fen ${game.fen()}`);
-  stockfishWorker.postMessage('go depth 16');
-}
-
-// --- ЛОГИКА ДОСКИ ---
-function renderBoard(rebuild = false) {
+function renderBoard(rebuildSquares = false) {
   const boardEl = document.getElementById('board');
-  if (rebuild) {
-    const theme = localStorage.getItem('chess-board-theme') || 'theme-brown';
-    boardEl.className = 'chessboard ' + theme;
+  if (!boardEl) return;
+  
+  if (rebuildSquares) {
+    const savedTheme = localStorage.getItem('chess-board-theme') || 'theme-brown';
+    boardEl.className = 'chessboard ' + savedTheme;
     boardEl.innerHTML = '';
     for (let r = 0; r < 8; r++) {
       const row = isFlipped ? r : (7 - r);
       for (let c = 0; c < 8; c++) {
         const col = isFlipped ? (7 - c) : c;
-        const name = String.fromCharCode(97 + col) + (row + 1);
+        const squareName = String.fromCharCode(97 + col) + (row + 1);
         const sq = document.createElement('div');
         sq.className = `square ${(row + col) % 2 !== 0 ? 'light' : 'dark'}`;
-        sq.dataset.square = name;
-        sq.onpointerdown = (e) => handlePointerDown(e, name);
+        sq.dataset.square = squareName;
+        sq.onpointerdown = (e) => handlePointerDown(e, squareName);
         boardEl.appendChild(sq);
       }
     }
   }
+
   boardEl.querySelectorAll('.square').forEach(sq => {
-    const name = sq.dataset.square, piece = game.get(name);
+    const name = sq.dataset.square;
+    const piece = displayGame.get(name);
     sq.classList.remove('last-move', 'selected', 'check');
-    if (activeNode.move && (name === activeNode.move.from || name === activeNode.move.to)) sq.classList.add('last-move');
+    
+    const last = fullMoveHistory[currentMoveIndex - 1];
+    if (last && (name === last.from || name === last.to)) sq.classList.add('last-move');
     if (selectedSquare === name) sq.classList.add('selected');
-    if (game.in_check() && piece && piece.type === 'k' && piece.color === game.turn()) sq.classList.add('check');
+    if (displayGame.in_check() && piece && piece.type === 'k' && piece.color === displayGame.turn()) sq.classList.add('check');
+    
     let img = sq.querySelector('.piece');
     if (piece) {
       const src = pieceImagePaths[`${piece.color}${piece.type.toUpperCase()}`];
-      if (!img) { img = document.createElement('img'); img.className = 'piece'; img.draggable = false; sq.appendChild(img); }
+      if (!img) {
+        img = document.createElement('img'); img.className = 'piece'; img.draggable = false;
+        sq.appendChild(img);
+      }
       img.src = src;
     } else if (img) sq.removeChild(img);
+
+    // Точки
     let m = sq.querySelector('.move-dest, .move-dest-capture');
     if (validMoves.includes(name)) {
       const cls = piece ? 'move-dest-capture' : 'move-dest';
-      if (!m || m.className !== cls) { if (m) sq.removeChild(m); m = document.createElement('div'); m.className = cls; sq.appendChild(m); }
+      if (!m || m.className !== cls) {
+        if (m) sq.removeChild(m);
+        m = document.createElement('div'); m.className = cls; sq.appendChild(m);
+      }
     } else if (m) sq.removeChild(m);
   });
 }
 
-function handlePointerDown(e, sq) {
-  if (typeof window.unlockAudio === 'function') window.unlockAudio();
-  if (selectedSquare && validMoves.includes(sq)) { attemptMove(selectedSquare, sq); return; }
-  const piece = game.get(sq);
-  if (piece) {
-    isDragging = true; draggedSquare = sq; dragStartX = e.clientX; dragStartY = e.clientY;
+function handlePointerDown(e, square) {
+  if (typeof unlockAudio === 'function') unlockAudio();
+  if (e.button !== 0 || liveGame.game_over() || isWaitingForAIMove) return;
+
+  // Если кликнули на точку (ход кликом)
+  if (selectedSquare && validMoves.includes(square)) {
+    attemptMove(selectedSquare, square);
+    return;
+  }
+
+  // Листание истории блокирует ходы
+  if (currentMoveIndex < fullMoveHistory.length) return;
+
+  const playerColor = isFlipped ? 'b' : 'w';
+  const piece = liveGame.get(square);
+
+  if (piece && piece.color === playerColor) {
+    isDragging = true; dragMovedEnough = false; draggedSquare = square;
+    dragStartX = e.clientX; dragStartY = e.clientY;
     draggedPieceImg = e.target.classList.contains('piece') ? e.target : e.target.querySelector('.piece');
-    if (piece.color === game.turn()) { selectedSquare = sq; validMoves = game.moves({ square: sq, verbose: true }).map(m => m.to); }
-    else { selectedSquare = null; validMoves = []; }
-    renderBoard(false);
+    
+    selectedSquare = square;
+    validMoves = liveGame.moves({ square: square, verbose: true }).map(m => m.to);
+    renderBoard(false); 
+
     window.onpointermove = handlePointerMove;
     window.onpointerup = handlePointerUp;
     try { e.target.setPointerCapture(e.pointerId); } catch(err) {}
-  } else clearSelection();
+  } else {
+    clearSelection();
+  }
 }
 
 function handlePointerMove(e) {
-  if (!isDragging || !draggedPieceImg) return;
-  if (Math.hypot(e.clientX - dragStartX, e.clientY - dragStartY) > 5) {
-    if (!dragClone) {
-      dragClone = draggedPieceImg.cloneNode(true);
-      dragClone.className = 'piece drag-clone';
-      dragClone.style.width = draggedPieceImg.offsetWidth + 'px';
-      dragClone.style.height = draggedPieceImg.offsetHeight + 'px';
-      document.body.appendChild(dragClone);
-      draggedPieceImg.style.visibility = 'hidden';
-    }
+  if (!isDragging) return;
+  const dist = Math.hypot(e.clientX - dragStartX, e.clientY - dragStartY);
+  if (dist > DRAG_THRESHOLD && draggedPieceImg && !dragClone) {
+    dragMovedEnough = true;
+    dragClone = draggedPieceImg.cloneNode(true);
+    dragClone.className = 'piece drag-clone';
+    dragClone.style.width = draggedPieceImg.offsetWidth + 'px';
+    dragClone.style.height = draggedPieceImg.offsetHeight + 'px';
+    document.body.appendChild(dragClone);
+    draggedPieceImg.style.visibility = 'hidden';
+  }
+  if (dragClone) {
     dragClone.style.left = (e.clientX - dragClone.offsetWidth / 2) + 'px';
     dragClone.style.top = (e.clientY - dragClone.offsetHeight / 2) + 'px';
   }
@@ -172,132 +202,163 @@ function handlePointerUp(e) {
   isDragging = false; window.onpointermove = null; window.onpointerup = null;
   if (dragClone) { document.body.removeChild(dragClone); dragClone = null; }
   if (draggedPieceImg) draggedPieceImg.style.visibility = 'visible';
+
   const el = document.elementFromPoint(e.clientX, e.clientY);
   const target = el?.closest('.square')?.dataset.square;
-  if (target && validMoves.includes(target)) attemptMove(draggedSquare, target);
-  else renderBoard(false);
+
+  if (dragMovedEnough && target && validMoves.includes(target)) {
+    attemptMove(draggedSquare, target);
+  } else if (!dragMovedEnough) {
+    // Просто клик - оставляем выбор
+  } else {
+    clearSelection();
+  }
 }
 
-// --- ЛОГИКА ХОДОВ И ДЕРЕВА ---
-function attemptMove(f, t) {
-  const res = game.move({ from: f, to: t, promotion: 'q' });
+function attemptMove(from, to) {
+  if (isClockEnabled && isGameStarted && (whiteTime <= 0 || blackTime <= 0)) return clearSelection();
+  const res = liveGame.move({ from: from, to: to, promotion: 'q' });
   if (res) {
     if (window.playMoveSound) playMoveSound(res);
-    recordMoveInTree(res);
-    finalizeMove();
+    fullMoveHistory.push(res);
+    currentMoveIndex = fullMoveHistory.length;
+    syncDisplayGame();
+    onMoveExecution();
+  } else {
+    clearSelection();
   }
 }
 
-function recordMoveInTree(res) {
-  let child = activeNode.children.find(c => c.move.san === res.san);
-  if (!child) {
-    child = { id: Date.now(), parent: activeNode, move: res, children: [] };
-    activeNode.children.push(child);
+function onMoveExecution() {
+  if (!isGameStarted) isGameStarted = true;
+  if (isClockEnabled) {
+    if (liveGame.turn() === 'b') whiteTime += increment;
+    else blackTime += increment;
   }
-  activeNode = child;
-}
-
-function finalizeMove() {
   selectedSquare = null; validMoves = [];
-  renderBoard(true); 
-  updateMoveLog(); 
-  updateStatus(); 
-  runAnalysisTask();
+  updateMoveLog(); updateStatus(); updateClockDisplay(); renderBoard(false);
+  
+  if (!liveGame.game_over()) {
+    if (isClockEnabled) startTimer();
+    checkAndTriggerAI();
+  } else stopTimer();
 }
 
-function jumpToMoveNode(node) {
-  if (!node) return;
-  activeNode = node;
-  const path = []; let temp = node;
-  while (temp && temp.move) { path.push(temp.move); temp = temp.parent; }
-  game = new Chess();
-  path.reverse().forEach(m => game.move(m));
-  finalizeMove();
+function checkAndTriggerAI() {
+  const playerColor = isFlipped ? 'b' : 'w';
+  if (liveGame.turn() !== playerColor && !liveGame.game_over()) {
+    triggerEngineMove();
+  }
 }
+
+function syncDisplayGame() {
+  displayGame = new Chess();
+  fullMoveHistory.slice(0, currentMoveIndex).forEach(m => displayGame.move(m));
+  renderBoard(false);
+}
+
+function resetGameSettings() {
+  stopTimer();
+  liveGame = new Chess();
+  displayGame = new Chess();
+  window.game = liveGame;
+  fullMoveHistory = [];
+  currentMoveIndex = 0;
+  isGameStarted = false;
+  selectedSquare = null; validMoves = [];
+
+  const timeVal = localStorage.getItem('selected-time-control') || '5+3';
+  const cw = document.getElementById('clocks-wrapper');
+  
+  if (timeVal === 'none') {
+    isClockEnabled = false;
+    if(cw) cw.style.display = 'none';
+  } else {
+    isClockEnabled = true;
+    if(cw) cw.style.display = 'flex';
+    const parts = timeVal.split('+');
+    whiteTime = parseInt(parts[0]) * 60;
+    blackTime = whiteTime;
+    increment = parseInt(parts[1]) || 0;
+  }
+  
+  updateClockDisplay();
+  updateMoveLog();
+  updateStatus();
+  renderBoard(true);
+  checkAndTriggerAI();
+}
+
+function startTimer() {
+  stopTimer();
+  if (!isClockEnabled || !isGameStarted) return;
+  timerInterval = setInterval(() => {
+    if (liveGame.turn() === 'w') whiteTime--; else blackTime--;
+    if (whiteTime <= 0 || blackTime <= 0) {
+      whiteTime = Math.max(0, whiteTime);
+      blackTime = Math.max(0, blackTime);
+      stopTimer();
+      updateStatus();
+      if (window.chessSounds) chessSounds.gameEnd.play();
+    }
+    updateClockDisplay();
+  }, 1000);
+}
+
+function stopTimer() { if (timerInterval) clearInterval(timerInterval); timerInterval = null; }
+
+function updateClockDisplay() {
+  const t = document.getElementById('clock-top'), b = document.getElementById('clock-bottom');
+  if (!t || !b || !isClockEnabled) return;
+  
+  const format = (s) => `${Math.floor(s/60)}:${(s%60).toString().padStart(2, '0')}`;
+  (isFlipped ? t : b).textContent = format(whiteTime);
+  (isFlipped ? b : t).textContent = format(blackTime);
+  
+  const turn = liveGame.turn();
+  const active = isGameStarted && !liveGame.game_over();
+  t.classList.toggle('active', active && ((isFlipped && turn === 'w') || (!isFlipped && turn === 'b')));
+  b.classList.toggle('active', active && ((!isFlipped && turn === 'w') || (isFlipped && turn === 'b')));
+}
+
+function updateStatus() {
+  const s = document.getElementById('status-text'); if (!s) return;
+  if (isClockEnabled && whiteTime <= 0) s.textContent = 'Белые: время вышло!';
+  else if (isClockEnabled && blackTime <= 0) s.textContent = 'Черные: время вышло!';
+  else if (liveGame.in_checkmate()) s.textContent = 'Мат!';
+  else s.textContent = liveGame.turn()==='w' ? 'Ход белых' : 'Ход черных';
+}
+
+function triggerEngineMove() {
+  if (!isStockfishReady || isWaitingForAIMove) return;
+  const lv = localStorage.getItem('selected-ai-level') || 3;
+  const cfg = AI_LEVELS[lv];
+  isWaitingForAIMove = true;
+  stockfishWorker.postMessage(`setoption name Skill Level value ${cfg.skill}`);
+  stockfishWorker.postMessage(`position fen ${liveGame.fen()}`);
+  stockfishWorker.postMessage(`go depth ${cfg.depth}`);
+}
+
+function jumpToMoveIndex(idx) {
+  if (idx < 0 || idx > fullMoveHistory.length) return;
+  currentMoveIndex = idx;
+  selectedSquare = null; validMoves = [];
+  syncDisplayGame();
+  updateMoveLog();
+}
+
+function startNewGame() { resetGameSettings(); }
+function clearSelection() { selectedSquare = null; validMoves = []; renderBoard(false); }
+function flipBoard() { isFlipped = !isFlipped; renderBoard(true); updateClockDisplay(); checkAndTriggerAI(); }
 
 function updateMoveLog() {
-  const log = document.getElementById('move-log'); if (!log) return;
+  const log = document.getElementById('move-log'); if(!log) return;
   log.innerHTML = '';
-  
-  // Получаем цепочку ходов до текущего узла
-  const path = [];
-  let temp = activeNode;
-  while (temp && temp.move) { path.push(temp); temp = temp.parent; }
-  path.reverse();
-
-  for (let i = 0; i < path.length; i += 2) {
-    const row = document.createElement('div');
-    row.className = 'move-row';
-    const w = path[i], b = path[i+1];
-    const num = Math.floor(i / 2) + 1;
-    row.innerHTML = `<span style="color:#666;width:25px;display:inline-block;">${num}.</span>
-    <span class="move-text ${w===activeNode?'active-move':''}" style="cursor:pointer;padding:0 5px;" onclick="jumpToMoveByRef(${i})">${w.move.san}</span>
-    ${b ? `<span class="move-text ${b===activeNode?'active-move':''}" style="cursor:pointer;padding:0 5px;" onclick="jumpToMoveByRef(${i+1})">${b.move.san}</span>` : ''}`;
+  for (let i = 0; i < fullMoveHistory.length; i += 2) {
+    const row = document.createElement('div'); row.className = 'move-row';
+    row.innerHTML = `<span style="color:#666;width:25px;display:inline-block;">${(i/2)+1}.</span>
+      <span class="move-text ${i+1===currentMoveIndex?'active-move':''}" style="cursor:pointer;" onclick="jumpToMoveIndex(${i+1})">${fullMoveHistory[i].san}</span>
+      ${fullMoveHistory[i+1] ? `<span class="move-text ${i+2===currentMoveIndex?'active-move':''}" style="cursor:pointer;" onclick="jumpToMoveIndex(${i+2})">${fullMoveHistory[i+1].san}</span>` : ''}`;
     log.appendChild(row);
   }
-  updateBranchSelector();
-}
-
-window.jumpToMoveByRef = (idx) => {
-  const path = []; let t = activeNode; while (t && t.move) { path.push(t); t = t.parent; } path.reverse();
-  jumpToMoveNode(path[idx]);
-};
-
-function updateBranchSelector() {
-  const panel = document.getElementById('branch-panel');
-  const container = document.getElementById('branch-choices');
-  if (!panel || !container) return;
-
-  // Ищем варианты: либо у текущего узла (будущие ветки), либо у родителя (альтернативы текущему)
-  let choices = [];
-  if (activeNode.children.length > 1) {
-    choices = activeNode.children;
-  } else if (activeNode.parent && activeNode.parent.children.length > 1) {
-    choices = activeNode.parent.children;
-  }
-
-  if (choices.length > 1) {
-    panel.style.display = 'block'; // Принудительно показываем
-    panel.classList.remove('hidden-panel');
-    container.innerHTML = '';
-    choices.forEach(c => {
-      const btn = document.createElement('button');
-      btn.className = `btn btn-secondary branch-btn ${c === activeNode ? 'active-branch' : ''}`;
-      btn.style.cssText = "margin: 2px; padding: 5px 10px; border: 1px solid #444; background: #333; color: #fff; cursor: pointer;";
-      btn.textContent = c.move.san;
-      btn.onclick = () => jumpToMoveNode(c);
-      container.appendChild(btn);
-    });
-  } else {
-    panel.style.display = 'none';
-    panel.classList.add('hidden-panel');
-  }
-}
-
-function navigatePrev() { if (activeNode.parent) jumpToMoveNode(activeNode.parent); }
-function navigateNext() { if (activeNode.children.length > 0) jumpToMoveNode(activeNode.children[0]); }
-function navigateLast() { let t = activeNode; while(t.children.length > 0) t = t.children[0]; jumpToMoveNode(t); }
-function startNewGame() { game = new Chess(); moveHistoryTree = { id:"root", parent:null, move:null, children:[] }; activeNode = moveHistoryTree; finalizeMove(); }
-function flipBoard() { isFlipped = !isFlipped; renderBoard(true); }
-function clearSelection() { selectedSquare = null; validMoves = []; renderBoard(false); }
-function updateStatus() { document.getElementById('status-text').textContent = game.in_checkmate() ? "Мат!" : "Свободный анализ"; }
-
-function renderMultiPV() {
-  const container = document.getElementById('multipv-container');
-  const toggle = document.getElementById('engine-toggle');
-  if (!container || (toggle && !toggle.checked)) return;
-  container.innerHTML = analysisLines.map(line => `
-    <div style="display:flex;gap:10px;font-family:monospace;font-size:0.85rem;background:rgba(255,255,255,0.05);padding:5px;margin-bottom:2px;">
-      <div style="font-weight:bold;color:#fff;">${line.score}</div>
-      <div style="color:#258039;">${line.move}</div>
-      <div style="color:#777;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${line.path}</div>
-    </div>
-  `).join('');
-}
-
-function updateEvaluationBar(cp) {
-  const fill = document.getElementById('eval-fill'), text = document.getElementById('eval-text');
-  let p = 50 + (Math.max(-800, Math.min(800, cp)) / 800) * 45;
-  if (fill) fill.style.height = `${p}%`;
-  if (text) text.textContent = (cp / 100).toFixed(1);
 }
