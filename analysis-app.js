@@ -22,8 +22,10 @@ let isFlipped = false;
 let moveHistoryTree = { id: "root", parent: null, move: null, children: [] };
 let activeNode = moveHistoryTree;
 
-// Управление
+// Управление перетаскиванием
 let isDragging = false;
+let dragMovedEnough = false;
+const DRAG_THRESHOLD = 8;
 let dragStartX = 0;
 let dragStartY = 0;
 let dragClone = null;
@@ -175,28 +177,32 @@ function renderBoard(rebuildSquares = false) {
 
 function handlePointerDown(e, square) {
   if (e.button !== 0 && e.pointerType === 'mouse') return;
-  const piece = game.get(square);
 
-  // ИСПРАВЛЕНИЕ: Если уже выбрана фигура и мы кликаем по врагу/клетке для взятия
+  // 1. ПРОВЕРКА НА ХОД/ВЗЯТИЕ КЛИКОМ
   if (selectedSquare && validMoves.includes(square)) {
     attemptMove(selectedSquare, square);
     return;
   }
 
+  const piece = game.get(square);
   if (piece) {
     isDragging = true;
+    dragMovedEnough = false;
     draggedSquare = square;
     dragStartX = e.clientX;
     dragStartY = e.clientY;
     draggedPieceImg = e.target.classList.contains('piece') ? e.target : e.target.querySelector('.piece');
     
+    // Если фигура своя - подсвечиваем варианты
     if (piece.color === game.turn()) {
       selectedSquare = square;
       validMoves = game.moves({ square: square, verbose: true }).map(m => m.to);
     } else {
+      // Если чужая - только тащим (без точек)
       selectedSquare = null;
       validMoves = [];
     }
+
     renderBoard(false);
     window.addEventListener('pointermove', handlePointerMove);
     window.addEventListener('pointerup', handlePointerUp);
@@ -209,7 +215,8 @@ function handlePointerDown(e, square) {
 function handlePointerMove(e) {
   if (!isDragging || !draggedPieceImg) return;
   const dist = Math.hypot(e.clientX - dragStartX, e.clientY - dragStartY);
-  if (dist > 5) {
+  if (dist > DRAG_THRESHOLD) {
+    dragMovedEnough = true;
     if (!dragClone) {
       dragClone = draggedPieceImg.cloneNode(true);
       dragClone.className = 'piece drag-clone';
@@ -228,13 +235,23 @@ function handlePointerUp(e) {
   isDragging = false;
   window.removeEventListener('pointermove', handlePointerMove);
   window.removeEventListener('pointerup', handlePointerUp);
+  
   if (dragClone) { document.body.removeChild(dragClone); dragClone = null; }
   if (draggedPieceImg) draggedPieceImg.style.visibility = 'visible';
+
   const el = document.elementFromPoint(e.clientX, e.clientY);
   const sqEl = el ? el.closest('.square') : null;
   const target = sqEl ? sqEl.dataset.square : null;
-  if (target && validMoves.includes(target)) attemptMove(draggedSquare, target);
-  else renderBoard(false);
+
+  if (dragMovedEnough) {
+    if (target && validMoves.includes(target)) {
+      attemptMove(draggedSquare, target);
+    } else {
+      clearSelection();
+    }
+  } else {
+    // Если это был просто клик, мы уже обработали выбор/ход в handlePointerDown
+  }
 }
 
 function attemptMove(from, to) {
