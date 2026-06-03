@@ -1,72 +1,47 @@
-// Используем надежные ссылки из репозитория Lichess
+// Надежные звуки с Wikimedia
 const soundUrls = {
-    move: 'https://raw.githubusercontent.com/lichess-org/lila/master/public/sound/standard/Move.mp3',
-    capture: 'https://raw.githubusercontent.com/lichess-org/lila/master/public/sound/standard/Capture.mp3',
-    check: 'https://raw.githubusercontent.com/lichess-org/lila/master/public/sound/standard/Check.mp3',
-    gameEnd: 'https://raw.githubusercontent.com/lichess-org/lila/master/public/sound/standard/GenericNotify.mp3',
-    promote: 'https://raw.githubusercontent.com/lichess-org/lila/master/public/sound/standard/Promote.mp3'
+    move: 'https://upload.wikimedia.org/wikipedia/commons/b/b1/Chess_move.ogg',
+    capture: 'https://upload.wikimedia.org/wikipedia/commons/a/af/Chess_capture.ogg',
+    check: 'https://upload.wikimedia.org/wikipedia/commons/d/d5/Chess_check.ogg',
+    gameEnd: 'https://upload.wikimedia.org/wikipedia/commons/e/e0/Generic_Notify.ogg',
+    promote: 'https://upload.wikimedia.org/wikipedia/commons/3/30/Chess_promote.ogg'
 };
 
 const chessSounds = {};
 
-// Предзагрузка звуков
 function initSounds() {
     for (let key in soundUrls) {
         chessSounds[key] = new Audio(soundUrls[key]);
-        chessSounds[key].load(); // Принудительная загрузка в кэш
+        chessSounds[key].load();
     }
 }
-
 initSounds();
 
-// Функция разблокировки звука (обязательна для браузеров)
 function unlockAudio() {
-    console.log("Попытка разблокировки аудио...");
     for (let key in chessSounds) {
-        let sound = chessSounds[key];
-        sound.play().then(() => {
-            sound.pause();
-            sound.currentTime = 0;
-        }).catch(e => console.log("Браузер пока блокирует звук для: " + key));
+        let s = chessSounds[key];
+        s.play().then(() => { s.pause(); s.currentTime = 0; }).catch(() => {});
     }
     window.removeEventListener('click', unlockAudio);
 }
-
 window.addEventListener('click', unlockAudio);
 
-// Основная функция проигрывания
 function playMoveSound(result) {
     if (!result) return;
-    
     try {
-        let soundToPlay = null;
+        let sound = chessSounds.move;
+        if (game && game.in_check()) sound = chessSounds.check;
+        else if (result.flags.includes('c') || result.flags.includes('e')) sound = chessSounds.capture;
+        else if (result.flags.includes('p')) sound = chessSounds.promote;
 
-        // Если шах
-        if (typeof game !== 'undefined' && game.in_check()) {
-            soundToPlay = chessSounds.check;
-        } 
-        // Если взятие
-        else if (result.flags.includes('c') || result.flags.includes('e')) {
-            soundToPlay = chessSounds.capture;
-        } 
-        // Обычный ход
-        else {
-            soundToPlay = chessSounds.move;
-        }
+        sound.currentTime = 0;
+        sound.play().catch(() => {});
 
-        if (soundToPlay) {
-            soundToPlay.currentTime = 0;
-            soundToPlay.play().catch(e => console.warn("Звук не смог проиграться:", e));
-        }
-
-        // Звук конца игры
-        if (typeof game !== 'undefined' && game.game_over()) {
+        if (game && game.game_over()) {
             setTimeout(() => {
                 chessSounds.gameEnd.currentTime = 0;
-                chessSounds.gameEnd.play();
-            }, 500);
+                chessSounds.gameEnd.play().catch(() => {});
+            }, 600);
         }
-    } catch (e) {
-        console.error("Ошибка в playMoveSound:", e);
-    }
+    } catch (e) {}
 }
