@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Lichess Lite (Play vs AI)</title>
+  <link rel="stylesheet" href="style.css">
+  <!-- Сначала загружаем правила игры -->
+  <script src="https://cdn.jsdelivr.net/npm/chess.js@0.10.3/chess.min.js"></script>
+</head>
+<body>
+
+  <div class="game-wrapper-root">
+    <div class="nav-bar">
+      <a href="index.html" class="nav-link active">Играть против ИИ</a>
+      <a href="analysis.html" target="_blank" class="nav-link">Анализ партии ↗</a>
+    </div>
+
+    <div class="game-container">
+      <div class="board-wrapper">
+        <div id="board" class="chessboard"></div>
+        <div class="navigation-controls">
+          <button id="btn-nav-first" class="btn btn-secondary nav-btn">|&lt;</button>
+          <button id="btn-nav-prev" class="btn btn-secondary nav-btn">&lt;</button>
+          <button id="btn-nav-next" class="btn btn-secondary nav-btn">&gt;</button>
+          <button id="btn-nav-last" class="btn btn-secondary nav-btn">&gt;|</button>
+        </div>
+        
+        <div id="promotion-modal" class="modal hidden">
+          <div class="modal-content">
+            <h3>Превращение пешки</h3>
+            <div class="promotion-choices"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="control-panel">
+        <div class="status-display" id="status-text">Инициализация...</div>
+
+        <div id="clocks-wrapper" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 15px;">
+          <div id="clock-top" class="clock">--:--</div>
+          <div id="clock-bottom" class="clock">--:--</div>
+        </div>
+
+        <div class="time-selection-area">
+          <label style="display: block; margin-bottom: 10px; color: #888; font-size: 0.8rem;">Контроль времени:</label>
+          <div class="time-grid">
+            <button class="time-btn" data-time="1+0">1+0</button>
+            <button class="time-btn" data-time="3+0">3+0</button>
+            <button class="time-btn" data-time="3+2">3+2</button>
+            <button class="time-btn" data-time="5+0">5+0</button>
+            <button class="time-btn active" data-time="5+3">5+3</button>
+            <button class="time-btn" data-time="10+5">10+5</button>
+            <button class="time-btn" data-time="30+0">30+0</button>
+            <button class="time-btn" data-time="none">Без времени</button>
+          </div>
+        </div>
+
+        <div class="select-wrapper">
+          <label>Сложность ИИ:</label>
+          <select id="ai-depth">
+            <option value="1">Уровень 1</option>
+            <option value="3" selected>Уровень 3</option>
+            <option value="5">Уровень 5</option>
+            <option value="8">Уровень 8 (Max)</option>
+          </select>
+        </div>
+
+        <div class="move-history">
+          <div class="history-title">История ходов</div>
+          <div id="move-log" class="move-log-content"></div>
+        </div>
+
+        <div class="actions">
+          <button id="btn-new-game" class="btn">Новая игра</button>
+          <button id="btn-flip" class="btn btn-secondary">Повернуть доску</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- СКРИПТЫ В КОНЦЕ BODY: сначала звуки, потом логика -->
+  <script src="sounds.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
