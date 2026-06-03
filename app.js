@@ -21,49 +21,65 @@ window.game = liveGame;
 
 let fullMoveHistory = [], currentMoveIndex = 0;
 let whiteTime = 300, blackTime = 300, increment = 3, isClockEnabled = true, isGameStarted = false, timerInterval = null;
-let isFlipped = false, isDragging = false, dragStartX = 0, dragStartY = 0, dragClone = null, draggedPieceImg = null, draggedSquare = null;
+let isFlipped = false, isDragging = false, dragStartX = 0, dragStartY = 0, dragClone = null, draggedPieceImg = null, draggedSquare = null, dragMovedEnough = false;
 let selectedSquare = null, validMoves = [];
 let stockfishWorker = null, isStockfishReady = false, isWaitingForAIMove = false;
 let promotionFrom = null, promotionTo = null;
+const DRAG_THRESHOLD = 10; // Увеличил для телефонов, чтобы избежать случайных дерганий
 
 function initApp() {
     if (typeof Chess === 'undefined') { setTimeout(initApp, 100); return; }
     initStockfish();
-    document.getElementById('btn-new-game').onclick = startNewGame;
-    document.getElementById('btn-flip').onclick = flipBoard;
-    document.getElementById('btn-nav-first').onclick = () => jumpToMoveIndex(0);
-    document.getElementById('btn-nav-prev').onclick = () => jumpToMoveIndex(currentMoveIndex - 1);
-    document.getElementById('btn-nav-next').onclick = () => jumpToMoveIndex(currentMoveIndex + 1);
-    document.getElementById('btn-nav-last').onclick = () => jumpToMoveIndex(fullMoveHistory.length);
+    
+    const bind = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = fn; };
+    bind('btn-new-game', startNewGame);
+    bind('btn-flip', flipBoard);
+    bind('btn-nav-first', () => jumpToMoveIndex(0));
+    bind('btn-nav-prev', () => jumpToMoveIndex(currentMoveIndex - 1));
+    bind('btn-nav-next', () => jumpToMoveIndex(currentMoveIndex + 1));
+    bind('btn-nav-last', () => jumpToMoveIndex(fullMoveHistory.length));
 
     document.addEventListener('keydown', (e) => {
         if (e.key === 'ArrowLeft') jumpToMoveIndex(currentMoveIndex - 1);
         if (e.key === 'ArrowRight') jumpToMoveIndex(currentMoveIndex + 1);
     });
+    
     resetGameSettings();
 }
 document.addEventListener('DOMContentLoaded', initApp);
 
 function initStockfish() {
-    const blobCode = `importScripts('https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js');`;
-    stockfishWorker = new Worker(URL.createObjectURL(new Blob([blobCode], { type: 'application/javascript' })));
-    stockfishWorker.onmessage = (e) => {
-        if (e.data === 'readyok') isStockfishReady = true;
-        if (e.data.startsWith('bestmove') && isWaitingForAIMove) {
-            isWaitingForAIMove = false;
-            const move = e.data.split(' ')[1];
-            if (move && move !== '(none)') {
-                const res = liveGame.move({ from: move.substring(0, 2), to: move.substring(2, 4), promotion: move[4] || 'q' });
-                if (res) {
-                    if (window.playMoveSound) playMoveSound(res);
-                    fullMoveHistory.push(res);
-                    if (currentMoveIndex === fullMoveHistory.length - 1) currentMoveIndex = fullMoveHistory.length;
-                    syncDisplayGame(); onMoveExecution();
+    try {
+        const workerCode = `importScripts('https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js');`;
+        const blob = new Blob([workerCode], { type: 'application/javascript' });
+        stockfishWorker = new Worker(URL.createObjectURL(blob));
+        
+        stockfishWorker.onmessage = (e) => {
+            if (e.data === 'readyok') {
+                isStockfishReady = true;
+                console.log("Stockfish готов");
+                checkAndTriggerAI();
+            }
+            if (e.data.startsWith('bestmove') && isWaitingForAIMove) {
+                isWaitingForAIMove = false;
+                const move = e.data.split(' ')[1];
+                if (move && move !== '(none)') {
+                    const res = liveGame.move({ from: move.substring(0, 2), to: move.substring(2, 4), promotion: move[4] || 'q' });
+                    if (res) {
+                        if (window.playMoveSound) playMoveSound(res);
+                        fullMoveHistory.push(res);
+                        if (currentMoveIndex === fullMoveHistory.length - 1) currentMoveIndex = fullMoveHistory.length;
+                        syncDisplayGame(); 
+                        onMoveExecution();
+                    }
                 }
             }
-        }
-    };
-    stockfishWorker.postMessage('uci'); stockfishWorker.postMessage('isready');
+        };
+        stockfishWorker.postMessage('uci');
+        stockfishWorker.postMessage('isready');
+    } catch (err) {
+        console.error("Ошибка инициализации ИИ:", err);
+    }
 }
 
 function renderBoard(rebuild = false) {
@@ -81,6 +97,7 @@ function renderBoard(rebuild = false) {
                 const sq = document.createElement('div');
                 sq.className = `square ${(row + col) % 2 !== 0 ? 'light' : 'dark'}`;
                 sq.dataset.square = name;
+                sq.style.touchAction = 'none'; // Важно для телефонов
                 sq.onpointerdown = (e) => handlePointerDown(e, name);
                 boardEl.appendChild(sq);
             }
@@ -93,12 +110,14 @@ function renderBoard(rebuild = false) {
         if (last && (name === last.from || name === last.to)) sq.classList.add('last-move');
         if (selectedSquare === name) sq.classList.add('selected');
         if (displayGame.in_check() && piece && piece.type === 'k' && piece.color === displayGame.turn()) sq.classList.add('check');
+        
         let img = sq.querySelector('.piece');
         if (piece) {
             const src = pieceImagePaths[`${piece.color}${piece.type.toUpperCase()}`];
             if (!img) { img = document.createElement('img'); img.className = 'piece'; img.draggable = false; sq.appendChild(img); }
             img.src = src;
         } else if (img) sq.removeChild(img);
+        
         let m = sq.querySelector('.move-dest, .move-dest-capture');
         if (currentMoveIndex === fullMoveHistory.length && validMoves.includes(name)) {
             const cls = piece ? 'move-dest-capture' : 'move-dest';
@@ -109,29 +128,42 @@ function renderBoard(rebuild = false) {
 
 function handlePointerDown(e, sq) {
     if (typeof unlockAudio === 'function') unlockAudio();
-    if (e.button !== 0 || liveGame.game_over() || isWaitingForAIMove) return;
-    if (selectedSquare && validMoves.includes(sq)) { handleMoveAttempt(selectedSquare, sq); return; }
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    if (liveGame.game_over() || isWaitingForAIMove) return;
+    
+    // Ход кликом
+    if (selectedSquare && validMoves.includes(sq)) {
+        handleMoveAttempt(selectedSquare, sq);
+        return;
+    }
+
     if (currentMoveIndex < fullMoveHistory.length) return;
+
     const piece = liveGame.get(sq);
-    if (piece && piece.color === (isFlipped ? 'b' : 'w')) {
-        isDragging = true; draggedSquare = sq; dragStartX = e.clientX; dragStartY = e.clientY;
+    const playerColor = isFlipped ? 'b' : 'w';
+    if (piece && piece.color === playerColor) {
+        isDragging = true; dragMovedEnough = false; draggedSquare = sq;
+        dragStartX = e.clientX; dragStartY = e.clientY;
         draggedPieceImg = e.target.classList.contains('piece') ? e.target : e.target.querySelector('.piece');
         selectedSquare = sq; validMoves = liveGame.moves({ square: sq, verbose: true }).map(m => m.to);
         renderBoard(false);
         window.onpointermove = handlePointerMove; window.onpointerup = handlePointerUp;
-        try { e.target.setPointerCapture(e.pointerId); } catch(err) {}
-    } else clearSelection();
+    } else {
+        clearSelection();
+    }
 }
 
 function handlePointerMove(e) {
     if (!isDragging || !draggedPieceImg) return;
     const dist = Math.hypot(e.clientX - dragStartX, e.clientY - dragStartY);
-    if (dist > 5) {
+    if (dist > DRAG_THRESHOLD) {
+        dragMovedEnough = true;
         if (!dragClone) {
             dragClone = draggedPieceImg.cloneNode(true);
             dragClone.className = 'piece drag-clone';
-            dragClone.style.width = draggedPieceImg.offsetWidth + 'px';
-            dragClone.style.height = draggedPieceImg.offsetHeight + 'px';
+            const rect = draggedPieceImg.getBoundingClientRect();
+            dragClone.style.width = rect.width + 'px';
+            dragClone.style.height = rect.height + 'px';
             document.body.appendChild(dragClone);
             draggedPieceImg.style.visibility = 'hidden';
         }
@@ -146,8 +178,8 @@ function handlePointerUp(e) {
     if (draggedPieceImg) draggedPieceImg.style.visibility = 'visible';
     const el = document.elementFromPoint(e.clientX, e.clientY);
     const target = el?.closest('.square')?.dataset.square;
-    if (target && validMoves.includes(target)) handleMoveAttempt(draggedSquare, target);
-    else if (Math.hypot(e.clientX - dragStartX, e.clientY - dragStartY) > 5) clearSelection();
+    if (dragMovedEnough && target && validMoves.includes(target)) handleMoveAttempt(draggedSquare, target);
+    else if (dragMovedEnough) clearSelection();
 }
 
 function handleMoveAttempt(from, to) {
@@ -185,7 +217,8 @@ function renderPromotionChoices() {
 function onMoveExecution() {
     if (!isGameStarted) isGameStarted = true;
     if (isClockEnabled) { if (liveGame.turn() === 'b') whiteTime += increment; else blackTime += increment; }
-    clearSelection(); updateMoveLog(); updateStatus(); updateClockDisplay();
+    selectedSquare = null; validMoves = [];
+    updateMoveLog(); updateStatus(); updateClockDisplay(); renderBoard(false);
     if (!liveGame.game_over()) { if (isClockEnabled) startTimer(); checkAndTriggerAI(); }
     else stopTimer();
 }
@@ -198,7 +231,8 @@ function syncDisplayGame() {
 
 function jumpToMoveIndex(idx) {
     if (idx < 0 || idx > fullMoveHistory.length) return;
-    currentMoveIndex = idx; clearSelection(); syncDisplayGame(); updateMoveLog();
+    currentMoveIndex = idx; selectedSquare = null; validMoves = [];
+    syncDisplayGame(); updateMoveLog();
 }
 
 function startTimer() {
@@ -217,7 +251,7 @@ function stopTimer() { if (timerInterval) clearInterval(timerInterval); timerInt
 
 function updateClockDisplay() {
     const t = document.getElementById('clock-top'), b = document.getElementById('clock-bottom');
-    if (!t || !b) return;
+    if (!t || !b || !isClockEnabled) return;
     const format = (s) => `${Math.floor(s/60)}:${(s%60).toString().padStart(2, '0')}`;
     (isFlipped ? t : b).textContent = format(whiteTime);
     (isFlipped ? b : t).textContent = format(blackTime);
@@ -228,7 +262,9 @@ function updateClockDisplay() {
 }
 
 function resetGameSettings() {
-    stopTimer(); liveGame = new Chess(); displayGame = new Chess(); fullMoveHistory = []; currentMoveIndex = 0; isGameStarted = false;
+    stopTimer(); liveGame = new Chess(); displayGame = new Chess(); window.game = liveGame;
+    fullMoveHistory = []; currentMoveIndex = 0; isGameStarted = false;
+    selectedSquare = null; validMoves = [];
     const timeVal = localStorage.getItem('selected-time-control') || '5+3';
     const cw = document.getElementById('clocks-wrapper');
     if (timeVal === 'none') { isClockEnabled = false; if(cw) cw.style.display = 'none'; }
@@ -237,7 +273,8 @@ function resetGameSettings() {
         const parts = timeVal.split('+');
         whiteTime = parseInt(parts[0]) * 60; blackTime = whiteTime; increment = parseInt(parts[1]) || 0;
     }
-    updateClockDisplay(); updateMoveLog(); updateStatus(); renderBoard(true); checkAndTriggerAI();
+    updateClockDisplay(); updateMoveLog(); updateStatus(); renderBoard(true);
+    checkAndTriggerAI();
 }
 
 function updateStatus() {
@@ -248,7 +285,10 @@ function updateStatus() {
     else s.textContent = liveGame.turn()==='w' ? 'Ход белых' : 'Ход черных';
 }
 
-function checkAndTriggerAI() { if (liveGame.turn() !== (isFlipped?'b':'w') && !liveGame.game_over()) triggerEngineMove(); }
+function checkAndTriggerAI() {
+    const pc = isFlipped ? 'b' : 'w';
+    if (liveGame.turn() !== pc && !liveGame.game_over()) triggerEngineMove();
+}
 
 function triggerEngineMove() {
     if (!isStockfishReady || isWaitingForAIMove) return;
@@ -267,8 +307,8 @@ function updateMoveLog() {
     for (let i = 0; i < fullMoveHistory.length; i += 2) {
         const row = document.createElement('div'); row.className = 'move-row';
         row.innerHTML = `<span style="color:#666;width:25px;display:inline-block;">${(i/2)+1}.</span>
-        <span class="move-text ${i+1===currentMoveIndex?'active-move':''}" style="cursor:pointer;" onclick="jumpToMoveIndex(${i+1})">${fullMoveHistory[i].san}</span>
-        ${fullMoveHistory[i+1] ? `<span class="move-text ${i+2===currentMoveIndex?'active-move':''}" style="cursor:pointer;" onclick="jumpToMoveIndex(${i+2})">${fullMoveHistory[i+1].san}</span>` : ''}`;
+        <span class="move-text ${i+1===currentMoveIndex?'active-move':''}" onclick="jumpToMoveIndex(${i+1})">${fullMoveHistory[i].san}</span>
+        ${fullMoveHistory[i+1] ? `<span class="move-text ${i+2===currentMoveIndex?'active-move':''}" onclick="jumpToMoveIndex(${i+2})">${fullMoveHistory[i+1].san}</span>` : ''}`;
         log.appendChild(row);
     }
 }
