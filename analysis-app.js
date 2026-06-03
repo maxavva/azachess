@@ -13,17 +13,15 @@ const pieceImagePaths = {
   'bK': 'https://upload.wikimedia.org/wikipedia/commons/f/f0/Chess_kdt45.svg'
 };
 
+// 1. Инициализация игры и дерева
 var game = new Chess();
-let selectedSquare = null, validMoves = [], isFlipped = false;
-
-// СИСТЕМА ДЕРЕВА ХОДОВ
 let moveHistoryTree = { id: "root", parent: null, move: null, children: [] };
 let activeNode = moveHistoryTree;
 
-// Управление
+let selectedSquare = null, validMoves = [], isFlipped = false;
 let isDragging = false, dragStartX = 0, dragStartY = 0, dragClone = null, draggedPieceImg = null, draggedSquare = null, dragMovedEnough = false;
 let stockfishWorker = null, isStockfishReady = false, analysisLines = [];
-let promotionFrom = null, promotionTo = null; // Для превращения
+let promotionFrom = null, promotionTo = null;
 const DRAG_THRESHOLD = 8;
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -32,21 +30,20 @@ document.addEventListener('DOMContentLoaded', () => {
   updateStatus();
   updateMoveLog();
 
-  const bind = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = fn; };
-  bind('btn-new-game', startNewGame);
-  bind('btn-flip', flipBoard);
-  bind('btn-nav-first', () => jumpToMoveNode(moveHistoryTree));
-  bind('btn-nav-prev', navigatePrev);
-  bind('btn-nav-next', navigateNext);
-  bind('btn-nav-last', navigateLast);
+  // Привязка кнопок
+  document.getElementById('btn-new-game').onclick = startNewGame;
+  document.getElementById('btn-flip').onclick = flipBoard;
+  document.getElementById('btn-nav-first').onclick = () => jumpToMoveNode(moveHistoryTree);
+  document.getElementById('btn-nav-prev').onclick = navigatePrev;
+  document.getElementById('btn-nav-next').onclick = navigateNext;
+  document.getElementById('btn-nav-last').onclick = navigateLast;
 
   document.addEventListener('keydown', (e) => {
     if (e.key === 'ArrowLeft') navigatePrev();
     if (e.key === 'ArrowRight') navigateNext();
   });
 
-  const toggle = document.getElementById('engine-toggle');
-  if (toggle) toggle.onchange = (e) => {
+  document.getElementById('engine-toggle').onchange = (e) => {
     if (!e.target.checked) {
       if (stockfishWorker) stockfishWorker.postMessage('stop');
       analysisLines = []; renderMultiPV();
@@ -57,14 +54,13 @@ document.addEventListener('DOMContentLoaded', () => {
 // --- ЛОГИКА ДВИЖКА ---
 function initStockfish() {
   try {
-    const blobCode = `importScripts('https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js');`;
-    stockfishWorker = new Worker(URL.createObjectURL(new Blob([blobCode], { type: 'application/javascript' })));
+    const workerCode = `importScripts('https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js');`;
+    stockfishWorker = new Worker(URL.createObjectURL(new Blob([workerCode], { type: 'application/javascript' })));
     stockfishWorker.onmessage = (e) => {
       if (e.data === 'readyok') { isStockfishReady = true; runAnalysisTask(); }
       if (e.data.startsWith('info')) handleAnalysisData(e.data);
     };
-    stockfishWorker.postMessage('uci');
-    stockfishWorker.postMessage('isready');
+    stockfishWorker.postMessage('uci'); stockfishWorker.postMessage('isready');
   } catch (err) { console.error(err); }
 }
 
@@ -89,15 +85,14 @@ function handleAnalysisData(data) {
 }
 
 function runAnalysisTask() {
-  const toggle = document.getElementById('engine-toggle');
-  if (!isStockfishReady || (toggle && !toggle.checked)) return;
+  if (!isStockfishReady || !document.getElementById('engine-toggle').checked) return;
   stockfishWorker.postMessage('stop');
   stockfishWorker.postMessage('setoption name MultiPV value 3');
   stockfishWorker.postMessage(`position fen ${game.fen()}`);
   stockfishWorker.postMessage('go depth 16');
 }
 
-// --- ЛОГИКА ДОСКИ ---
+// --- УПРАВЛЕНИЕ И ДОСКА ---
 function renderBoard(rebuild = false) {
   const boardEl = document.getElementById('board');
   if (rebuild) {
@@ -123,12 +118,14 @@ function renderBoard(rebuild = false) {
     if (activeNode.move && (name === activeNode.move.from || name === activeNode.move.to)) sq.classList.add('last-move');
     if (selectedSquare === name) sq.classList.add('selected');
     if (game.in_check() && piece && piece.type === 'k' && piece.color === game.turn()) sq.classList.add('check');
+    
     let img = sq.querySelector('.piece');
     if (piece) {
       const src = pieceImagePaths[`${piece.color}${piece.type.toUpperCase()}`];
       if (!img) { img = document.createElement('img'); img.className = 'piece'; img.draggable = false; sq.appendChild(img); }
       img.src = src;
     } else if (img) sq.removeChild(img);
+
     let m = sq.querySelector('.move-dest, .move-dest-capture');
     if (validMoves.includes(name)) {
       const cls = piece ? 'move-dest-capture' : 'move-dest';
@@ -140,28 +137,31 @@ function renderBoard(rebuild = false) {
 function handlePointerDown(e, sq) {
   if (typeof window.unlockAudio === 'function') window.unlockAudio();
   
-  // Клик для хода/взятия
+  // Клик для завершения хода
   if (selectedSquare && validMoves.includes(sq)) {
-    const moves = game.moves({ square: selectedSquare, verbose: true });
-    const move = moves.find(m => m.to === sq);
+    const move = game.moves({ square: selectedSquare, verbose: true }).find(m => m.to === sq);
     if (move && move.flags.includes('p')) {
-        promotionFrom = selectedSquare; promotionTo = sq;
-        document.getElementById('promotion-modal').classList.remove('hidden');
-        renderPromotionChoices();
-        return;
+      promotionFrom = selectedSquare; promotionTo = sq;
+      document.getElementById('promotion-modal').classList.remove('hidden');
+      renderPromotionChoices();
+    } else {
+      attemptMove(selectedSquare, sq);
     }
-    attemptMove(selectedSquare, sq);
     return;
   }
 
   const piece = game.get(sq);
   if (piece) {
-    isDragging = true; dragMovedEnough = false; draggedSquare = sq; dragStartX = e.clientX; dragStartY = e.clientY;
+    isDragging = true; dragMovedEnough = false; draggedSquare = sq;
+    dragStartX = e.clientX; dragStartY = e.clientY;
     draggedPieceImg = e.target.classList.contains('piece') ? e.target : e.target.querySelector('.piece');
-    if (piece.color === game.turn()) { 
-        selectedSquare = sq; 
-        validMoves = game.moves({ square: sq, verbose: true }).map(m => m.to); 
-    } else { selectedSquare = null; validMoves = []; }
+    
+    if (piece.color === game.turn()) {
+      selectedSquare = sq;
+      validMoves = game.moves({ square: sq, verbose: true }).map(m => m.to);
+    } else {
+      selectedSquare = null; validMoves = [];
+    }
     renderBoard(false);
     window.onpointermove = handlePointerMove;
     window.onpointerup = handlePointerUp;
@@ -191,24 +191,21 @@ function handlePointerUp(e) {
   isDragging = false; window.onpointermove = null; window.onpointerup = null;
   if (dragClone) { document.body.removeChild(dragClone); dragClone = null; }
   if (draggedPieceImg) draggedPieceImg.style.visibility = 'visible';
+
   const el = document.elementFromPoint(e.clientX, e.clientY);
   const target = el?.closest('.square')?.dataset.square;
 
   if (dragMovedEnough && target && validMoves.includes(target)) {
-    const moves = game.moves({ square: draggedSquare, verbose: true });
-    const move = moves.find(m => m.to === target);
+    const move = game.moves({ square: draggedSquare, verbose: true }).find(m => m.to === target);
     if (move && move.flags.includes('p')) {
-        promotionFrom = draggedSquare; promotionTo = target;
-        document.getElementById('promotion-modal').classList.remove('hidden');
-        renderPromotionChoices();
-    } else {
-        attemptMove(draggedSquare, target);
-    }
-  } else if (dragMovedEnough) {
-    renderBoard(false);
-  }
+      promotionFrom = draggedSquare; promotionTo = target;
+      document.getElementById('promotion-modal').classList.remove('hidden');
+      renderPromotionChoices();
+    } else attemptMove(draggedSquare, target);
+  } else if (dragMovedEnough) renderBoard(false);
 }
 
+// --- ЯДРО ДЕРЕВА И ХОДОВ ---
 function attemptMove(f, t, promo = 'q') {
   const res = game.move({ from: f, to: t, promotion: promo });
   if (res) {
@@ -218,26 +215,8 @@ function attemptMove(f, t, promo = 'q') {
   }
 }
 
-function renderPromotionChoices() {
-  const container = document.querySelector('.promotion-choices');
-  if (!container) return;
-  container.innerHTML = '';
-  const turn = game.turn();
-  ['q','r','b','n'].forEach(p => {
-    const btn = document.createElement('button');
-    btn.className = 'promo-btn';
-    btn.innerHTML = `<img src="${pieceImagePaths[turn+p.toUpperCase()]}" style="width:100%;">`;
-    btn.onclick = () => {
-      attemptMove(promotionFrom, promotionTo, p);
-      document.getElementById('promotion-modal').classList.add('hidden');
-    };
-    container.appendChild(btn);
-  });
-}
-
-// --- ДЕРЕВО И НАВИГАЦИЯ ---
-
 function recordMoveInTree(res) {
+  // Ищем существующий ход у текущего узла
   let child = activeNode.children.find(c => c.move.san === res.san);
   if (!child) {
     child = { id: Date.now(), parent: activeNode, move: res, children: [] };
@@ -287,28 +266,48 @@ function updateMoveLog() {
   updateBranchSelector();
 }
 
+// Эта функция нужна для работы кликов по логу ходов
 window.jumpToMoveByRef = (idx) => {
   const fullLine = getFullCurrentLine();
-  jumpToMoveNode(fullLine[idx]);
+  if (fullLine[idx]) jumpToMoveNode(fullLine[idx]);
 };
 
 function updateBranchSelector() {
   const panel = document.getElementById('branch-panel'), container = document.getElementById('branch-choices');
   if (!panel || !container) return;
+  
+  // Варианты - это дети родителя (сиблинги текущего активного хода)
   const parent = activeNode.parent;
-  let choices = (activeNode.children.length > 1) ? activeNode.children : (parent && parent.children.length > 1 ? parent.children : []);
+  const choices = (parent && parent.children.length > 1) ? parent.children : [];
 
   if (choices.length > 1) {
     panel.style.display = 'block'; container.innerHTML = '';
     choices.forEach(c => {
       const btn = document.createElement('button');
-      btn.className = `branch-btn ${c===activeNode?'active-branch':''}`;
-      btn.textContent = c.move.san; btn.onclick = () => jumpToMoveNode(c);
+      btn.className = `branch-btn ${c === activeNode ? 'active-branch' : ''}`;
+      btn.textContent = c.move.san;
+      btn.onclick = () => jumpToMoveNode(c);
       container.appendChild(btn);
     });
   } else panel.style.display = 'none';
 }
 
+function renderPromotionChoices() {
+  const container = document.querySelector('.promotion-choices'); if (!container) return;
+  container.innerHTML = '';
+  const turn = game.turn();
+  ['q','r','b','n'].forEach(p => {
+    const btn = document.createElement('button'); btn.className = 'promo-btn';
+    btn.innerHTML = `<img src="${pieceImagePaths[turn+p.toUpperCase()]}" style="width:100%;">`;
+    btn.onclick = () => {
+      attemptMove(promotionFrom, promotionTo, p);
+      document.getElementById('promotion-modal').classList.add('hidden');
+    };
+    container.appendChild(btn);
+  });
+}
+
+// --- ВСПОМОГАТЕЛЬНЫЕ ---
 function navigatePrev() { if (activeNode.parent) jumpToMoveNode(activeNode.parent); }
 function navigateNext() { if (activeNode.children.length > 0) jumpToMoveNode(activeNode.children[0]); }
 function navigateLast() { let t = activeNode; while(t.children.length > 0) t = t.children[0]; jumpToMoveNode(t); }
@@ -316,7 +315,12 @@ function startNewGame() { game = new Chess(); moveHistoryTree = { id:"root", par
 function flipBoard() { isFlipped = !isFlipped; renderBoard(true); }
 function clearSelection() { selectedSquare = null; validMoves = []; renderBoard(false); }
 function updateStatus() { document.getElementById('status-text').textContent = game.in_checkmate() ? "Мат!" : "Свободный анализ"; }
-
+function updateEvaluationBar(cp) {
+  const fill = document.getElementById('eval-fill'), text = document.getElementById('eval-text');
+  let p = 50 + (Math.max(-800, Math.min(800, cp)) / 800) * 45;
+  if (fill) fill.style.height = `${p}%`;
+  if (text) text.textContent = (cp / 100).toFixed(1);
+}
 function renderMultiPV() {
   const container = document.getElementById('multipv-container'), toggle = document.getElementById('engine-toggle');
   if (!container || (toggle && !toggle.checked)) return;
@@ -327,11 +331,4 @@ function renderMultiPV() {
       <div style="color:#777;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${line.path}</div>
     </div>
   `).join('');
-}
-
-function updateEvaluationBar(cp) {
-  const fill = document.getElementById('eval-fill'), text = document.getElementById('eval-text');
-  let p = 50 + (Math.max(-800, Math.min(800, cp)) / 800) * 45;
-  if (fill) fill.style.height = `${p}%`;
-  if (text) text.textContent = (cp / 100).toFixed(1);
 }
