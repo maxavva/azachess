@@ -34,6 +34,7 @@ body {
   color: var(--text-bright);
   margin: 0;
   letter-spacing: -2px;
+  text-transform: uppercase;
 }
 
 .logo span { color: var(--accent); }
@@ -43,6 +44,7 @@ body {
   color: #666;
   text-transform: uppercase;
   letter-spacing: 2px;
+  margin-top: 5px;
 }
 
 .section-title {
@@ -51,9 +53,10 @@ body {
   margin-bottom: 20px;
   border-bottom: 1px solid var(--border);
   padding-bottom: 10px;
+  font-weight: normal;
 }
 
-/* Сетка времени */
+/* Сетка выбора времени */
 .time-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
@@ -68,20 +71,24 @@ body {
   text-align: center;
   border-radius: 6px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.2s ease;
   display: flex;
   flex-direction: column;
+  justify-content: center;
 }
 
 .time-card .val {
-  font-size: 1.6rem;
+  font-size: 1.8rem;
   font-weight: bold;
   color: var(--text-bright);
+  display: block;
 }
 
 .time-card .lab {
   font-size: 0.75rem;
   color: #666;
+  text-transform: uppercase;
+  margin-top: 5px;
 }
 
 .time-card:hover {
@@ -92,12 +99,13 @@ body {
 
 .time-card.active {
   border-color: var(--accent);
-  background: rgba(37, 128, 57, 0.1);
+  background: rgba(37, 128, 57, 0.15);
+  box-shadow: 0 0 15px rgba(37, 128, 57, 0.1);
 }
 
 .time-card.active .val { color: var(--accent); }
 
-/* Сетка уровней */
+/* Сетка уровней ИИ */
 .level-grid {
   display: grid;
   grid-template-columns: repeat(8, 1fr);
@@ -109,24 +117,28 @@ body {
   background: var(--bg-panel);
   border: 1px solid var(--border);
   color: var(--text-bright);
-  padding: 15px 0;
+  padding: 18px 0;
+  font-size: 1.1rem;
   font-weight: bold;
   border-radius: 4px;
   cursor: pointer;
   transition: all 0.2s;
 }
 
+.level-btn:hover:not(.active) { background: #333; }
+
 .level-btn.active {
   background: var(--accent);
   border-color: var(--accent);
+  transform: scale(1.05);
+  z-index: 2;
 }
 
-.level-btn:hover:not(.active) { background: #333; }
-
-/* Кнопки старта */
+/* Кнопки действий */
 .main-actions {
   display: flex;
   gap: 15px;
+  margin-top: 20px;
 }
 
 .start-btn {
@@ -134,24 +146,37 @@ body {
   background: var(--accent);
   color: white;
   border: none;
-  padding: 22px;
-  font-size: 1.3rem;
-  font-weight: bold;
-  border-radius: 6px;
+  padding: 25px;
+  font-size: 1.4rem;
+  font-weight: 800;
+  border-radius: 8px;
   cursor: pointer;
   text-decoration: none;
   text-align: center;
-  transition: background 0.2s;
+  transition: all 0.2s;
+  box-shadow: 0 4px 0px #1a5c29;
 }
 
-.start-btn:hover { background: #2b9348; }
+.start-btn:hover {
+  background: #2b9348;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 0px #1a5c29;
+}
+
+.start-btn:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0px #1a5c29;
+}
 
 .start-btn.secondary {
   background: #333;
-  border: 1px solid var(--border);
+  box-shadow: 0 4px 0px #1a1a1a;
 }
 
-.start-btn.secondary:hover { background: #444; }
+.start-btn.secondary:hover {
+  background: #444;
+  box-shadow: 0 6px 0px #1a1a1a;
+}
 
 .hub-footer {
   margin-top: 80px;
@@ -163,4 +188,5 @@ body {
 @media (max-width: 600px) {
   .level-grid { grid-template-columns: repeat(4, 1fr); }
   .main-actions { flex-direction: column; }
+  .logo { font-size: 3rem; }
 }
