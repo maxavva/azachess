@@ -76,6 +76,16 @@
     function startGame() {
       window.location.href = 'play.html';
     }
+  
+  function startGame() {
+  // Убеждаемся, что уровень ИИ записан
+  const activeLevel = document.querySelector('#level-grid .level-btn.active');
+  if (activeLevel) {
+      localStorage.setItem('selected-ai-level', activeLevel.dataset.lv);
+  }
+  window.location.href = 'play.html';
+}
+  
   </script>
 </body>
 </html>
