@@ -303,14 +303,21 @@ function updateStatus() {
 }
 
 function triggerEngineMove() {
-  const lv = document.getElementById('ai-depth') ? document.getElementById('ai-depth').value : 3;
-  const cfg = AI_LEVELS[lv] || AI_LEVELS[3];
-  if (isStockfishReady && stockfishWorker) {
-    isWaitingForAIMove = true;
-    stockfishWorker.postMessage(`setoption name Skill Level value ${cfg.skill}`);
-    stockfishWorker.postMessage(`position fen ${game.fen()}`);
-    stockfishWorker.postMessage(`go depth ${cfg.depth}`);
-  }
+  if (!isStockfishReady || isWaitingForAIMove) return;
+
+  // ПРОВЕРКА: Если время вышло, ИИ не должен ходить
+  if (isClockEnabled && isGameStarted && (whiteTime <= 0 || blackTime <= 0)) return;
+
+  // ЧИТАЕМ УРОВЕНЬ ИЗ ПАМЯТИ
+  const savedLevel = localStorage.getItem('selected-ai-level') || 3;
+  const cfg = AI_LEVELS[savedLevel] || AI_LEVELS[3];
+
+  isWaitingForAIMove = true;
+  document.getElementById('status-text').textContent = `ИИ (Ур. ${savedLevel}) думает...`;
+  
+  stockfishWorker.postMessage(`setoption name Skill Level value ${cfg.skill}`);
+  stockfishWorker.postMessage(`position fen ${game.fen()}`);
+  stockfishWorker.postMessage(`go depth ${cfg.depth}`);
 }
 
 function startNewGame() { resetGameSettings(); }
