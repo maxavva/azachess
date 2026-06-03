@@ -14,13 +14,10 @@ const pieceImagePaths = {
 };
 
 var game = new Chess();
-let selectedSquare = null;
-let validMoves = [];
-let isFlipped = false;
+let selectedSquare = null, validMoves = [], isFlipped = false;
 let moveHistoryTree = { id: "root", parent: null, move: null, children: [] };
 let activeNode = moveHistoryTree;
-let isDragging = false;
-let dragStartX = 0, dragStartY = 0, dragClone = null, draggedPieceImg = null, draggedSquare = null;
+let isDragging = false, dragStartX = 0, dragStartY = 0, dragClone = null, draggedPieceImg = null, draggedSquare = null;
 let stockfishWorker = null, isStockfishReady = false, analysisLines = [];
 let promotionFrom = null, promotionTo = null;
 
@@ -40,97 +37,49 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('engine-toggle').onchange = (e) => {
     if (!e.target.checked) {
       if (stockfishWorker) stockfishWorker.postMessage('stop');
-      analysisLines = [];
-      renderMultiPV();
-    } else {
-      runAnalysisTask();
-    }
+      analysisLines = []; renderMultiPV();
+    } else runAnalysisTask();
   };
 });
 
 function initStockfish() {
   try {
-    // Используем HTTPS ссылку напрямую в блобе
     const workerCode = `importScripts('https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js');`;
-    const blob = new Blob([workerCode], { type: 'application/javascript' });
-    stockfishWorker = new Worker(URL.createObjectURL(blob));
-    
+    stockfishWorker = new Worker(URL.createObjectURL(new Blob([workerCode], { type: 'application/javascript' })));
     stockfishWorker.onmessage = (e) => {
       if (e.data === 'readyok') { isStockfishReady = true; runAnalysisTask(); }
-      if (e.data.startsWith('info')) {
-        const dMatch = e.data.match(/depth (\d+)/);
-        if (dMatch && dMatch[1] > 10) { // Обновляем только при нормальной глубине
-          handleAnalysisData(e.data);
-        }
-      }
+      if (e.data.startsWith('info')) handleAnalysisData(e.data);
     };
     stockfishWorker.postMessage('uci');
     stockfishWorker.postMessage('isready');
-  } catch (err) { console.error("AI Error:", err); }
+  } catch (err) { console.error(err); }
 }
 
 function handleAnalysisData(data) {
   const multipvMatch = data.match(/multipv (\d+)/);
   const pvIndex = multipvMatch ? parseInt(multipvMatch[1]) - 1 : 0;
   let score = "0.00";
-
   if (data.includes('score cp')) {
     let cp = parseInt(data.match(/score cp (-?\d+)/)[1]);
     if (game.turn() === 'b') cp = -cp;
     score = (cp / 100).toFixed(2);
     if (pvIndex === 0) updateEvaluationBar(cp);
   } else if (data.includes('score mate')) {
-    const m = data.match(/score mate (-?\d+)/);
-    score = "M" + Math.abs(m[1]);
+    score = "M" + Math.abs(data.match(/score mate (-?\d+)/)[1]);
   }
-
   const pvMatch = data.match(/ pv (.+)/);
   if (pvMatch) {
     const pvMoves = pvMatch[1].split(' ');
-    analysisLines[pvIndex] = {
-      score: score,
-      move: pvMoves[0].substring(0, 2) + " → " + pvMoves[0].substring(2, 4),
-      path: pvMoves.slice(1, 4).join(' ')
-    };
+    analysisLines[pvIndex] = { score, move: pvMoves[0].substring(0,2)+"→"+pvMoves[0].substring(2,4), path: pvMoves.slice(1, 4).join(' ') };
     renderMultiPV();
   }
 }
 
-function runAnalysisTask() {
-  if (!isStockfishReady || !document.getElementById('engine-toggle').checked) return;
-  stockfishWorker.postMessage('stop');
-  stockfishWorker.postMessage('setoption name MultiPV value 3');
-  stockfishWorker.postMessage(`position fen ${game.fen()}`);
-  stockfishWorker.postMessage('go depth 16');
-}
-
-function renderMultiPV() {
-  const container = document.getElementById('multipv-container');
-  if (!container) return;
-  if (!document.getElementById('engine-toggle').checked) {
-    container.innerHTML = '<div style="text-align:center;color:#555;padding:10px;">Движок выключен</div>';
-    return;
-  }
-  container.innerHTML = analysisLines.map(line => `
-    <div class="pv-line" style="display:flex;gap:10px;font-family:monospace;font-size:0.85rem;margin-bottom:5px;background:rgba(255,255,255,0.05);padding:5px;border-radius:3px;">
-      <div style="font-weight:bold;color:#fff;min-width:40px;">${line.score}</div>
-      <div style="color:#258039;font-weight:bold;">${line.move}</div>
-      <div style="color:#777;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${line.path}</div>
-    </div>
-  `).join('');
-}
-
-function updateEvaluationBar(cp) {
-  const fill = document.getElementById('eval-fill'), text = document.getElementById('eval-text');
-  let p = 50 + (Math.max(-800, Math.min(800, cp)) / 800) * 45;
-  if (fill) fill.style.height = `${p}%`;
-  if (text) text.textContent = (cp / 100).toFixed(1);
-}
-
-// Функции отрисовки и ходов (остаются без изменений, но убедись что они есть)
 function renderBoard(rebuild = false) {
   const boardEl = document.getElementById('board');
   if (rebuild) {
+    const theme = localStorage.getItem('chess-board-theme') || 'theme-brown';
+    boardEl.className = 'chessboard ' + theme;
     boardEl.innerHTML = '';
     for (let r = 0; r < 8; r++) {
       const row = isFlipped ? r : (7 - r);
@@ -177,6 +126,7 @@ function handlePointerDown(e, sq) {
     renderBoard(false);
     window.onpointermove = handlePointerMove;
     window.onpointerup = handlePointerUp;
+    try { e.target.setPointerCapture(e.pointerId); } catch(err) {}
   } else clearSelection();
 }
 
@@ -187,7 +137,9 @@ function handlePointerMove(e) {
     if (!dragClone) {
       dragClone = draggedPieceImg.cloneNode(true);
       dragClone.className = 'piece drag-clone';
+      // ФИКС РАЗМЕРА ФИГУРЫ
       dragClone.style.width = draggedPieceImg.offsetWidth + 'px';
+      dragClone.style.height = draggedPieceImg.offsetHeight + 'px';
       document.body.appendChild(dragClone);
       draggedPieceImg.style.visibility = 'hidden';
     }
@@ -207,15 +159,12 @@ function handlePointerUp(e) {
 }
 
 function attemptMove(f, t) {
-  const move = game.moves({ square: f, verbose: true }).find(m => m.to === t);
-  if (!move) return;
   const res = game.move({ from: f, to: t, promotion: 'q' });
   if (res) {
     if (window.playMoveSound) playMoveSound(res);
     let child = activeNode.children.find(c => c.move.san === res.san);
     if (!child) { child = { id: Date.now(), parent: activeNode, move: res, children: [] }; activeNode.children.push(child); }
-    activeNode = child;
-    finalizeMove();
+    activeNode = child; finalizeMove();
   }
 }
 
@@ -248,7 +197,27 @@ function startNewGame() { game = new Chess(); moveHistoryTree = { id:"root", par
 function flipBoard() { isFlipped = !isFlipped; renderBoard(true); }
 function clearSelection() { selectedSquare = null; validMoves = []; renderBoard(false); }
 function updateStatus() { document.getElementById('status-text').textContent = game.in_checkmate() ? "Мат!" : "Свободный анализ"; }
-function applySavedTheme() { 
-  const theme = localStorage.getItem('chess-board-theme') || 'theme-brown';
-  document.getElementById('board').classList.add(theme);
+function runAnalysisTask() {
+  if (!isStockfishReady || !document.getElementById('engine-toggle').checked) return;
+  stockfishWorker.postMessage('stop');
+  stockfishWorker.postMessage('setoption name MultiPV value 3');
+  stockfishWorker.postMessage(`position fen ${game.fen()}`);
+  stockfishWorker.postMessage('go depth 16');
+}
+function renderMultiPV() {
+  const container = document.getElementById('multipv-container');
+  if (!container || !document.getElementById('engine-toggle').checked) return;
+  container.innerHTML = analysisLines.map(line => `
+    <div style="display:flex;gap:10px;font-family:monospace;font-size:0.85rem;background:rgba(255,255,255,0.05);padding:5px;margin-bottom:2px;">
+      <div style="font-weight:bold;color:#fff;">${line.score}</div>
+      <div style="color:#258039;">${line.move}</div>
+      <div style="color:#777;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${line.path}</div>
+    </div>
+  `).join('');
+}
+function updateEvaluationBar(cp) {
+  const fill = document.getElementById('eval-fill'), text = document.getElementById('eval-text');
+  let p = 50 + (Math.max(-800, Math.min(800, cp)) / 800) * 45;
+  if (fill) fill.style.height = `${p}%`;
+  if (text) text.textContent = (cp / 100).toFixed(1);
 }
