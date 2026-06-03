@@ -59,15 +59,10 @@ let promotionTo = null;
 
 document.addEventListener('DOMContentLoaded', () => {
   initStockfish();
+  renderBoard(true);
   
-  const timeBtns = document.querySelectorAll('.time-btn');
-  timeBtns.forEach(btn => {
-    btn.addEventListener('click', () => {
-      timeBtns.forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      startNewGame();
-    });
-  });
+  // Установка настроек из памяти (которые выбрали на главной)
+  resetGameSettings(); 
 
   document.getElementById('btn-new-game').addEventListener('click', startNewGame);
   document.getElementById('btn-flip').addEventListener('click', flipBoard);
@@ -80,6 +75,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.key === 'ArrowLeft') jumpToMoveIndex(currentMoveIndex - 1);
     if (e.key === 'ArrowRight') jumpToMoveIndex(currentMoveIndex + 1);
   });
+});
 
   resetGameSettings();
 });
