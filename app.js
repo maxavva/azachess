@@ -97,9 +97,15 @@ function initStockfish() {
 
 function handleUCIResponse(message) {
   if (message === 'readyok') isStockfishReady = true;
+  
+  // ИИ ПРИСЛАЛ ХОД
   if (message.startsWith('bestmove') && isWaitingForAIMove) {
     if (stockfishWatchdogTimer) clearTimeout(stockfishWatchdogTimer);
     isWaitingForAIMove = false;
+
+    // ПРОВЕРКА: Если время вышло, пока ИИ думал — игнорируем его ход
+    if (isClockEnabled && (whiteTime <= 0 || blackTime <= 0)) return;
+
     const move = message.split(' ')[1];
     if (move && move !== '(none)') {
       const res = game.move({ from: move.substring(0, 2), to: move.substring(2, 4), promotion: move[4] || 'q' });
@@ -233,6 +239,7 @@ function handlePointerUp(e) {
 }
 
 function attemptMove(from, to) {
+  // БЛОКИРОВКА ПРИ НУЛЕВОМ ВРЕМЕНИ
   if (isClockEnabled && (whiteTime <= 0 || blackTime <= 0)) return clearSelection();
   
   const move = game.moves({ square: from, verbose: true }).find(m => m.to === to);
@@ -255,13 +262,20 @@ function attemptMove(from, to) {
 
 function onMoveExecution() {
   if (!isGameStarted) isGameStarted = true;
+  
+  // ПРИБАВЛЯЕМ ВРЕМЯ ПОСЛЕ ХОДА (Инкремент)
   if (isClockEnabled) {
     if (game.turn() === 'b') whiteTime += increment;
     else blackTime += increment;
   }
+
   clearSelection(); updateMoveLog(); updateStatus(); updateClockDisplay();
-  if (game.game_over()) stopTimer();
-  else {
+  
+  // ЕСЛИ ИГРА ОКОНЧЕНА - ВЫХОДИМ
+  if (game.game_over() || (isClockEnabled && (whiteTime <= 0 || blackTime <= 0))) {
+    stopTimer();
+    return;
+  } else {
     if (isClockEnabled && isGameStarted) startTimer();
     const pc = isFlipped ? 'b' : 'w';
     if (game.turn() !== pc) triggerEngineMove();
@@ -289,12 +303,17 @@ function startTimer() {
   if (!isClockEnabled || !isGameStarted) return;
   timerInterval = setInterval(() => {
     if (game.turn() === 'w') whiteTime--; else blackTime--;
+
+    // ЕСЛИ ВРЕМЯ ВЫШЛО ВНУТРИ ЦИКЛА
     if (whiteTime <= 0 || blackTime <= 0) {
       whiteTime = Math.max(0, whiteTime); blackTime = Math.max(0, blackTime);
-      stopTimer(); updateStatus();
+      stopTimer(); 
+      updateStatus();
+      updateClockDisplay();
       if (typeof chessSounds !== 'undefined' && chessSounds.gameEnd) chessSounds.gameEnd.play();
+    } else {
+      updateClockDisplay();
     }
-    updateClockDisplay();
   }, 1000);
 }
 
@@ -304,23 +323,47 @@ function updateClockDisplay() {
   if (!isClockEnabled) return;
   const top = document.getElementById('clock-top'), bottom = document.getElementById('clock-bottom');
   const format = (s) => `${Math.floor(s/60)}:${(s%60).toString().padStart(2, '0')}`;
+  
   const wClock = isFlipped ? top : bottom, bClock = isFlipped ? bottom : top;
   wClock.textContent = format(whiteTime); bClock.textContent = format(blackTime);
+  
   const turn = game.turn();
-  top.classList.toggle('active', isGameStarted && ((isFlipped && turn === 'w') || (!isFlipped && turn === 'b')));
-  bottom.classList.toggle('active', isGameStarted && ((!isFlipped && turn === 'w') || (isFlipped && turn === 'b')));
+  // Подсветка только если игра в процессе
+  const isActive = isGameStarted && !game.game_over() && whiteTime > 0 && blackTime > 0;
+  top.classList.toggle('active', isActive && ((isFlipped && turn === 'w') || (!isFlipped && turn === 'b')));
+  bottom.classList.toggle('active', isActive && ((!isFlipped && turn === 'w') || (isFlipped && turn === 'b')));
 }
 
 function updateStatus() {
   const s = document.getElementById('status-text');
-  if (game.in_checkmate()) { s.textContent = `Мат! Победили ${game.turn()==='w'?'Черные':'Белые'}`; stopTimer(); }
-  else if (game.in_draw()) { s.textContent = 'Ничья'; stopTimer(); }
-  else if (isClockEnabled && whiteTime <= 0) { s.textContent = 'Белые проиграли по времени!'; stopTimer(); }
-  else if (isClockEnabled && blackTime <= 0) { s.textContent = 'Черные проиграли по времени!'; stopTimer(); }
-  else s.textContent = game.turn()==='w' ? 'Ход белых' : 'Ход черных';
+  
+  if (isClockEnabled && whiteTime <= 0) { 
+    s.textContent = 'Белые: время вышло!'; 
+    stopTimer(); 
+    return;
+  }
+  if (isClockEnabled && blackTime <= 0) { 
+    s.textContent = 'Черные: время вышло!'; 
+    stopTimer(); 
+    return;
+  }
+
+  if (game.in_checkmate()) { 
+    s.textContent = `Мат! Победили ${game.turn()==='w'?'Черные':'Белые'}`; 
+    stopTimer(); 
+  } else if (game.in_draw()) { 
+    s.textContent = 'Ничья'; 
+    stopTimer(); 
+  } else {
+    s.textContent = game.turn()==='w' ? 'Ход белых' : 'Ход черных';
+    if (game.in_check()) s.textContent += ' (Шах!)';
+  }
 }
 
 function triggerEngineMove() {
+  // ПРОВЕРКА: Если время вышло, ИИ не должен ходить
+  if (isClockEnabled && (whiteTime <= 0 || blackTime <= 0)) return;
+
   const lv = document.getElementById('ai-depth').value;
   const cfg = AI_LEVELS[lv] || AI_LEVELS[3];
   if (isStockfishReady && stockfishWorker) {
@@ -338,6 +381,7 @@ function flipBoard() { isFlipped = !isFlipped; clearSelection(); renderBoard(tru
 
 function setBoardTheme(theme) {
   const board = document.getElementById('board');
+  if (!board) return;
   board.classList.remove('theme-brown', 'theme-green', 'theme-blue');
   board.classList.add(theme);
   localStorage.setItem('chess-board-theme', theme);
