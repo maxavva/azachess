@@ -1,47 +1,56 @@
-// Надежные звуки с Wikimedia
 const soundUrls = {
-    move: 'https://upload.wikimedia.org/wikipedia/commons/b/b1/Chess_move.ogg',
-    capture: 'https://upload.wikimedia.org/wikipedia/commons/a/af/Chess_capture.ogg',
-    check: 'https://upload.wikimedia.org/wikipedia/commons/d/d5/Chess_check.ogg',
-    gameEnd: 'https://upload.wikimedia.org/wikipedia/commons/e/e0/Generic_Notify.ogg',
-    promote: 'https://upload.wikimedia.org/wikipedia/commons/3/30/Chess_promote.ogg'
+    move: 'https://www.chess.com/chess-themes/sounds/_standard/default/move-self.mp3',
+    capture: 'https://www.chess.com/chess-themes/sounds/_standard/default/capture.mp3',
+    check: 'https://www.chess.com/chess-themes/sounds/_standard/default/move-check.mp3',
+    gameEnd: 'https://www.chess.com/chess-themes/sounds/_standard/default/game-end.mp3',
+    promote: 'https://www.chess.com/chess-themes/sounds/_standard/default/promote.mp3'
 };
 
 const chessSounds = {};
 
+// Предзагрузка с обработкой ошибок
 function initSounds() {
     for (let key in soundUrls) {
-        chessSounds[key] = new Audio(soundUrls[key]);
-        chessSounds[key].load();
+        const audio = new Audio(soundUrls[key]);
+        audio.preload = 'auto';
+        chessSounds[key] = audio;
     }
 }
+
 initSounds();
 
 function unlockAudio() {
     for (let key in chessSounds) {
-        let s = chessSounds[key];
+        const s = chessSounds[key];
         s.play().then(() => { s.pause(); s.currentTime = 0; }).catch(() => {});
     }
     window.removeEventListener('click', unlockAudio);
 }
+
 window.addEventListener('click', unlockAudio);
 
 function playMoveSound(result) {
     if (!result) return;
     try {
         let sound = chessSounds.move;
-        if (game && game.in_check()) sound = chessSounds.check;
-        else if (result.flags.includes('c') || result.flags.includes('e')) sound = chessSounds.capture;
-        else if (result.flags.includes('p')) sound = chessSounds.promote;
-
-        sound.currentTime = 0;
-        sound.play().catch(() => {});
-
-        if (game && game.game_over()) {
-            setTimeout(() => {
-                chessSounds.gameEnd.currentTime = 0;
-                chessSounds.gameEnd.play().catch(() => {});
-            }, 600);
+        
+        if (typeof game !== 'undefined' && game.in_check()) {
+            sound = chessSounds.check;
+        } else if (result.flags.includes('c') || result.flags.includes('e')) {
+            sound = chessSounds.capture;
+        } else if (result.flags.includes('p')) {
+            sound = chessSounds.promote;
         }
-    } catch (e) {}
+
+        if (sound) {
+            sound.currentTime = 0;
+            sound.play().catch(e => console.warn("Звук временно недоступен"));
+        }
+
+        if (typeof game !== 'undefined' && game.game_over()) {
+            setTimeout(() => chessSounds.gameEnd.play().catch(() => {}), 500);
+        }
+    } catch (e) {
+        // Если звук сломался, просто игнорируем его, чтобы игра работала дальше
+    }
 }
