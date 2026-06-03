@@ -129,8 +129,11 @@ function renderBoard(rebuildSquares = false) {
 }
 
 function handlePointerDown(e, square) {
+  // Вызываем разблокировку при КАЖДОМ нажатии, пока она не сработает
   if (typeof unlockAllSounds === 'function') unlockAllSounds();
+  
   if (e.button !== 0 || !game || game.game_over() || isWaitingForAIMove) return;
+  // ... дальше твой код
   const piece = game.get(square);
   const myTurn = game.turn() === (isFlipped ? 'b' : 'w');
   
