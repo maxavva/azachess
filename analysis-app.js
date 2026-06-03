@@ -83,7 +83,7 @@ function initStockfish() {
 }
 
 function handleUCIResponse(message) {
-  if (typeof forceUnlockAudio === 'function') forceUnlockAudio();
+  if (typeof unlockAllSounds === 'function') unlockAllSounds();
   if (message === 'readyok') { isStockfishReady = true; runAnalysisTask(); return; }
   if (message.startsWith('info')) {
     const dMatch = message.match(/depth (\d+)/);
