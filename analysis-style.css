@@ -522,3 +522,40 @@ body {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* Универсальный класс скрытия */
+.hidden-panel {
+  display: none !important;
+}
+
+/* Оформление панели веток, чтобы она выделялась */
+#branch-panel {
+  background-color: rgba(37, 128, 57, 0.1); /* Легкий зеленый фон */
+  border-left: 4px solid var(--accent);
+  margin-bottom: 15px;
+  padding: 10px;
+  border-radius: 4px;
+}
+
+#branch-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+/* Стиль кнопок веток */
+.branch-btn {
+  padding: 6px 12px !important;
+  background: #333 !important;
+  border: 1px solid #444 !important;
+  color: #fff !important;
+  cursor: pointer;
+  border-radius: 3px;
+  font-size: 0.9rem;
+}
+
+.branch-btn.active-branch {
+  background-color: var(--accent) !important;
+  border-color: var(--accent) !important;
+}
