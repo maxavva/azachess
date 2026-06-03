@@ -129,6 +129,7 @@ function renderBoard(rebuildSquares = false) {
 }
 
 function handlePointerDown(e, square) {
+  if (typeof forceUnlockAudio === 'function') forceUnlockAudio();
   if (e.button !== 0 || !game || game.game_over() || isWaitingForAIMove) return;
   const piece = game.get(square);
   const myTurn = game.turn() === (isFlipped ? 'b' : 'w');
