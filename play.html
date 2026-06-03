@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Azachess - Игра</title>
   <link rel="stylesheet" href="style.css">
+  <!-- Сначала правила -->
   <script src="https://cdn.jsdelivr.net/npm/chess.js@0.10.3/chess.min.js"></script>
 </head>
 <body>
@@ -18,7 +19,9 @@
 
     <div class="game-container">
       <div class="board-wrapper">
+        <!-- ГЛАВНЫЙ ЭЛЕМЕНТ -->
         <div id="board" class="chessboard"></div>
+        
         <div class="navigation-controls">
           <button id="btn-nav-first" class="btn btn-secondary nav-btn">|&lt;</button>
           <button id="btn-nav-prev" class="btn btn-secondary nav-btn">&lt;</button>
@@ -35,7 +38,7 @@
       </div>
 
       <div class="control-panel">
-        <div class="status-display" id="status-text">Инициализация...</div>
+        <div class="status-display" id="status-text">Загрузка...</div>
 
         <div id="clocks-wrapper" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 15px;">
           <div id="clock-top" class="clock">--:--</div>
