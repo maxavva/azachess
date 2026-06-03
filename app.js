@@ -24,7 +24,7 @@ let selectedSquare = null, validMoves = [], isFlipped = false, fullMoveHistory =
 let timerInterval = null, whiteTime = 300, blackTime = 300, increment = 3, isClockEnabled = true, isGameStarted = false;
 let isDragging = false, dragMovedEnough = false, dragStartX = 0, dragStartY = 0, dragClone = null, draggedPieceImg = null, draggedSquare = null;
 let stockfishWorker = null, isStockfishReady = false, isWaitingForAIMove = false;
-let promotionFrom = null, promotionTo = null; // ВАЖНО: переменные для превращения
+let promotionFrom = null, promotionTo = null;
 const DRAG_THRESHOLD = 5;
 
 function initApp() {
@@ -56,6 +56,7 @@ function initStockfish() {
       if (e.data === 'readyok') isStockfishReady = true;
       if (e.data.startsWith('bestmove') && isWaitingForAIMove) {
         isWaitingForAIMove = false;
+        if (isClockEnabled && (whiteTime <= 0 || blackTime <= 0)) return;
         const move = e.data.split(' ')[1];
         if (move && move !== '(none)') {
           const res = game.move({ from: move.substring(0, 2), to: move.substring(2, 4), promotion: move[4] || 'q' });
@@ -130,9 +131,14 @@ function renderBoard(rebuildSquares = false) {
 function handlePointerDown(e, square) {
   if (e.button !== 0 || !game || game.game_over() || isWaitingForAIMove) return;
   const piece = game.get(square);
+  const myTurn = game.turn() === (isFlipped ? 'b' : 'w');
+  
+  if (!myTurn) return;
+
   isDragging = true; dragMovedEnough = false; draggedSquare = square;
   dragStartX = e.clientX; dragStartY = e.clientY;
   draggedPieceImg = e.target.classList.contains('piece') ? e.target : e.target.querySelector('.piece');
+  
   if (piece && piece.color === (isFlipped ? 'b' : 'w')) {
     validMoves = game.moves({ square: square, verbose: true }).map(m => m.to);
     renderBoard(false); 
@@ -163,41 +169,75 @@ function handlePointerUp(e) {
   isDragging = false; window.onpointermove = null; window.onpointerup = null;
   if (dragClone) { document.body.removeChild(dragClone); dragClone = null; }
   if (draggedPieceImg) draggedPieceImg.style.visibility = 'visible';
+  
   const el = document.elementFromPoint(e.clientX, e.clientY);
   const sqEl = el ? el.closest('.square') : null;
   const target = sqEl ? sqEl.dataset.square : null;
-  if (dragMovedEnough && target && validMoves.includes(target)) attemptMove(draggedSquare, target);
-  else if (!dragMovedEnough) {
+
+  if (dragMovedEnough && target && validMoves.includes(target)) {
+    attemptMove(draggedSquare, target);
+  } else if (!dragMovedEnough) {
     const piece = game.get(draggedSquare);
     if (piece && piece.color === (isFlipped ? 'b' : 'w')) {
       if (selectedSquare === draggedSquare) clearSelection();
-      else { selectedSquare = draggedSquare; validMoves = game.moves({ square: draggedSquare, verbose: true }).map(m => m.to); renderBoard(false); }
-    } else if (selectedSquare && validMoves.includes(draggedSquare)) attemptMove(selectedSquare, draggedSquare);
-    else clearSelection();
-  }
+      else { 
+        selectedSquare = draggedSquare; 
+        validMoves = game.moves({ square: draggedSquare, verbose: true }).map(m => m.to); 
+        renderBoard(false); 
+      }
+    } else if (selectedSquare && validMoves.includes(draggedSquare)) {
+      attemptMove(selectedSquare, draggedSquare);
+    } else clearSelection();
+  } else clearSelection();
 }
 
 function attemptMove(from, to) {
   if (isClockEnabled && isGameStarted && (whiteTime <= 0 || blackTime <= 0)) return clearSelection();
-  const move = game.moves({ square: from, verbose: true }).find(m => m.to === to);
-  if (!move) return clearSelection();
+  const moves = game.moves({ square: from, verbose: true });
+  const move = moves.find(m => m.to === to);
   
-  // ПРОВЕРКА ПРЕВРАЩЕНИЯ
+  if (!move) return clearSelection();
+
   if (move.flags.includes('p')) {
     promotionFrom = from;
     promotionTo = to;
-    document.getElementById('promotion-modal').classList.remove('hidden');
+    const modal = document.getElementById('promotion-modal');
+    if (modal) modal.classList.remove('hidden');
     renderPromotionChoices();
     return;
   }
 
-  const res = game.move({ from, to });
+  const res = game.move({ from: from, to: to });
   if (res) {
     if (window.playMoveSound) playMoveSound(res);
     fullMoveHistory.push({ from: res.from, to: res.to, promotion: res.promotion, san: res.san });
     currentMoveIndex = fullMoveHistory.length;
     onMoveExecution();
   }
+}
+
+function renderPromotionChoices() {
+  const container = document.querySelector('.promotion-choices');
+  if (!container) return;
+  container.innerHTML = '';
+  const turn = game.turn();
+  ['q', 'r', 'b', 'n'].forEach(p => {
+    const btn = document.createElement('button');
+    btn.className = 'promo-btn';
+    const pieceKey = turn + p.toUpperCase();
+    btn.innerHTML = `<img src="${pieceImagePaths[pieceKey]}" style="width:100%;">`;
+    btn.onclick = () => {
+      const res = game.move({ from: promotionFrom, to: promotionTo, promotion: p });
+      if (res) {
+        if (window.playMoveSound) playMoveSound(res);
+        fullMoveHistory.push({ from: res.from, to: res.to, promotion: res.promotion, san: res.san });
+        currentMoveIndex = fullMoveHistory.length;
+        document.getElementById('promotion-modal').classList.add('hidden');
+        onMoveExecution();
+      }
+    };
+    container.appendChild(btn);
+  });
 }
 
 function onMoveExecution() {
@@ -272,7 +312,6 @@ function triggerEngineMove() {
 function startNewGame() { resetGameSettings(); }
 function clearSelection() { selectedSquare = null; validMoves = []; renderBoard(false); }
 function flipBoard() { isFlipped = !isFlipped; clearSelection(); renderBoard(true); updateClockDisplay(); }
-
 function updateMoveLog() {
   const log = document.getElementById('move-log'); if(!log) return;
   log.innerHTML = '';
@@ -284,31 +323,8 @@ function updateMoveLog() {
     log.appendChild(row);
   }
 }
-
 function jumpToMoveIndex(idx) {
   if (!game || idx < 0 || idx > fullMoveHistory.length) return;
-  game = new Chess(); for (let i = 0; i < idx; i++) game.move(fullMoveHistory[i]);
-  currentMoveIndex = idx; clearSelection(); updateMoveLog(); updateStatus(); updateClockDisplay();
-}
-
-// ФУНКЦИЯ ДЛЯ ВЫБОРА ФИГУРЫ В МОДАЛКЕ
-function renderPromotionChoices() {
-  const container = document.querySelector('.promotion-choices'); if(!container) return;
-  container.innerHTML = '';
-  const turn = game.turn();
-  ['q','r','b','n'].forEach(p => {
-    const btn = document.createElement('button'); btn.className = 'promo-btn';
-    btn.innerHTML = `<img src="${pieceImagePaths[turn+p.toUpperCase()]}" style="width:100%;">`;
-    btn.onclick = () => {
-      const res = game.move({ from: promotionFrom, to: promotionTo, promotion: p });
-      if (res) {
-        if (window.playMoveSound) playMoveSound(res);
-        fullMoveHistory.push({ from: res.from, to: res.to, promotion: res.promotion, san: res.san });
-        currentMoveIndex = fullMoveHistory.length;
-        document.getElementById('promotion-modal').classList.add('hidden');
-        onMoveExecution();
-      }
-    };
-    container.appendChild(btn);
-  });
+  const tempGame = new Chess(); for (let i = 0; i < idx; i++) tempGame.move(fullMoveHistory[i]);
+  game = tempGame; currentMoveIndex = idx; clearSelection(); updateMoveLog(); updateStatus(); updateClockDisplay();
 }
