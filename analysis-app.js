@@ -21,8 +21,9 @@ let moveHistoryTree = { id: "root", parent: null, move: null, children: [] };
 let activeNode = moveHistoryTree;
 
 // Управление
-let isDragging = false, dragStartX = 0, dragStartY = 0, dragClone = null, draggedPieceImg = null, draggedSquare = null;
+let isDragging = false, dragStartX = 0, dragStartY = 0, dragClone = null, draggedPieceImg = null, draggedSquare = null, dragMovedEnough = false;
 let stockfishWorker = null, isStockfishReady = false, analysisLines = [];
+let promotionFrom = null, promotionTo = null; // Для превращения
 const DRAG_THRESHOLD = 8;
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -54,11 +55,10 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // --- ЛОГИКА ДВИЖКА ---
-
 function initStockfish() {
   try {
-    const workerCode = `importScripts('https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js');`;
-    stockfishWorker = new Worker(URL.createObjectURL(new Blob([workerCode], { type: 'application/javascript' })));
+    const blobCode = `importScripts('https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js');`;
+    stockfishWorker = new Worker(URL.createObjectURL(new Blob([blobCode], { type: 'application/javascript' })));
     stockfishWorker.onmessage = (e) => {
       if (e.data === 'readyok') { isStockfishReady = true; runAnalysisTask(); }
       if (e.data.startsWith('info')) handleAnalysisData(e.data);
@@ -89,7 +89,8 @@ function handleAnalysisData(data) {
 }
 
 function runAnalysisTask() {
-  if (!isStockfishReady || !document.getElementById('engine-toggle').checked) return;
+  const toggle = document.getElementById('engine-toggle');
+  if (!isStockfishReady || (toggle && !toggle.checked)) return;
   stockfishWorker.postMessage('stop');
   stockfishWorker.postMessage('setoption name MultiPV value 3');
   stockfishWorker.postMessage(`position fen ${game.fen()}`);
@@ -97,7 +98,6 @@ function runAnalysisTask() {
 }
 
 // --- ЛОГИКА ДОСКИ ---
-
 function renderBoard(rebuild = false) {
   const boardEl = document.getElementById('board');
   if (rebuild) {
@@ -138,14 +138,30 @@ function renderBoard(rebuild = false) {
 }
 
 function handlePointerDown(e, sq) {
-  if (typeof unlockAudio === 'function') unlockAudio();
-  if (selectedSquare && validMoves.includes(sq)) { attemptMove(selectedSquare, sq); return; }
+  if (typeof window.unlockAudio === 'function') window.unlockAudio();
+  
+  // Клик для хода/взятия
+  if (selectedSquare && validMoves.includes(sq)) {
+    const moves = game.moves({ square: selectedSquare, verbose: true });
+    const move = moves.find(m => m.to === sq);
+    if (move && move.flags.includes('p')) {
+        promotionFrom = selectedSquare; promotionTo = sq;
+        document.getElementById('promotion-modal').classList.remove('hidden');
+        renderPromotionChoices();
+        return;
+    }
+    attemptMove(selectedSquare, sq);
+    return;
+  }
+
   const piece = game.get(sq);
   if (piece) {
-    isDragging = true; draggedSquare = sq; dragStartX = e.clientX; dragStartY = e.clientY;
+    isDragging = true; dragMovedEnough = false; draggedSquare = sq; dragStartX = e.clientX; dragStartY = e.clientY;
     draggedPieceImg = e.target.classList.contains('piece') ? e.target : e.target.querySelector('.piece');
-    if (piece.color === game.turn()) { selectedSquare = sq; validMoves = game.moves({ square: sq, verbose: true }).map(m => m.to); }
-    else { selectedSquare = null; validMoves = []; }
+    if (piece.color === game.turn()) { 
+        selectedSquare = sq; 
+        validMoves = game.moves({ square: sq, verbose: true }).map(m => m.to); 
+    } else { selectedSquare = null; validMoves = []; }
     renderBoard(false);
     window.onpointermove = handlePointerMove;
     window.onpointerup = handlePointerUp;
@@ -155,7 +171,9 @@ function handlePointerDown(e, sq) {
 
 function handlePointerMove(e) {
   if (!isDragging || !draggedPieceImg) return;
-  if (Math.hypot(e.clientX - dragStartX, e.clientY - dragStartY) > 5) {
+  const dist = Math.hypot(e.clientX - dragStartX, e.clientY - dragStartY);
+  if (dist > DRAG_THRESHOLD) {
+    dragMovedEnough = true;
     if (!dragClone) {
       dragClone = draggedPieceImg.cloneNode(true);
       dragClone.className = 'piece drag-clone';
@@ -175,14 +193,24 @@ function handlePointerUp(e) {
   if (draggedPieceImg) draggedPieceImg.style.visibility = 'visible';
   const el = document.elementFromPoint(e.clientX, e.clientY);
   const target = el?.closest('.square')?.dataset.square;
-  if (target && validMoves.includes(target)) attemptMove(draggedSquare, target);
-  else renderBoard(false);
+
+  if (dragMovedEnough && target && validMoves.includes(target)) {
+    const moves = game.moves({ square: draggedSquare, verbose: true });
+    const move = moves.find(m => m.to === target);
+    if (move && move.flags.includes('p')) {
+        promotionFrom = draggedSquare; promotionTo = target;
+        document.getElementById('promotion-modal').classList.remove('hidden');
+        renderPromotionChoices();
+    } else {
+        attemptMove(draggedSquare, target);
+    }
+  } else if (dragMovedEnough) {
+    renderBoard(false);
+  }
 }
 
-// --- ЛОГИКА ХОДОВ И ДЕРЕВА ---
-
-function attemptMove(f, t) {
-  const res = game.move({ from: f, to: t, promotion: 'q' });
+function attemptMove(f, t, promo = 'q') {
+  const res = game.move({ from: f, to: t, promotion: promo });
   if (res) {
     if (window.playMoveSound) playMoveSound(res);
     recordMoveInTree(res);
@@ -190,8 +218,26 @@ function attemptMove(f, t) {
   }
 }
 
+function renderPromotionChoices() {
+  const container = document.querySelector('.promotion-choices');
+  if (!container) return;
+  container.innerHTML = '';
+  const turn = game.turn();
+  ['q','r','b','n'].forEach(p => {
+    const btn = document.createElement('button');
+    btn.className = 'promo-btn';
+    btn.innerHTML = `<img src="${pieceImagePaths[turn+p.toUpperCase()]}" style="width:100%;">`;
+    btn.onclick = () => {
+      attemptMove(promotionFrom, promotionTo, p);
+      document.getElementById('promotion-modal').classList.add('hidden');
+    };
+    container.appendChild(btn);
+  });
+}
+
+// --- ДЕРЕВО И НАВИГАЦИЯ ---
+
 function recordMoveInTree(res) {
-  // Ищем среди "детей", не делали ли мы этот ход раньше
   let child = activeNode.children.find(c => c.move.san === res.san);
   if (!child) {
     child = { id: Date.now(), parent: activeNode, move: res, children: [] };
@@ -202,40 +248,26 @@ function recordMoveInTree(res) {
 
 function finalizeMove() {
   selectedSquare = null; validMoves = [];
-  renderBoard(true); 
-  updateMoveLog(); 
-  updateStatus(); 
-  runAnalysisTask();
+  renderBoard(true); updateMoveLog(); updateStatus(); runAnalysisTask();
 }
 
 function jumpToMoveNode(node) {
   if (!node) return;
   activeNode = node;
-  
-  // Восстанавливаем позицию игры по дереву (от корня до текущего узла)
-  const path = []; 
-  let temp = node;
+  const path = []; let temp = node;
   while (temp && temp.move) { path.push(temp.move); temp = temp.parent; }
-  
   game = new Chess();
   path.reverse().forEach(m => game.move(m));
-  
   finalizeMove();
 }
 
-// ФУНКЦИЯ ПОЛУЧЕНИЯ ПОЛНОЙ АКТИВНОЙ ЛИНИИ (включая будущее этой ветки)
 function getFullCurrentLine() {
-  // 1. Путь назад до корня
-  const line = [];
-  let temp = activeNode;
+  const line = []; let temp = activeNode;
   while (temp && temp.move) { line.push(temp); temp = temp.parent; }
   line.reverse();
-
-  // 2. Путь вперед по первым детям (основное продолжение текущей ветки)
   let forward = activeNode;
   while (forward.children && forward.children.length > 0) {
-    forward = forward.children[0];
-    line.push(forward);
+    forward = forward.children[0]; line.push(forward);
   }
   return line;
 }
@@ -243,101 +275,54 @@ function getFullCurrentLine() {
 function updateMoveLog() {
   const log = document.getElementById('move-log'); if (!log) return;
   log.innerHTML = '';
-  
   const fullLine = getFullCurrentLine();
-
   for (let i = 0; i < fullLine.length; i += 2) {
-    const row = document.createElement('div');
-    row.className = 'move-row';
-    const w = fullLine[i];
-    const b = fullLine[i+1];
-    
-    const num = Math.floor(i / 2) + 1;
-    row.innerHTML = `<span style="color:#666;width:25px;display:inline-block;">${num}.</span>`;
-    
-    const wSpan = document.createElement('span');
-    wSpan.className = `move-text ${w === activeNode ? 'active-move' : ''}`;
-    wSpan.style.cursor = 'pointer';
-    wSpan.style.padding = '0 5px';
-    wSpan.textContent = w.move.san;
-    wSpan.onclick = () => jumpToMoveNode(w);
-    row.appendChild(wSpan);
-
-    if (b) {
-      const bSpan = document.createElement('span');
-      bSpan.className = `move-text ${b === activeNode ? 'active-move' : ''}`;
-      bSpan.style.cursor = 'pointer';
-      bSpan.style.padding = '0 5px';
-      bSpan.textContent = b.move.san;
-      bSpan.onclick = () => jumpToMoveNode(b);
-      row.appendChild(bSpan);
-    }
+    const row = document.createElement('div'); row.className = 'move-row';
+    const w = fullLine[i], b = fullLine[i+1], num = Math.floor(i/2)+1;
+    row.innerHTML = `<span style="color:#666;width:25px;display:inline-block;">${num}.</span>
+    <span class="move-text ${w===activeNode?'active-move':''}" style="cursor:pointer;padding:0 5px;" onclick="jumpToMoveByRef(${i})">${w.move.san}</span>
+    ${b ? `<span class="move-text ${b===activeNode?'active-move':''}" style="cursor:pointer;padding:0 5px;" onclick="jumpToMoveByRef(${i+1})">${b.move.san}</span>` : ''}`;
     log.appendChild(row);
   }
   updateBranchSelector();
 }
 
-function updateBranchSelector() {
-  const panel = document.getElementById('branch-panel');
-  const container = document.getElementById('branch-choices');
-  if (!panel || !container) return;
+window.jumpToMoveByRef = (idx) => {
+  const fullLine = getFullCurrentLine();
+  jumpToMoveNode(fullLine[idx]);
+};
 
-  // Ищем варианты: либо у текущего узла (будущие ветки), либо у родителя (альтернативы текущему)
-  let choices = [];
-  if (activeNode.children && activeNode.children.length > 1) {
-    choices = activeNode.children;
-  } else if (activeNode.parent && activeNode.parent.children.length > 1) {
-    choices = activeNode.parent.children;
-  }
+function updateBranchSelector() {
+  const panel = document.getElementById('branch-panel'), container = document.getElementById('branch-choices');
+  if (!panel || !container) return;
+  const parent = activeNode.parent;
+  let choices = (activeNode.children.length > 1) ? activeNode.children : (parent && parent.children.length > 1 ? parent.children : []);
 
   if (choices.length > 1) {
-    // ПОКАЗЫВАЕМ ПАНЕЛЬ
-    panel.classList.remove('hidden-panel');
-    panel.style.display = 'block'; 
-    
-    container.innerHTML = '';
+    panel.style.display = 'block'; container.innerHTML = '';
     choices.forEach(c => {
       const btn = document.createElement('button');
-      // Даем кнопке классы для стиля
-      btn.className = `branch-btn ${c === activeNode ? 'active-branch' : ''}`;
-      btn.textContent = c.move.san;
-      btn.onclick = () => jumpToMoveNode(c);
+      btn.className = `branch-btn ${c===activeNode?'active-branch':''}`;
+      btn.textContent = c.move.san; btn.onclick = () => jumpToMoveNode(c);
       container.appendChild(btn);
     });
-  } else {
-    // СКРЫВАЕМ ПАНЕЛЬ
-    panel.classList.add('hidden-panel');
-    panel.style.display = 'none';
-  }
+  } else panel.style.display = 'none';
 }
-
-// --- НАВИГАЦИЯ ---
 
 function navigatePrev() { if (activeNode.parent) jumpToMoveNode(activeNode.parent); }
 function navigateNext() { if (activeNode.children.length > 0) jumpToMoveNode(activeNode.children[0]); }
-function navigateLast() { 
-  let t = activeNode; 
-  while(t.children.length > 0) t = t.children[0]; 
-  jumpToMoveNode(t); 
-}
-
-function startNewGame() {
-  game = new Chess();
-  moveHistoryTree = { id: "root", parent: null, move: null, children: [] };
-  activeNode = moveHistoryTree;
-  finalizeMove();
-}
-
+function navigateLast() { let t = activeNode; while(t.children.length > 0) t = t.children[0]; jumpToMoveNode(t); }
+function startNewGame() { game = new Chess(); moveHistoryTree = { id:"root", parent:null, move:null, children:[] }; activeNode = moveHistoryTree; finalizeMove(); }
 function flipBoard() { isFlipped = !isFlipped; renderBoard(true); }
 function clearSelection() { selectedSquare = null; validMoves = []; renderBoard(false); }
 function updateStatus() { document.getElementById('status-text').textContent = game.in_checkmate() ? "Мат!" : "Свободный анализ"; }
 
 function renderMultiPV() {
-  const container = document.getElementById('multipv-container');
-  if (!container || !document.getElementById('engine-toggle').checked) return;
+  const container = document.getElementById('multipv-container'), toggle = document.getElementById('engine-toggle');
+  if (!container || (toggle && !toggle.checked)) return;
   container.innerHTML = analysisLines.map(line => `
     <div style="display:flex;gap:10px;font-family:monospace;font-size:0.85rem;background:rgba(255,255,255,0.05);padding:5px;margin-bottom:2px;">
-      <div style="font-weight:bold;color:#fff;">${line.score}</div>
+      <div style="font-weight:bold;color:#fff;min-width:40px;">${line.score}</div>
       <div style="color:#258039;font-weight:bold;">${line.move}</div>
       <div style="color:#777;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${line.path}</div>
     </div>
