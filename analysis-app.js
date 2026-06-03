@@ -14,6 +14,7 @@ const pieceImagePaths = {
 };
 
 var game = new Chess();
+// Дерево ходов: каждый узел имеет уникальный ID, ссылку на родителя, сам ход и список детей
 let moveHistoryTree = { id: "root", parent: null, move: null, children: [] };
 let activeNode = moveHistoryTree;
 
@@ -25,9 +26,8 @@ let promotionFrom = null, promotionTo = null;
 document.addEventListener('DOMContentLoaded', () => {
     initStockfish();
     renderBoard(true);
-    updateStatus();
     updateMoveLog();
-
+    
     document.getElementById('btn-new-game').onclick = startNewGame;
     document.getElementById('btn-flip').onclick = flipBoard;
     document.getElementById('btn-nav-first').onclick = () => jumpToMoveNode(moveHistoryTree);
@@ -35,22 +35,29 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btn-nav-next').onclick = navigateNext;
     document.getElementById('btn-nav-last').onclick = navigateLast;
 
-    document.getElementById('engine-toggle').onchange = (e) => {
-        if (!e.target.checked) {
-            if (stockfishWorker) stockfishWorker.postMessage('stop');
-            analysisLines = []; renderMultiPV();
-        } else runAnalysisTask();
-    };
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowLeft') navigatePrev();
+        if (e.key === 'ArrowRight') navigateNext();
+    });
+
+    const toggle = document.getElementById('engine-toggle');
+    if (toggle) toggle.onchange = runAnalysisTask;
+    
+    document.getElementById('select-multipv').onchange = runAnalysisTask;
+    document.getElementById('select-threads').onchange = runAnalysisTask;
 });
 
+// --- ЛОГИКА ДВИЖКА ---
 function initStockfish() {
-    const workerCode = `importScripts('https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js');`;
-    stockfishWorker = new Worker(URL.createObjectURL(new Blob([workerCode], { type: 'application/javascript' })));
-    stockfishWorker.onmessage = (e) => {
-        if (e.data === 'readyok') { isStockfishReady = true; runAnalysisTask(); }
-        if (e.data.startsWith('info')) handleAnalysisData(e.data);
-    };
-    stockfishWorker.postMessage('uci'); stockfishWorker.postMessage('isready');
+    try {
+        const workerCode = `importScripts('https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js');`;
+        stockfishWorker = new Worker(URL.createObjectURL(new Blob([workerCode], { type: 'application/javascript' })));
+        stockfishWorker.onmessage = (e) => {
+            if (e.data === 'readyok') { isStockfishReady = true; runAnalysisTask(); }
+            if (e.data.startsWith('info')) handleAnalysisData(e.data);
+        };
+        stockfishWorker.postMessage('uci'); stockfishWorker.postMessage('isready');
+    } catch (err) { console.error(err); }
 }
 
 function handleAnalysisData(data) {
@@ -62,6 +69,8 @@ function handleAnalysisData(data) {
         if (game.turn() === 'b') cp = -cp;
         score = (cp / 100).toFixed(2);
         if (pvIndex === 0) updateEvaluationBar(cp);
+    } else if (data.includes('score mate')) {
+        score = "M" + Math.abs(data.match(/score mate (-?\d+)/)[1]);
     }
     const pvMatch = data.match(/ pv (.+)/);
     if (pvMatch) {
@@ -71,12 +80,26 @@ function handleAnalysisData(data) {
     }
 }
 
+function runAnalysisTask() {
+    if (!isStockfishReady || !document.getElementById('engine-toggle').checked) return;
+    const multiPV = document.getElementById('select-multipv').value;
+    const threads = document.getElementById('select-threads').value;
+    stockfishWorker.postMessage('stop');
+    analysisLines = [];
+    stockfishWorker.postMessage(`setoption name MultiPV value ${multiPV}`);
+    stockfishWorker.postMessage(`setoption name Threads value ${threads}`);
+    stockfishWorker.postMessage(`position fen ${game.fen()}`);
+    stockfishWorker.postMessage('go depth 18');
+}
+
+// --- ОТРИСОВКА ---
 function renderBoard(rebuild = false) {
     const boardEl = document.getElementById('board');
+    if (!boardEl) return;
     if (rebuild) {
-        boardEl.innerHTML = '';
         const theme = localStorage.getItem('chess-board-theme') || 'theme-brown';
         boardEl.className = 'chessboard ' + theme;
+        boardEl.innerHTML = '';
         for (let r = 0; r < 8; r++) {
             const row = isFlipped ? r : (7 - r);
             for (let c = 0; c < 8; c++) {
@@ -110,8 +133,9 @@ function renderBoard(rebuild = false) {
     });
 }
 
+// --- УПРАВЛЕНИЕ ---
 function handlePointerDown(e, sq) {
-    if (typeof unlockAudio === 'function') unlockAudio();
+    if (typeof window.unlockAudio === 'function') window.unlockAudio();
     if (selectedSquare && validMoves.includes(sq)) { handleAnalysisMove(selectedSquare, sq); return; }
     const piece = game.get(sq);
     if (piece) {
@@ -148,7 +172,7 @@ function handlePointerUp(e) {
     const el = document.elementFromPoint(e.clientX, e.clientY);
     const target = el?.closest('.square')?.dataset.square;
     if (target && validMoves.includes(target)) handleAnalysisMove(draggedSquare, target);
-    else if (Math.hypot(e.clientX - dragStartX, e.clientY - dragStartY) > 5) clearSelection();
+    else renderBoard(false);
 }
 
 function handleAnalysisMove(f, t) {
@@ -157,18 +181,21 @@ function handleAnalysisMove(f, t) {
         promotionFrom = f; promotionTo = t;
         document.getElementById('promotion-modal').classList.remove('hidden');
         renderPromotionChoices();
-    } else {
-        executeAnalysisMove(f, t);
-    }
+    } else executeAnalysisMove(f, t);
 }
 
 function executeAnalysisMove(f, t, p = 'q') {
     const res = game.move({ from: f, to: t, promotion: p });
     if (res) {
         if (window.playMoveSound) playMoveSound(res);
+        // Запись в дерево
         let child = activeNode.children.find(c => c.move.san === res.san);
-        if (!child) { child = { id: Date.now(), parent: activeNode, move: res, children: [] }; activeNode.children.push(child); }
-        activeNode = child; finalizeMove();
+        if (!child) {
+            child = { id: "node_" + Math.random().toString(36).substr(2, 9), parent: activeNode, move: res, children: [] };
+            activeNode.children.push(child);
+        }
+        activeNode = child;
+        finalizeMove();
     }
 }
 
@@ -183,68 +210,107 @@ function renderPromotionChoices() {
     });
 }
 
-function finalizeMove() { selectedSquare = null; validMoves = []; renderBoard(true); updateMoveLog(); updateStatus(); runAnalysisTask(); }
+// --- СИСТЕМА ДЕРЕВА ХОДОВ ---
+function finalizeMove() {
+    selectedSquare = null; validMoves = [];
+    renderBoard(true); updateMoveLog(); updateStatus(); runAnalysisTask();
+}
 
 function jumpToMoveNode(node) {
-    if (!node) return; activeNode = node;
-    const path = []; let t = node; while (t && t.move) { path.push(t.move); t = t.parent; }
-    game = new Chess(); path.reverse().forEach(m => game.move(m));
+    if (!node) return;
+    activeNode = node;
+    const path = []; let t = node;
+    while (t && t.move) { path.push(t.move); t = t.parent; }
+    game = new Chess();
+    path.reverse().forEach(m => game.move(m));
     finalizeMove();
 }
 
 function updateMoveLog() {
-    const log = document.getElementById('move-log'); if (!log) return; log.innerHTML = '';
-    const path = []; let t = activeNode; while (t && t.move) { path.push(t); t = t.parent; } path.reverse();
-    const forward = []; let f = activeNode; while (f.children.length > 0) { f = f.children[0]; forward.push(f); }
+    const log = document.getElementById('move-log'); if (!log) return;
+    log.innerHTML = '';
+    
+    // Получаем путь от корня до текущего узла
+    const path = []; let t = activeNode;
+    while (t && t.move) { path.push(t); t = t.parent; }
+    path.reverse();
+
+    // Также находим "продолжение" (следующие ходы текущей ветки)
+    const forward = []; let f = activeNode;
+    while (f.children.length > 0) { f = f.children[0]; forward.push(f); }
+    
     const fullLine = path.concat(forward);
+    
     for (let i = 0; i < fullLine.length; i += 2) {
-        const row = document.createElement('div'); row.className = 'move-row';
+        const row = document.createElement('div');
+        row.className = 'move-row';
         const w = fullLine[i], b = fullLine[i+1];
-        row.innerHTML = `<span style="color:#666;width:25px;display:inline-block;">${Math.floor(i/2)+1}.</span>
-        <span class="move-text ${w===activeNode?'active-move':''}" style="cursor:pointer;padding:0 5px;" onclick="jumpToNodeByRef('${w.id}')">${w.move.san}</span>
-        ${b ? `<span class="move-text ${b===activeNode?'active-move':''}" style="cursor:pointer;padding:0 5px;" onclick="jumpToNodeByRef('${b.id}')">${b.move.san}</span>` : ''}`;
+        const num = Math.floor(i / 2) + 1;
+        
+        row.innerHTML = `<span style="color:#666;width:25px;display:inline-block;">${num}.</span>`;
+        
+        const wSpan = document.createElement('span');
+        wSpan.className = `move-text ${w.id === activeNode.id ? 'active-move' : ''}`;
+        wSpan.style.cursor = 'pointer'; wSpan.style.padding = '0 5px';
+        wSpan.textContent = w.move.san;
+        wSpan.onclick = () => jumpToMoveNode(w);
+        row.appendChild(wSpan);
+
+        if (b) {
+            const bSpan = document.createElement('span');
+            bSpan.className = `move-text ${b.id === activeNode.id ? 'active-move' : ''}`;
+            bSpan.style.cursor = 'pointer'; bSpan.style.padding = '0 5px';
+            bSpan.textContent = b.move.san;
+            bSpan.onclick = () => jumpToMoveNode(b);
+            row.appendChild(bSpan);
+        }
         log.appendChild(row);
     }
     updateBranchSelector();
 }
 
-window.jumpToNodeByRef = (id) => {
-    function findNode(root, targetId) {
-        if (root.id == targetId) return root;
-        for (let child of root.children) { let res = findNode(child, targetId); if (res) return res; }
-        return null;
-    }
-    jumpToMoveNode(findNode(moveHistoryTree, id));
-};
-
 function updateBranchSelector() {
     const panel = document.getElementById('branch-panel'), container = document.getElementById('branch-choices');
-    const parent = activeNode.parent;
-    const choices = (parent && parent.children.length > 1) ? parent.children : [];
+    if (!panel || !container) return;
+
+    // Показываем кнопки, если у текущего узла есть дети (выбор, куда пойти дальше)
+    // ИЛИ если у родителя есть несколько детей (альтернатива тому, что мы только что сделали)
+    let choices = [];
+    if (activeNode.children.length > 1) {
+        choices = activeNode.children;
+    } else if (activeNode.parent && activeNode.parent.children.length > 1) {
+        choices = activeNode.parent.children;
+    }
+
     if (choices.length > 1) {
         panel.style.display = 'block'; container.innerHTML = '';
         choices.forEach(c => {
-            const btn = document.createElement('button'); btn.className = `branch-btn ${c===activeNode?'active-branch':''}`;
-            btn.textContent = c.move.san; btn.onclick = () => jumpToMoveNode(c);
+            const btn = document.createElement('button');
+            btn.className = `branch-btn ${c.id === activeNode.id ? 'active-branch' : ''}`;
+            btn.textContent = c.move.san;
+            btn.onclick = () => jumpToMoveNode(c);
             container.appendChild(btn);
         });
-    } else panel.style.display = 'none';
+    } else {
+        panel.style.display = 'none';
+    }
 }
 
-function runAnalysisTask() {
-    if (!isStockfishReady || !document.getElementById('engine-toggle').checked) return;
-    stockfishWorker.postMessage('stop');
-    stockfishWorker.postMessage('setoption name MultiPV value 3');
-    stockfishWorker.postMessage(`position fen ${game.fen()}`);
-    stockfishWorker.postMessage('go depth 16');
+// --- НАВИГАЦИЯ ---
+function navigatePrev() { if (activeNode.parent) jumpToMoveNode(activeNode.parent); }
+function navigateNext() { if (activeNode.children.length > 0) jumpToMoveNode(activeNode.children[0]); }
+function navigateLast() { let t = activeNode; while(t.children.length > 0) t = t.children[0]; jumpToMoveNode(t); }
+
+function startNewGame() {
+    game = new Chess();
+    moveHistoryTree = { id: "root", parent: null, move: null, children: [] };
+    activeNode = moveHistoryTree;
+    finalizeMove();
 }
 
-function renderMultiPV() {
-    const container = document.getElementById('multipv-container');
-    if (!container || !document.getElementById('engine-toggle').checked) return;
-    container.innerHTML = analysisLines.map(line => `<div style="display:flex;gap:10px;font-family:monospace;font-size:0.85rem;background:rgba(255,255,255,0.05);padding:5px;margin-bottom:2px;"><div style="font-weight:bold;color:#fff;min-width:40px;">${line.score}</div><div style="color:#258039;font-weight:bold;">${line.move}</div><div style="color:#777;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${line.path}</div></div>`).join('');
-}
-
+function flipBoard() { isFlipped = !isFlipped; renderBoard(true); }
+function clearSelection() { selectedSquare = null; validMoves = []; renderBoard(false); }
+function updateStatus() { document.getElementById('status-text').textContent = game.in_checkmate() ? "Мат!" : "Свободный анализ"; }
 function updateEvaluationBar(cp) {
     const fill = document.getElementById('eval-fill'), text = document.getElementById('eval-text');
     let p = 50 + (Math.max(-800, Math.min(800, cp)) / 800) * 45;
@@ -252,10 +318,14 @@ function updateEvaluationBar(cp) {
     if (text) text.textContent = (cp / 100).toFixed(1);
 }
 
-function navigatePrev() { if (activeNode.parent) jumpToMoveNode(activeNode.parent); }
-function navigateNext() { if (activeNode.children.length > 0) jumpToMoveNode(activeNode.children[0]); }
-function navigateLast() { let t = activeNode; while(t.children.length > 0) t = t.children[0]; jumpToMoveNode(t); }
-function startNewGame() { game = new Chess(); moveHistoryTree = { id:"root", parent:null, move:null, children:[] }; activeNode = moveHistoryTree; finalizeMove(); }
-function flipBoard() { isFlipped = !isFlipped; renderBoard(true); }
-function clearSelection() { selectedSquare = null; validMoves = []; renderBoard(false); }
-function updateStatus() { document.getElementById('status-text').textContent = game.in_checkmate() ? "Мат!" : "Свободный анализ"; }
+function renderMultiPV() {
+    const container = document.getElementById('multipv-container'), toggle = document.getElementById('engine-toggle');
+    if (!container || (toggle && !toggle.checked)) return;
+    container.innerHTML = analysisLines.map(line => `
+        <div style="display:flex;gap:10px;font-family:monospace;font-size:0.85rem;background:rgba(255,255,255,0.05);padding:5px;margin-bottom:2px;">
+            <div style="font-weight:bold;color:#fff;min-width:40px;">${line.score}</div>
+            <div style="color:#258039;font-weight:bold;">${line.move}</div>
+            <div style="color:#777;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${line.path}</div>
+        </div>
+    `).join('');
+}
