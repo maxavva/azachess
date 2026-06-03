@@ -11,55 +11,43 @@
   <div class="hub-container">
     <header class="hub-header">
       <h1 class="logo">AZA<span>CHESS</span></h1>
-      <p class="tagline">Выберите режим игры</p>
+      <p class="tagline">Настройте игру и побеждайте</p>
     </header>
 
     <main class="hub-content">
       
-      <!-- Секция: ИГРАТЬ -->
+      <!-- Секция: ВРЕМЯ -->
       <section class="mode-section">
-        <h2 class="section-title">Играть против ИИ</h2>
-        <div class="time-grid">
-          <div class="time-card" onclick="selectMode('1+0')">
-            <span class="time-val">1+0</span>
-            <span class="time-label">Пуля</span>
-          </div>
-          <div class="time-card" onclick="selectMode('3+2')">
-            <span class="time-val">3+2</span>
-            <span class="time-label">Блиц</span>
-          </div>
-          <div class="time-card" onclick="selectMode('5+3')">
-            <span class="time-val">5+3</span>
-            <span class="time-label">Блиц</span>
-          </div>
-          <div class="time-card" onclick="selectMode('10+5')">
-            <span class="time-val">10+5</span>
-            <span class="time-label">Рапид</span>
-          </div>
-          <div class="time-card" onclick="selectMode('30+0')">
-            <span class="time-val">30+0</span>
-            <span class="time-label">Классика</span>
-          </div>
-          <div class="time-card special" onclick="selectMode('none')">
-            <span class="time-val">∞</span>
-            <span class="time-label">Без времени</span>
-          </div>
+        <h2 class="section-title">1. Выберите контроль времени</h2>
+        <div class="time-grid" id="time-grid">
+          <div class="time-card" data-time="1+0"><span>1+0</span></div>
+          <div class="time-card" data-time="3+2"><span>3+2</span></div>
+          <div class="time-card active" data-time="5+3"><span>5+3</span></div>
+          <div class="time-card" data-time="10+5"><span>10+5</span></div>
+          <div class="time-card" data-time="30+0"><span>30+0</span></div>
+          <div class="time-card special" data-time="none"><span>∞</span></div>
         </div>
       </section>
 
-      <!-- Секция: ИНСТРУМЕНТЫ -->
+      <!-- Секция: УРОВЕНЬ ИИ -->
       <section class="mode-section">
-        <h2 class="section-title">Инструменты</h2>
-        <div class="tools-grid" style="grid-template-columns: 1fr;">
-          <a href="analysis.html" class="tool-card">
-            <div class="tool-icon">🔍</div>
-            <div class="tool-info">
-              <h3>Доска для анализа</h3>
-              <p>Разбор позиций, Multi-PV анализ и дерево вариантов</p>
-            </div>
-          </a>
+        <h2 class="section-title">2. Выберите сложность ИИ</h2>
+        <div class="level-grid" id="level-grid">
+          <button class="level-btn" data-lv="1">1</button>
+          <button class="level-btn" data-lv="2">2</button>
+          <button class="level-btn active" data-lv="3">3</button>
+          <button class="level-btn" data-lv="4">4</button>
+          <button class="level-btn" data-lv="5">5</button>
+          <button class="level-btn" data-lv="6">6</button>
+          <button class="level-btn" data-lv="7">7</button>
+          <button class="level-btn" data-lv="8">8</button>
         </div>
       </section>
+
+      <div style="display: flex; gap: 20px; margin-top: 30px;">
+        <button class="start-btn" onclick="startGame()">ИГРАТЬ ПРОТИВ ИИ</button>
+        <a href="analysis.html" class="start-btn secondary">АНАЛИЗ ПАРТИИ</a>
+      </div>
 
     </main>
 
@@ -69,8 +57,29 @@
   </div>
 
   <script>
-    function selectMode(time) {
-      localStorage.setItem('selected-time-control', time);
+    // Инициализация дефолтных значений
+    if(!localStorage.getItem('selected-time-control')) localStorage.setItem('selected-time-control', '5+3');
+    if(!localStorage.getItem('selected-ai-level')) localStorage.setItem('selected-ai-level', '3');
+
+    // Логика выбора времени
+    document.querySelectorAll('#time-grid .time-card').forEach(card => {
+      card.onclick = () => {
+        document.querySelectorAll('#time-grid .time-card').forEach(c => c.classList.remove('active'));
+        card.classList.add('active');
+        localStorage.setItem('selected-time-control', card.dataset.time);
+      };
+    });
+
+    // Логика выбора ИИ
+    document.querySelectorAll('#level-grid .level-btn').forEach(btn => {
+      btn.onclick = () => {
+        document.querySelectorAll('#level-grid .level-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        localStorage.setItem('selected-ai-level', btn.dataset.lv);
+      };
+    });
+
+    function startGame() {
       window.location.href = 'play.html';
     }
   </script>
