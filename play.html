@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Azachess - Игра</title>
+  <title>Azachess - Игра против ИИ</title>
   <link rel="stylesheet" href="style.css">
   <script src="https://cdn.jsdelivr.net/npm/chess.js@0.10.3/chess.min.js"></script>
 </head>
@@ -12,7 +12,6 @@
   <div class="game-wrapper-root">
     <div class="nav-bar">
       <a href="index.html" class="nav-link">← На главную</a>
-      <span class="nav-link active">Режим игры</span>
     </div>
 
     <div class="game-container">
@@ -24,6 +23,7 @@
           <button id="btn-nav-next" class="btn btn-secondary nav-btn">&gt;</button>
           <button id="btn-nav-last" class="btn btn-secondary nav-btn">&gt;|</button>
         </div>
+        
         <div id="promotion-modal" class="modal hidden">
           <div class="modal-content">
             <h3>Выберите фигуру</h3>
@@ -33,15 +33,19 @@
       </div>
 
       <div class="control-panel">
-        <div class="status-display" id="status-text">Ожидание...</div>
+        <!-- ТУТ БЫЛА ОШИБКА В ТЕКСТЕ -->
+        <div class="status-display" id="status-text">Подготовка партии...</div>
+
         <div id="clocks-wrapper" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 15px;">
           <div id="clock-top" class="clock">--:--</div>
           <div id="clock-bottom" class="clock">--:--</div>
         </div>
+
         <div class="move-history">
           <div class="history-title">История ходов</div>
           <div id="move-log" class="move-log-content"></div>
         </div>
+
         <div class="actions">
           <button id="btn-new-game" class="btn">Новая игра</button>
           <button id="btn-flip" class="btn btn-secondary">Повернуть доску</button>
