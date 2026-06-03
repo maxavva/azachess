@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Azachess — Шахматный портал</title>
+  <link rel="stylesheet" href="home-style.css">
+</head>
+<body>
+
+  <div class="hub-container">
+    <header class="hub-header">
+      <h1 class="logo">AZA<span>CHESS</span></h1>
+      <p class="tagline">Играй против сильнейшего ИИ, анализируй, побеждай</p>
+    </header>
+
+    <main class="hub-content">
+      
+      <!-- Секция: ИГРАТЬ -->
+      <section class="mode-section">
+        <h2 class="section-title">Быстрый старт (Против ИИ)</h2>
+        <div class="time-grid">
+          <div class="time-card" onclick="selectMode('1+0')">
+            <span class="time-val">1+0</span>
+            <span class="time-label">Пуля</span>
+          </div>
+          <div class="time-card" onclick="selectMode('3+2')">
+            <span class="time-val">3+2</span>
+            <span class="time-label">Блиц</span>
+          </div>
+          <div class="time-card" onclick="selectMode('5+3')">
+            <span class="time-val">5+3</span>
+            <span class="time-label">Блиц</span>
+          </div>
+          <div class="time-card" onclick="selectMode('10+5')">
+            <span class="time-val">10+5</span>
+            <span class="time-label">Рапид</span>
+          </div>
+          <div class="time-card" onclick="selectMode('30+0')">
+            <span class="time-val">30+0</span>
+            <span class="time-label">Классика</span>
+          </div>
+          <div class="time-card special" onclick="selectMode('none')">
+            <span class="time-val">∞</span>
+            <span class="time-label">Без времени</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Секция: ИНСТРУМЕНТЫ -->
+      <section class="tools-grid">
+        <a href="analysis.html" class="tool-card">
+          <div class="tool-icon">🔍</div>
+          <div class="tool-info">
+            <h3>Доска для анализа</h3>
+            <p>Разбор позиций, Multi-PV анализ и дерево вариантов</p>
+          </div>
+        </a>
+        
+        <div class="tool-card disabled">
+          <div class="tool-icon">🏆</div>
+          <div class="tool-info">
+            <h3>Турниры</h3>
+            <p>Скоро: Турниры на призы и крипто-взносы</p>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <footer class="hub-footer">
+      <p>&copy; 2026 Azachess Project. Работает на движке Stockfish 10.</p>
+    </footer>
+  </div>
+
+  <script>
+    function selectMode(time) {
+      // Сохраняем выбранное время в память браузера
+      localStorage.setItem('selected-time-control', time);
+      // Переходим на страницу игры
+      window.location.href = 'play.html';
+    }
+  </script>
+</body>
+</html>
