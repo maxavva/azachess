@@ -24,6 +24,7 @@ var displayGame = new Chess();
 window.game = liveGame;
 
 let gameStartTime = null; // Метка времени начала самого первого хода
+let whiteTime = 0, blackTime = 0;
 
 let fullMoveHistory = [], currentMoveIndex = 0;
 let whiteTime = 300, blackTime = 300, increment = 3, isClockEnabled = true, isGameStarted = false, timerInterval = null;
@@ -304,9 +305,9 @@ function startTimer() {
 function saveGameState() {
     const state = {
         fen: liveGame.fen(),
-        history: fullMoveHistory, // Теперь ходы внутри содержат .timestamp
+        history: fullMoveHistory,
         currentIdx: currentMoveIndex,
-        gameStartTime: gameStartTime, // Сохраняем начало партии
+        gameStartTime: gameStartTime, // Обязательно сохраняем точку отсчета
         isGameStarted: isGameStarted,
         userColor: userColor,
         isFlipped: isFlipped,
@@ -466,14 +467,13 @@ function updateMoveLog() {
 }
 
 function calculateRemainingTimes() {
-    // 1. Получаем базовые настройки времени
     const timeVal = localStorage.getItem('selected-time-control') || '5+3';
     const parts = timeVal.split('+');
     const totalStartSeconds = (parseInt(parts[0]) || 5) * 60;
     const inc = parseInt(parts[1]) || 0;
 
-    // 2. Если ходов еще нет - просто отдаем базу
-    if (!gameStartTime || fullMoveHistory.length === 0) {
+    // Если время старта еще не задано (игра не инициализирована)
+    if (!gameStartTime) {
         return { white: totalStartSeconds, black: totalStartSeconds };
     }
 
@@ -481,32 +481,26 @@ function calculateRemainingTimes() {
     let usedBlack = 0;
     const now = Date.now();
 
-    // 3. Считаем время, потраченное на уже совершенные ходы
+    // 1. Считаем время по завершенным ходам
     for (let i = 0; i < fullMoveHistory.length; i++) {
         const moveTime = fullMoveHistory[i].timestamp;
         const startTime = (i === 0) ? gameStartTime : fullMoveHistory[i - 1].timestamp;
         const duration = Math.floor((moveTime - startTime) / 1000);
 
-        if (i % 2 === 0) usedWhite += duration; // Ход белых
-        else usedBlack += duration; // Ход черных
+        if (i % 2 === 0) usedWhite += duration; // Потратили белые
+        else usedBlack += duration; // Потратили черные
     }
 
-    // 4. Добавляем время, которое тикает ПРЯМО СЕЙЧАС
-    const lastMoveTime = fullMoveHistory[fullMoveHistory.length - 1].timestamp;
-    const currentThinkingTime = Math.floor((now - lastMoveTime) / 1000);
+    // 2. Считаем время, которое тикает СЕЙЧАС (у текущего игрока)
+    const lastEventTime = (fullMoveHistory.length === 0) ? gameStartTime : fullMoveHistory[fullMoveHistory.length - 1].timestamp;
+    const thinkingTime = Math.floor((now - lastEventTime) / 1000);
 
-    if (liveGame.turn() === 'w') usedWhite += currentThinkingTime;
-    else usedBlack += currentThinkingTime;
+    if (liveGame.turn() === 'w') usedWhite += thinkingTime;
+    else usedBlack += thinkingTime;
 
-    // 5. Добавляем бонусы за инкремент (добавляются ПОСЛЕ завершения хода)
-    // Белые получили инкремент за каждый свой завершенный ход
-    const whiteMovesMade = Math.floor((fullMoveHistory.length + 1) / 2);
-    const blackMovesMade = Math.floor(fullMoveHistory.length / 2);
-    
-    // В шахматах инкремент обычно дается сразу за первый ход, 
-    // но мы считаем по факту завершенных ходов в истории
-    const whiteBonus = (liveGame.turn() === 'b' || fullMoveHistory.length > 0) ? (whiteMovesMade * inc) : 0;
-    const blackBonus = blackMovesMade * inc;
+    // 3. Бонусы (инкремент)
+    const whiteBonus = Math.floor((fullMoveHistory.length + 1) / 2) * inc;
+    const blackBonus = Math.floor(fullMoveHistory.length / 2) * inc;
 
     return {
         white: Math.max(0, totalStartSeconds + whiteBonus - usedWhite),
