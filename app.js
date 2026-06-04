@@ -36,6 +36,22 @@ let stockfishWorker = null, isStockfishReady = false, isWaitingForAIMove = false
 let promotionFrom = null, promotionTo = null;
 const DRAG_THRESHOLD = 10;
 
+function saveGameState() {
+    const state = {
+        fen: liveGame.fen(),
+        history: fullMoveHistory,
+        currentIdx: currentMoveIndex,
+        whiteTime: whiteTime,
+        blackTime: blackTime,
+        isGameStarted: isGameStarted,
+        userColor: userColor,
+        isFlipped: isFlipped,
+        isClockEnabled: isClockEnabled,
+        increment: increment
+    };
+    localStorage.setItem('azachess-save-game', JSON.stringify(state));
+}
+
 function initApp() {
     if (typeof Chess === 'undefined') { setTimeout(initApp, 100); return; }
     initStockfish();
@@ -219,11 +235,27 @@ function renderPromotionChoices() {
 
 function onMoveExecution() {
     if (!isGameStarted) isGameStarted = true;
-    if (isClockEnabled) { if (liveGame.turn() === 'b') whiteTime += increment; else blackTime += increment; }
-    selectedSquare = null; validMoves = [];
-    updateMoveLog(); updateStatus(); updateClockDisplay(); renderBoard(false);
-    if (!liveGame.game_over()) { if (isClockEnabled) startTimer(); checkAndTriggerAI(); }
-    else stopTimer();
+    if (isClockEnabled) { 
+        if (liveGame.turn() === 'b') whiteTime += increment; 
+        else blackTime += increment; 
+    }
+    selectedSquare = null; 
+    validMoves = [];
+    
+    updateMoveLog(); 
+    updateStatus(); 
+    updateClockDisplay(); 
+    renderBoard(false);
+    
+    // СОХРАНЕНИЕ
+    saveGameState();
+
+    if (!liveGame.game_over()) { 
+        if (isClockEnabled) startTimer(); 
+        checkAndTriggerAI(); 
+    } else {
+        stopTimer();
+    }
 }
 
 function syncDisplayGame() {
