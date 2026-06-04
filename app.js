@@ -62,6 +62,17 @@ function initApp() {
     resetGameSettings();
 }
 document.addEventListener('DOMContentLoaded', initApp);
+// Добавляем управление стрелками
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowLeft') {
+            e.preventDefault(); // Чтобы страница не скроллилась
+            jumpToMoveIndex(currentMoveIndex - 1);
+        }
+        if (e.key === 'ArrowRight') {
+            e.preventDefault();
+            jumpToMoveIndex(currentMoveIndex + 1);
+        }
+    });
 
 function initStockfish() {
     try {
