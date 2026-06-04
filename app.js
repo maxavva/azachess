@@ -1,4 +1,5 @@
-const pieceImagePaths = {
+// 1. КОНСТАНТЫ (ОБЪЯВЛЯЮТСЯ ОДИН РАЗ)
+const PIECE_IMAGES = {
     'wP': 'https://upload.wikimedia.org/wikipedia/commons/4/45/Chess_plt45.svg',
     'wR': 'https://upload.wikimedia.org/wikipedia/commons/7/72/Chess_rlt45.svg',
     'wN': 'https://upload.wikimedia.org/wikipedia/commons/7/70/Chess_nlt45.svg',
@@ -18,114 +19,84 @@ const AI_LEVELS = {
     5:{skill:14,depth:8}, 6:{skill:17,depth:12}, 7:{skill:20,depth:15}, 8:{skill:20,depth:20} 
 };
 
-// --- ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ---
+// 2. ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ
 var liveGame = new Chess();
 var displayGame = new Chess();
-window.game = liveGame;
+window.game = liveGame; // Для доступа из sounds.js
 
 let fullMoveHistory = [], currentMoveIndex = 0;
 let whiteTime = 300, blackTime = 300, increment = 0, lastTick = null;
 let isClockEnabled = true, isGameStarted = false, timerInterval = null;
 let isFlipped = false, userColor = 'w';
 
-let isDragging = false, dragStartX = 0, dragStartY = 0, dragClone = null, draggedPieceImg = null, draggedSquare = null, dragMovedEnough = false;
 let selectedSquare = null, validMoves = [];
+let isDragging = false, dragStartX = 0, dragStartY = 0, dragClone = null, draggedPieceImg = null, draggedSquare = null, dragMovedEnough = false;
 let stockfishWorker = null, isStockfishReady = false, isWaitingForAIMove = false;
 let promotionFrom = null, promotionTo = null;
 const DRAG_THRESHOLD = 10;
 
-// --- ИНИЦИАЛИЗАЦИЯ ---
-function initApp() {
-    if (typeof Chess === 'undefined') { setTimeout(initApp, 100); return; }
-    initStockfish();
-    
-    // Привязка кнопок
-    const bind = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = fn; };
-    bind('btn-new-game', startNewGame);
-    bind('btn-flip', flipBoard);
-    bind('btn-nav-first', () => jumpToMoveIndex(0));
-    bind('btn-nav-prev', () => jumpToMoveIndex(currentMoveIndex - 1));
-    bind('btn-nav-next', () => jumpToMoveIndex(currentMoveIndex + 1));
-    bind('btn-nav-last', () => jumpToMoveIndex(fullMoveHistory.length));
+// 3. ИНИЦИАЛИЗАЦИЯ ПРИ ЗАГРУЗКЕ
+document.addEventListener('DOMContentLoaded', () => {
+    initApp();
+});
 
+function initApp() {
+    // Ждем загрузки библиотеки chess.js
+    if (typeof Chess === 'undefined') { 
+        setTimeout(initApp, 100); 
+        return; 
+    }
+
+    // Привязка кнопок управления
+    const setupBtn = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = fn; };
+    setupBtn('btn-new-game', startNewGame);
+    setupBtn('btn-flip', flipBoard);
+    setupBtn('btn-nav-first', () => jumpToMoveIndex(0));
+    setupBtn('btn-nav-prev', () => jumpToMoveIndex(currentMoveIndex - 1));
+    setupBtn('btn-nav-next', () => jumpToMoveIndex(currentMoveIndex + 1));
+    setupBtn('btn-nav-last', () => jumpToMoveIndex(fullMoveHistory.length));
+
+    // Навигация стрелками
+    window.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowLeft') { e.preventDefault(); jumpToMoveIndex(currentMoveIndex - 1); }
+        if (e.key === 'ArrowRight') { e.preventDefault(); jumpToMoveIndex(currentMoveIndex + 1); }
+    });
+
+    initStockfish();
     resetGameSettings();
 }
 
-// --- УПРАВЛЕНИЕ СТРЕЛКАМИ (Глобальное) ---
-window.addEventListener('keydown', (e) => {
-    if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) {
-        // Если фокус не в полях ввода, блокируем скролл страницы стрелками
-        if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
-            e.preventDefault();
-        }
-    }
-
-    if (e.key === 'ArrowLeft') {
-        jumpToMoveIndex(currentMoveIndex - 1);
-    } else if (e.key === 'ArrowRight') {
-        jumpToMoveIndex(currentMoveIndex + 1);
-    }
-});
-
-document.addEventListener('DOMContentLoaded', initApp);
-
-// --- ЛОГИКА ИГРЫ ---
-function jumpToMoveIndex(idx) {
-    if (idx < 0 || idx > fullMoveHistory.length) return;
-    currentMoveIndex = idx;
-    selectedSquare = null;
-    validMoves = [];
-    
-    // Восстанавливаем позицию для отображения
-    displayGame = new Chess();
-    for (let i = 0; i < currentMoveIndex; i++) {
-        displayGame.move(fullMoveHistory[i]);
-    }
-    
-    renderBoard(false);
-    updateMoveLog();
-}
-
-function saveGameState() {
-    const state = {
-        fen: liveGame.fen(),
-        history: fullMoveHistory,
-        currentIdx: currentMoveIndex,
-        whiteTime: whiteTime,
-        blackTime: blackTime,
-        lastTick: lastTick,
-        isGameStarted: isGameStarted,
-        userColor: userColor,
-        isFlipped: isFlipped,
-        isClockEnabled: isClockEnabled,
-        increment: increment
-    };
-    localStorage.setItem('azachess-save-game', JSON.stringify(state));
-}
-
+// 4. ДВИЖОК
 function initStockfish() {
     try {
         const blobCode = `importScripts('https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js');`;
-        const workerBlob = new Blob([blobCode], { type: 'application/javascript' });
-        stockfishWorker = new Worker(URL.createObjectURL(workerBlob));
+        const blob = new Blob([blobCode], { type: 'application/javascript' });
+        stockfishWorker = new Worker(URL.createObjectURL(blob));
+        
         stockfishWorker.onmessage = (e) => {
             if (e.data === 'readyok') { isStockfishReady = true; checkAndTriggerAI(); }
             if (e.data.startsWith('bestmove') && isWaitingForAIMove) {
                 isWaitingForAIMove = false;
                 const move = e.data.split(' ')[1];
-                if (move && move !== '(none)') executeMove(move.substring(0, 2), move.substring(2, 4), move[4] || 'q');
+                if (move && move !== '(none)') {
+                    executeMove(move.substring(0, 2), move.substring(2, 4), move[4] || 'q');
+                }
             }
         };
         stockfishWorker.postMessage('uci');
         stockfishWorker.postMessage('isready');
-    } catch (err) { console.error("Ошибка ИИ:", err); }
+    } catch (err) { console.error("Stockfish init error:", err); }
 }
 
+// 5. ЛОГИКА ДОСКИ
 function renderBoard(rebuild = false) {
     const boardEl = document.getElementById('board');
     if (!boardEl) return;
+
     if (rebuild) {
         boardEl.innerHTML = '';
+        const theme = localStorage.getItem('chess-board-theme') || 'theme-brown';
+        boardEl.className = 'chessboard ' + theme;
         for (let r = 0; r < 8; r++) {
             const row = isFlipped ? r : (7 - r);
             for (let c = 0; c < 8; c++) {
@@ -139,20 +110,22 @@ function renderBoard(rebuild = false) {
             }
         }
     }
+
     boardEl.querySelectorAll('.square').forEach(sq => {
         const name = sq.dataset.square, piece = displayGame.get(name);
         sq.classList.remove('last-move', 'selected', 'check');
+        
         const last = fullMoveHistory[currentMoveIndex - 1];
         if (last && (name === last.from || name === last.to)) sq.classList.add('last-move');
         if (selectedSquare === name) sq.classList.add('selected');
         if (displayGame.in_check() && piece?.type === 'k' && piece.color === displayGame.turn()) sq.classList.add('check');
-        
+
         let img = sq.querySelector('.piece');
         if (piece) {
             if (!img) { img = document.createElement('img'); img.className = 'piece'; img.draggable = false; sq.appendChild(img); }
-            img.src = pieceImagePaths[`${piece.color}${piece.type.toUpperCase()}`];
+            img.src = PIECE_IMAGES[`${piece.color}${piece.type.toUpperCase()}`];
         } else if (img) sq.removeChild(img);
-        
+
         let m = sq.querySelector('.move-dest, .move-dest-capture');
         if (currentMoveIndex === fullMoveHistory.length && validMoves.includes(name)) {
             const cls = piece ? 'move-dest-capture' : 'move-dest';
@@ -161,10 +134,16 @@ function renderBoard(rebuild = false) {
     });
 }
 
+// 6. ХОДЫ И КЛИКИ
 function handlePointerDown(e, sq) {
     if (typeof unlockAudio === 'function') unlockAudio();
     if (liveGame.game_over() || isWaitingForAIMove || currentMoveIndex < fullMoveHistory.length) return;
-    if (selectedSquare && validMoves.includes(sq)) { handleMoveAttempt(selectedSquare, sq); return; }
+
+    if (selectedSquare && validMoves.includes(sq)) {
+        handleMoveAttempt(selectedSquare, sq);
+        return;
+    }
+
     const piece = liveGame.get(sq);
     if (piece && piece.color === userColor && piece.color === liveGame.turn()) {
         isDragging = true; dragMovedEnough = false; draggedSquare = sq;
@@ -203,8 +182,7 @@ function handlePointerUp(e) {
 }
 
 function handleMoveAttempt(from, to) {
-    const moves = liveGame.moves({ square: from, verbose: true });
-    const move = moves.find(m => m.to === to);
+    const move = liveGame.moves({ square: from, verbose: true }).find(m => m.to === to);
     if (move?.flags.includes('p')) {
         promotionFrom = from; promotionTo = to;
         document.getElementById('promotion-modal').classList.remove('hidden');
@@ -223,17 +201,6 @@ function executeMove(from, to, promo = 'q') {
     } else clearSelection();
 }
 
-function renderPromotionChoices() {
-    const container = document.querySelector('.promotion-choices'), turn = liveGame.turn();
-    container.innerHTML = '';
-    ['q','r','b','n'].forEach(p => {
-        const btn = document.createElement('button'); btn.className = 'promo-btn';
-        btn.innerHTML = `<img src="${pieceImagePaths[turn+p.toUpperCase()]}" style="width:100%">`;
-        btn.onclick = () => { executeMove(promotionFrom, promotionTo, p); document.getElementById('promotion-modal').classList.add('hidden'); };
-        container.appendChild(btn);
-    });
-}
-
 function onMoveExecution() {
     selectedSquare = null; validMoves = [];
     updateMoveLog(); updateStatus(); updateClockDisplay(); renderBoard(false);
@@ -247,8 +214,10 @@ function syncDisplayGame() {
     renderBoard(false);
 }
 
+// 7. ЧАСЫ И ТАЙМЕРЫ
 function startTimer() {
-    stopTimer(); if (!isClockEnabled || !isGameStarted || liveGame.game_over()) return;
+    stopTimer(); 
+    if (!isClockEnabled || !isGameStarted || liveGame.game_over()) return;
     if (!lastTick) lastTick = Date.now();
     timerInterval = setInterval(() => {
         const now = Date.now(), delta = Math.floor((now - lastTick) / 1000);
@@ -275,30 +244,37 @@ function updateClockDisplay() {
     b.classList.toggle('active', active && ((!isFlipped && turn === 'w') || (isFlipped && turn === 'b')));
 }
 
+// 8. НАВИГАЦИЯ И СОСТОЯНИЕ
+function jumpToMoveIndex(idx) {
+    if (idx < 0 || idx > fullMoveHistory.length) return;
+    currentMoveIndex = idx;
+    displayGame = new Chess();
+    for (let i = 0; i < currentMoveIndex; i++) displayGame.move(fullMoveHistory[i]);
+    selectedSquare = null; validMoves = [];
+    renderBoard(false); updateMoveLog();
+}
+
 function resetGameSettings() {
     stopTimer();
     const saved = localStorage.getItem('azachess-save-game');
     if (saved) {
-        const s = JSON.parse(saved);
-        liveGame = new Chess(s.fen); 
-        fullMoveHistory = s.history; 
-        currentMoveIndex = s.currentIdx;
-        whiteTime = s.whiteTime; 
-        blackTime = s.blackTime; 
-        lastTick = s.lastTick;
-        isGameStarted = s.isGameStarted; 
-        userColor = s.userColor; 
-        isFlipped = s.isFlipped;
-        isClockEnabled = s.isClockEnabled; 
-        increment = s.increment;
-        displayGame = new Chess();
-        for (let i = 0; i < currentMoveIndex; i++) { displayGame.move(fullMoveHistory[i]); }
-        if (isGameStarted && lastTick && !liveGame.game_over()) {
-            const elapsed = Math.floor((Date.now() - lastTick) / 1000);
-            if (liveGame.turn() === 'w') whiteTime = Math.max(0, whiteTime - elapsed);
-            else blackTime = Math.max(0, blackTime - elapsed);
-            lastTick = Date.now();
-        }
+        try {
+            const s = JSON.parse(saved);
+            liveGame = new Chess(s.fen);
+            fullMoveHistory = s.history;
+            currentMoveIndex = s.currentIdx;
+            whiteTime = s.whiteTime; blackTime = s.blackTime; lastTick = s.lastTick;
+            isGameStarted = s.isGameStarted; userColor = s.userColor; isFlipped = s.isFlipped;
+            isClockEnabled = s.isClockEnabled; increment = s.increment;
+            displayGame = new Chess();
+            for (let i = 0; i < currentMoveIndex; i++) displayGame.move(fullMoveHistory[i]);
+            if (isGameStarted && lastTick && !liveGame.game_over()) {
+                const elapsed = Math.floor((Date.now() - lastTick) / 1000);
+                if (liveGame.turn() === 'w') whiteTime = Math.max(0, whiteTime - elapsed);
+                else blackTime = Math.max(0, blackTime - elapsed);
+                lastTick = Date.now();
+            }
+        } catch(e) { localStorage.removeItem('azachess-save-game'); return resetGameSettings(); }
     } else {
         liveGame = new Chess(); displayGame = new Chess();
         userColor = localStorage.getItem('selected-player-color') || 'w';
@@ -315,6 +291,14 @@ function resetGameSettings() {
     updateClockDisplay(); updateMoveLog(); updateStatus(); renderBoard(true);
     if (isGameStarted) startTimer();
     checkAndTriggerAI();
+}
+
+function saveGameState() {
+    const state = {
+        fen: liveGame.fen(), history: fullMoveHistory, currentIdx: currentMoveIndex,
+        whiteTime, blackTime, lastTick, isGameStarted, userColor, isFlipped, isClockEnabled, increment
+    };
+    localStorage.setItem('azachess-save-game', JSON.stringify(state));
 }
 
 function updateStatus() {
@@ -349,4 +333,15 @@ function updateMoveLog() {
         ${fullMoveHistory[i+1] ? `<span class="move-text ${i+2===currentMoveIndex?'active-move':''}" onclick="jumpToMoveIndex(${i+2})">${fullMoveHistory[i+1].san}</span>` : ''}`;
         log.appendChild(row);
     }
+}
+
+function renderPromotionChoices() {
+    const container = document.querySelector('.promotion-choices'), turn = liveGame.turn();
+    container.innerHTML = '';
+    ['q','r','b','n'].forEach(p => {
+        const btn = document.createElement('button'); btn.className = 'promo-btn';
+        btn.innerHTML = `<img src="${PIECE_IMAGES[turn+p.toUpperCase()]}" style="width:100%">`;
+        btn.onclick = () => { executeMove(promotionFrom, promotionTo, p); document.getElementById('promotion-modal').classList.add('hidden'); };
+        container.appendChild(btn);
+    });
 }
