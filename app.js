@@ -283,15 +283,36 @@ function jumpToMoveIndex(idx) {
 }
 
 function startTimer() {
-    stopTimer(); if (!isClockEnabled || !isGameStarted) return;
+    stopTimer();
+    if (!isClockEnabled || !isGameStarted || liveGame.game_over()) return;
+
     timerInterval = setInterval(() => {
-        if (liveGame.turn() === 'w') whiteTime--; else blackTime--;
+        const times = calculateRemainingTimes(); // Берем данные из истории
+        whiteTime = times.white;
+        blackTime = times.black;
+
         if (whiteTime <= 0 || blackTime <= 0) {
-            whiteTime = Math.max(0, whiteTime); blackTime = Math.max(0, blackTime);
-            stopTimer(); updateStatus();
+            stopTimer();
+            updateStatus();
         }
         updateClockDisplay();
+        saveGameState(); 
     }, 1000);
+}
+
+function saveGameState() {
+    const state = {
+        fen: liveGame.fen(),
+        history: fullMoveHistory, // Теперь ходы внутри содержат .timestamp
+        currentIdx: currentMoveIndex,
+        gameStartTime: gameStartTime, // Сохраняем начало партии
+        isGameStarted: isGameStarted,
+        userColor: userColor,
+        isFlipped: isFlipped,
+        isClockEnabled: isClockEnabled,
+        increment: increment
+    };
+    localStorage.setItem('azachess-save-game', JSON.stringify(state));
 }
 
 function stopTimer() { if (timerInterval) clearInterval(timerInterval); timerInterval = null; }
@@ -320,10 +341,14 @@ function resetGameSettings() {
     if (savedData) {
         try {
             const state = JSON.parse(savedData);
-            
-            liveGame = new Chess(state.fen);
-            fullMoveHistory = state.history;
-            currentMoveIndex = state.currentIdx;
+        liveGame = new Chess(state.fen);
+        fullMoveHistory = state.history;
+        gameStartTime = state.gameStartTime; // Загружаем начало
+        
+        // Пересчитываем время на основе загруженной истории прямо сейчас
+        const times = calculateRemainingTimes();
+        whiteTime = times.white;
+        blackTime = times.black;
             
             // ВАЖНО: Синхронизируем видимую доску с историей
             displayGame = new Chess();
@@ -430,4 +455,43 @@ function updateMoveLog() {
         ${fullMoveHistory[i+1] ? `<span class="move-text ${i+2===currentMoveIndex?'active-move':''}" onclick="jumpToMoveIndex(${i+2})">${fullMoveHistory[i+1].san}</span>` : ''}`;
         log.appendChild(row);
     }
+}
+
+function calculateRemainingTimes() {
+    let initial = (localStorage.getItem('selected-time-control') || '5+3').split('+');
+    let totalStartSeconds = parseInt(initial[0]) * 60;
+    let inc = parseInt(initial[1]) || 0;
+
+    let usedWhite = 0;
+    let usedBlack = 0;
+
+    if (fullMoveHistory.length === 0) return { white: totalStartSeconds, black: totalStartSeconds };
+
+    // Считаем время по цепочке ходов
+    for (let i = 0; i < fullMoveHistory.length; i++) {
+        let currentMoveTime = fullMoveHistory[i].timestamp;
+        let prevTime = (i === 0) ? gameStartTime : fullMoveHistory[i - 1].timestamp;
+        let duration = Math.floor((currentMoveTime - prevTime) / 1000);
+
+        if (i % 2 === 0) usedWhite += duration; // Ход белых
+        else usedBlack += duration; // Ход черных
+    }
+
+    // Добавляем время текущего (думающего) игрока
+    let now = Date.now();
+    let lastMoveTime = fullMoveHistory[fullMoveHistory.length - 1].timestamp;
+    let thinkingTime = Math.floor((now - lastMoveTime) / 1000);
+
+    if (liveGame.turn() === 'w') usedWhite += thinkingTime;
+    else usedBlack += thinkingTime;
+
+    // Итоговая формула: База + Бонус за ходы - Потрачено
+    // Белые сделали Math.ceil(len / 2) ходов, черные Math.floor(len / 2)
+    let whiteBonus = Math.floor((fullMoveHistory.length + 1) / 2) * inc;
+    let blackBonus = Math.floor(fullMoveHistory.length / 2) * inc;
+
+    return {
+        white: Math.max(0, totalStartSeconds + whiteBonus - usedWhite),
+        black: Math.max(0, totalStartSeconds + blackBonus - usedBlack)
+    };
 }
