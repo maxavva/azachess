@@ -62,32 +62,31 @@
   </div>
 
   <script>
-    // 1. Инициализация дефолтов
-    if(!localStorage.getItem('selected-time-control')) localStorage.setItem('selected-time-control', '5+3');
-    if(!localStorage.getItem('selected-ai-level')) localStorage.setItem('selected-ai-level', '3');
-    if(!localStorage.getItem('selected-player-color')) localStorage.setItem('selected-player-color', 'w');
+  // Дефолтные настройки
+  if(!localStorage.getItem('selected-time-control')) localStorage.setItem('selected-time-control', '5+3');
+  if(!localStorage.getItem('selected-ai-level')) localStorage.setItem('selected-ai-level', '3');
+  if(!localStorage.getItem('selected-player-color')) localStorage.setItem('selected-player-color', 'w');
 
-    // 2. Обработчики кликов (обновляют визуальную часть и пишут в память)
-    function setupGrid(containerId, storageKey) {
-      document.querySelectorAll(`#${containerId} .time-card, #${containerId} .level-btn`).forEach(el => {
-        el.addEventListener('click', () => {
-          document.querySelectorAll(`#${containerId} .time-card, #${containerId} .level-btn`).forEach(c => c.classList.remove('active'));
-          el.classList.add('active');
-          localStorage.setItem(storageKey, el.dataset.time || el.dataset.lv || el.dataset.color);
-        });
+  // Универсальный обработчик для всех сеток (время, уровень, цвет)
+  function initGrid(selector, storageKey) {
+    document.querySelectorAll(selector).forEach(el => {
+      el.addEventListener('click', () => {
+        document.querySelectorAll(selector).forEach(c => c.classList.remove('active'));
+        el.classList.add('active');
+        localStorage.setItem(storageKey, el.dataset.time || el.dataset.lv || el.dataset.color);
       });
-    }
+    });
+  }
 
-    setupGrid('time-grid', 'selected-time-control');
-    setupGrid('level-grid', 'selected-ai-level');
-    setupGrid('color-grid', 'selected-player-color');
+  initGrid('#time-grid .time-card', 'selected-time-control');
+  initGrid('#level-grid .level-btn', 'selected-ai-level');
+  initGrid('#color-grid .level-btn', 'selected-player-color');
 
-    // 3. Единственная функция запуска
-    function startGame() {
-      // Удаляем старое сохранение, так как мы заходим с главной (хотим новую игру)
-      localStorage.removeItem('azachess-save-game');
-      window.location.href = 'play.html';
-    }
-  </script>
+  function startGame() {
+    // Принудительно чистим старую игру, так как идем с главной
+    localStorage.removeItem('azachess-save-game');
+    window.location.href = 'play.html';
+  }
+</script>
 </body>
 </html>
