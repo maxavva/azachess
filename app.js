@@ -13,19 +13,28 @@ const pieceImagePaths = {
     'bK': 'https://upload.wikimedia.org/wikipedia/commons/f/f0/Chess_kdt45.svg'
 };
 
-const AI_LEVELS = { 1:{skill:0,depth:1}, 2:{skill:3,depth:2}, 3:{skill:6,depth:4}, 4:{skill:10,depth:6}, 5:{skill:14,depth:8}, 6:{skill:17,depth:12}, 7:{skill:20,depth:15}, 8:{skill:20,depth:20} };
+const AI_LEVELS = { 
+    1:{skill:0,depth:1}, 2:{skill:3,depth:2}, 3:{skill:6,depth:4}, 4:{skill:10,depth:6}, 
+    5:{skill:14,depth:8}, 6:{skill:17,depth:12}, 7:{skill:20,depth:15}, 8:{skill:20,depth:20} 
+};
 
+// СОСТОЯНИЕ ИГРЫ
 var liveGame = new Chess();
 var displayGame = new Chess();
 window.game = liveGame;
 
 let fullMoveHistory = [], currentMoveIndex = 0;
 let whiteTime = 300, blackTime = 300, increment = 3, isClockEnabled = true, isGameStarted = false, timerInterval = null;
-let isFlipped = false, isDragging = false, dragStartX = 0, dragStartY = 0, dragClone = null, draggedPieceImg = null, draggedSquare = null, dragMovedEnough = false;
+
+// ПЕРЕМЕННЫЕ ПОВОРОТА И ЦВЕТА
+let isFlipped = false;   // Отвечает только за картинку (кто внизу экрана)
+let userColor = 'w';    // Отвечает за логику (каким цветом играет человек)
+
+let isDragging = false, dragStartX = 0, dragStartY = 0, dragClone = null, draggedPieceImg = null, draggedSquare = null, dragMovedEnough = false;
 let selectedSquare = null, validMoves = [];
 let stockfishWorker = null, isStockfishReady = false, isWaitingForAIMove = false;
 let promotionFrom = null, promotionTo = null;
-const DRAG_THRESHOLD = 10; // Увеличил для телефонов, чтобы избежать случайных дерганий
+const DRAG_THRESHOLD = 10;
 
 function initApp() {
     if (typeof Chess === 'undefined') { setTimeout(initApp, 100); return; }
@@ -57,7 +66,6 @@ function initStockfish() {
         stockfishWorker.onmessage = (e) => {
             if (e.data === 'readyok') {
                 isStockfishReady = true;
-                console.log("Stockfish готов");
                 checkAndTriggerAI();
             }
             if (e.data.startsWith('bestmove') && isWaitingForAIMove) {
@@ -77,9 +85,7 @@ function initStockfish() {
         };
         stockfishWorker.postMessage('uci');
         stockfishWorker.postMessage('isready');
-    } catch (err) {
-        console.error("Ошибка инициализации ИИ:", err);
-    }
+    } catch (err) { console.error("Ошибка ИИ:", err); }
 }
 
 function renderBoard(rebuild = false) {
@@ -97,7 +103,6 @@ function renderBoard(rebuild = false) {
                 const sq = document.createElement('div');
                 sq.className = `square ${(row + col) % 2 !== 0 ? 'light' : 'dark'}`;
                 sq.dataset.square = name;
-                sq.style.touchAction = 'none'; // Важно для телефонов
                 sq.onpointerdown = (e) => handlePointerDown(e, name);
                 boardEl.appendChild(sq);
             }
@@ -131,7 +136,6 @@ function handlePointerDown(e, sq) {
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     if (liveGame.game_over() || isWaitingForAIMove) return;
     
-    // Ход кликом
     if (selectedSquare && validMoves.includes(sq)) {
         handleMoveAttempt(selectedSquare, sq);
         return;
@@ -140,8 +144,9 @@ function handlePointerDown(e, sq) {
     if (currentMoveIndex < fullMoveHistory.length) return;
 
     const piece = liveGame.get(sq);
-    const playerColor = isFlipped ? 'b' : 'w';
-    if (piece && piece.color === playerColor) {
+    
+    // ИСПРАВЛЕНО: Проверяем цвет игрока (userColor) и чей сейчас ход
+    if (piece && piece.color === userColor && piece.color === liveGame.turn()) {
         isDragging = true; dragMovedEnough = false; draggedSquare = sq;
         dragStartX = e.clientX; dragStartY = e.clientY;
         draggedPieceImg = e.target.classList.contains('piece') ? e.target : e.target.querySelector('.piece');
@@ -155,8 +160,7 @@ function handlePointerDown(e, sq) {
 
 function handlePointerMove(e) {
     if (!isDragging || !draggedPieceImg) return;
-    const dist = Math.hypot(e.clientX - dragStartX, e.clientY - dragStartY);
-    if (dist > DRAG_THRESHOLD) {
+    if (Math.hypot(e.clientX - dragStartX, e.clientY - dragStartY) > DRAG_THRESHOLD) {
         dragMovedEnough = true;
         if (!dragClone) {
             dragClone = draggedPieceImg.cloneNode(true);
@@ -179,7 +183,7 @@ function handlePointerUp(e) {
     const el = document.elementFromPoint(e.clientX, e.clientY);
     const target = el?.closest('.square')?.dataset.square;
     if (dragMovedEnough && target && validMoves.includes(target)) handleMoveAttempt(draggedSquare, target);
-    else if (dragMovedEnough) clearSelection();
+    else if (dragMovedEnough) renderBoard(false);
 }
 
 function handleMoveAttempt(from, to) {
@@ -194,7 +198,6 @@ function handleMoveAttempt(from, to) {
 }
 
 function executeMove(from, to, promo = 'q') {
-    if (isClockEnabled && isGameStarted && (whiteTime <= 0 || blackTime <= 0)) return clearSelection();
     const res = liveGame.move({ from, to, promotion: promo });
     if (res) {
         if (window.playMoveSound) playMoveSound(res);
@@ -241,7 +244,7 @@ function startTimer() {
         if (liveGame.turn() === 'w') whiteTime--; else blackTime--;
         if (whiteTime <= 0 || blackTime <= 0) {
             whiteTime = Math.max(0, whiteTime); blackTime = Math.max(0, blackTime);
-            stopTimer(); updateStatus(); if (window.chessSounds) chessSounds.gameEnd.play();
+            stopTimer(); updateStatus();
         }
         updateClockDisplay();
     }, 1000);
@@ -253,8 +256,11 @@ function updateClockDisplay() {
     const t = document.getElementById('clock-top'), b = document.getElementById('clock-bottom');
     if (!t || !b || !isClockEnabled) return;
     const format = (s) => `${Math.floor(s/60)}:${(s%60).toString().padStart(2, '0')}`;
+    
+    // Часы всегда показывают: нижние - игрока, верхние - противника
     (isFlipped ? t : b).textContent = format(whiteTime);
     (isFlipped ? b : t).textContent = format(blackTime);
+    
     const turn = liveGame.turn();
     const active = isGameStarted && !liveGame.game_over() && whiteTime > 0 && blackTime > 0;
     t.classList.toggle('active', active && ((isFlipped && turn === 'w') || (!isFlipped && turn === 'b')));
@@ -262,9 +268,16 @@ function updateClockDisplay() {
 }
 
 function resetGameSettings() {
-    stopTimer(); liveGame = new Chess(); displayGame = new Chess(); window.game = liveGame;
-    fullMoveHistory = []; currentMoveIndex = 0; isGameStarted = false;
-    selectedSquare = null; validMoves = [];
+    stopTimer(); 
+    liveGame = new Chess(); 
+    displayGame = new Chess(); 
+    fullMoveHistory = []; 
+    currentMoveIndex = 0; 
+    isGameStarted = false;
+    
+    // ИСПРАВЛЕНО: Теперь цвет игрока зависит от того, перевернута ли доска в начале
+    userColor = isFlipped ? 'b' : 'w'; 
+
     const timeVal = localStorage.getItem('selected-time-control') || '5+3';
     const cw = document.getElementById('clocks-wrapper');
     if (timeVal === 'none') { isClockEnabled = false; if(cw) cw.style.display = 'none'; }
@@ -286,8 +299,8 @@ function updateStatus() {
 }
 
 function checkAndTriggerAI() {
-    const pc = isFlipped ? 'b' : 'w';
-    if (liveGame.turn() !== pc && !liveGame.game_over()) triggerEngineMove();
+    // ИСПРАВЛЕНО: ИИ ходит, если сейчас НЕ ход игрока
+    if (liveGame.turn() !== userColor && !liveGame.game_over()) triggerEngineMove();
 }
 
 function triggerEngineMove() {
@@ -301,7 +314,13 @@ function triggerEngineMove() {
 
 function startNewGame() { resetGameSettings(); }
 function clearSelection() { selectedSquare = null; validMoves = []; renderBoard(false); }
-function flipBoard() { isFlipped = !isFlipped; renderBoard(true); updateClockDisplay(); checkAndTriggerAI(); }
+
+function flipBoard() { 
+    isFlipped = !isFlipped; 
+    renderBoard(true); 
+    updateClockDisplay(); 
+}
+
 function updateMoveLog() {
     const log = document.getElementById('move-log'); if(!log) return; log.innerHTML = '';
     for (let i = 0; i < fullMoveHistory.length; i += 2) {
