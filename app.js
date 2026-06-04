@@ -339,18 +339,29 @@ function resetGameSettings() {
     stopTimer();
     const savedData = localStorage.getItem('azachess-save-game');
     
-    if (savedData) {
-        const state = JSON.parse(savedData);
-        liveGame = new Chess(state.fen);
-        fullMoveHistory = state.history;
-        // Загружаем индекс хода и фиксируем его как текущий
-        currentMoveIndex = state.currentIdx || fullMoveHistory.length; 
-        gameStartTime = state.gameStartTime;
-        isGameStarted = state.isGameStarted;
-        userColor = state.userColor;
-        isFlipped = state.isFlipped;
-        isClockEnabled = state.isClockEnabled;
-        increment = state.increment;
+   if (savedData) {
+        try {
+            const state = JSON.parse(savedData);
+            liveGame = new Chess(state.fen);
+            fullMoveHistory = state.history;
+            currentMoveIndex = state.currentIdx || fullMoveHistory.length; 
+            gameStartTime = state.gameStartTime;
+            isGameStarted = state.isGameStarted;
+            userColor = state.userColor;
+            isFlipped = state.isFlipped;
+            increment = state.increment || 0;
+            
+            // Проверка включения часов
+            const timeVal = localStorage.getItem('selected-time-control') || '5+3';
+            isClockEnabled = timeVal !== 'none';
+
+            displayGame = new Chess();
+            fullMoveHistory.slice(0, currentMoveIndex).forEach(m => displayGame.move(m));
+        } catch (e) {
+            localStorage.removeItem('azachess-save-game');
+            return resetGameSettings();
+        }
+    }
 
         // ВАЖНО: Синхронизируем видимую доску с последним ходом из истории
         displayGame = new Chess();
@@ -477,6 +488,7 @@ function calculateRemainingTimes() {
     const totalStartSeconds = (parseInt(parts[0]) || 5) * 60;
     const inc = parseInt(parts[1]) || 0;
 
+    // Если игра еще не началась фактически
     if (!gameStartTime) return { white: totalStartSeconds, black: totalStartSeconds };
 
     let usedWhite = 0;
@@ -485,24 +497,26 @@ function calculateRemainingTimes() {
 
     // Считаем время прошлых ходов
     for (let i = 0; i < fullMoveHistory.length; i++) {
-        const moveTime = fullMoveHistory[i].timestamp;
-        const startTime = (i === 0) ? gameStartTime : fullMoveHistory[i - 1].timestamp;
-        const duration = Math.floor((moveTime - startTime) / 1000);
+        const move = fullMoveHistory[i];
+        // Если вдруг в истории старый ход без времени - берем текущее (защита от багов)
+        const moveTime = move.timestamp || now;
+        const startTime = (i === 0) ? gameStartTime : (fullMoveHistory[i - 1].timestamp || gameStartTime);
+        
+        const duration = Math.max(0, Math.floor((moveTime - startTime) / 1000));
 
         if (i % 2 === 0) usedWhite += duration; 
         else usedBlack += duration;
     }
 
-    // Считаем текущее время (кто сейчас думает)
+    // Считаем текущее время
     if (!liveGame.game_over()) {
-        const lastEventTime = (fullMoveHistory.length === 0) ? gameStartTime : fullMoveHistory[fullMoveHistory.length - 1].timestamp;
-        const thinkingTime = Math.floor((now - lastEventTime) / 1000);
+        const lastEventTime = (fullMoveHistory.length === 0) ? gameStartTime : (fullMoveHistory[fullMoveHistory.length - 1].timestamp || gameStartTime);
+        const thinkingTime = Math.max(0, Math.floor((now - lastEventTime) / 1000));
 
         if (liveGame.turn() === 'w') usedWhite += thinkingTime;
         else usedBlack += thinkingTime;
     }
 
-    // Добавляем бонусы за завершенные ходы
     const whiteBonus = Math.floor((fullMoveHistory.length + 1) / 2) * inc;
     const blackBonus = Math.floor(fullMoveHistory.length / 2) * inc;
 
@@ -510,4 +524,48 @@ function calculateRemainingTimes() {
         white: Math.max(0, totalStartSeconds + whiteBonus - usedWhite),
         black: Math.max(0, totalStartSeconds + blackBonus - usedBlack)
     };
+}
+
+function updateClockDisplay() {
+    const t = document.getElementById('clock-top'), b = document.getElementById('clock-bottom');
+    if (!t || !b) return;
+
+    // Проверка на корректность (чтобы не было NaN)
+    const displayW = isNaN(whiteTime) ? 0 : whiteTime;
+    const displayB = isNaN(blackTime) ? 0 : blackTime;
+
+    const format = (s) => {
+        const mins = Math.floor(s / 60);
+        const secs = s % 60;
+        return `${mins}:${secs.toString().padStart(2, '0')}`;
+    };
+    
+    (isFlipped ? t : b).textContent = format(displayW);
+    (isFlipped ? b : t).textContent = format(displayB);
+    
+    const turn = liveGame.turn();
+    const active = isGameStarted && !liveGame.game_over() && displayW > 0 && displayB > 0;
+    
+    t.classList.toggle('active', active && ((isFlipped && turn === 'w') || (!isFlipped && turn === 'b')));
+    b.classList.toggle('active', active && ((!isFlipped && turn === 'w') || (isFlipped && turn === 'b')));
+}
+
+function startTimer() {
+    stopTimer();
+    // Проверяем, включены ли часы в настройках
+    const timeVal = localStorage.getItem('selected-time-control') || '5+3';
+    if (timeVal === 'none') return;
+
+    timerInterval = setInterval(() => {
+        const times = calculateRemainingTimes();
+        whiteTime = times.white;
+        blackTime = times.black;
+
+        if (whiteTime <= 0 || blackTime <= 0) {
+            stopTimer();
+            updateStatus();
+        }
+        updateClockDisplay();
+        saveGameState(); 
+    }, 1000);
 }
