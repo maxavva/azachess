@@ -275,18 +275,41 @@ function resetGameSettings() {
     currentMoveIndex = 0; 
     isGameStarted = false;
     
-    // ИСПРАВЛЕНО: Теперь цвет игрока зависит от того, перевернута ли доска в начале
-    userColor = isFlipped ? 'b' : 'w'; 
+    // 1. Получаем выбранный цвет из localStorage
+    let chosenColor = localStorage.getItem('selected-player-color') || 'w';
+    
+    // 2. Обработка случайного выбора
+    if (chosenColor === 'random') {
+        chosenColor = Math.random() > 0.5 ? 'w' : 'b';
+    }
+    
+    // 3. Устанавливаем цвет игрока
+    userColor = chosenColor;
+    
+    // 4. Автоматически переворачиваем доску: 
+    // Если играем за черных - доска должна быть перевернута (isFlipped = true)
+    // Если за белых - не перевернута (isFlipped = false)
+    isFlipped = (userColor === 'b'); 
 
+    // Настройка времени
     const timeVal = localStorage.getItem('selected-time-control') || '5+3';
     const cw = document.getElementById('clocks-wrapper');
-    if (timeVal === 'none') { isClockEnabled = false; if(cw) cw.style.display = 'none'; }
-    else {
-        isClockEnabled = true; if(cw) cw.style.display = 'flex';
+    if (timeVal === 'none') { 
+        isClockEnabled = false; 
+        if(cw) cw.style.display = 'none'; 
+    } else {
+        isClockEnabled = true; 
+        if(cw) cw.style.display = 'flex';
         const parts = timeVal.split('+');
-        whiteTime = parseInt(parts[0]) * 60; blackTime = whiteTime; increment = parseInt(parts[1]) || 0;
+        whiteTime = parseInt(parts[0]) * 60; 
+        blackTime = whiteTime; 
+        increment = parseInt(parts[1]) || 0;
     }
-    updateClockDisplay(); updateMoveLog(); updateStatus(); renderBoard(true);
+    
+    updateClockDisplay(); 
+    updateMoveLog(); 
+    updateStatus(); 
+    renderBoard(true); // Перерисовываем доску с учетом нового isFlipped
     checkAndTriggerAI();
 }
 
