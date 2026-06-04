@@ -63,40 +63,51 @@
   </div>
 
   <script>
-    if(!localStorage.getItem('selected-time-control')) localStorage.setItem('selected-time-control', '5+3');
-    if(!localStorage.getItem('selected-ai-level')) localStorage.setItem('selected-ai-level', '3');
+  // Инициализация значений по умолчанию, если их нет
+  if(!localStorage.getItem('selected-time-control')) localStorage.setItem('selected-time-control', '5+3');
+  if(!localStorage.getItem('selected-ai-level')) localStorage.setItem('selected-ai-level', '3');
+  if(!localStorage.getItem('selected-player-color')) localStorage.setItem('selected-player-color', 'w');
 
-    document.querySelectorAll('#time-grid .time-card').forEach(card => {
-      card.onclick = () => {
-        document.querySelectorAll('#time-grid .time-card').forEach(c => c.classList.remove('active'));
-        card.classList.add('active');
-        localStorage.setItem('selected-time-control', card.dataset.time);
-      };
-    });
+  // Обработка выбора времени
+  document.querySelectorAll('#time-grid .time-card').forEach(card => {
+    card.onclick = () => {
+      document.querySelectorAll('#time-grid .time-card').forEach(c => c.classList.remove('active'));
+      card.classList.add('active');
+      localStorage.setItem('selected-time-control', card.dataset.time);
+    };
+  });
 
-    // Значение по умолчанию
-if(!localStorage.getItem('selected-player-color')) localStorage.setItem('selected-player-color', 'w');
+  // Обработка выбора уровня ИИ
+  document.querySelectorAll('#level-grid .level-btn').forEach(btn => {
+    btn.onclick = () => {
+      document.querySelectorAll('#level-grid .level-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      localStorage.setItem('selected-ai-level', btn.dataset.lv);
+    };
+  });
 
-document.querySelectorAll('#color-grid .level-btn').forEach(btn => {
-  btn.onclick = () => {
-    document.querySelectorAll('#color-grid .level-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    localStorage.setItem('selected-player-color', btn.dataset.color);
-  };
-});
+  // Обработка выбора цвета
+  document.querySelectorAll('#color-grid .level-btn').forEach(btn => {
+    btn.onclick = () => {
+      document.querySelectorAll('#color-grid .level-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      localStorage.setItem('selected-player-color', btn.dataset.color);
+    };
+  });
 
-    function startGame() {
-      window.location.href = 'play.html';
-    }
-  
+  // Единая функция запуска игры
   function startGame() {
-  // Убеждаемся, что уровень ИИ записан
-  const activeLevel = document.querySelector('#level-grid .level-btn.active');
-  if (activeLevel) {
-      localStorage.setItem('selected-ai-level', activeLevel.dataset.lv);
-  }
-  window.location.href = 'play.html';
-}
+    // На всякий случай еще раз сохраняем активные значения перед переходом
+    const activeTime = document.querySelector('#time-grid .time-card.active');
+    const activeLevel = document.querySelector('#level-grid .level-btn.active');
+    const activeColor = document.querySelector('#color-grid .level-btn.active');
+
+    if (activeTime) localStorage.setItem('selected-time-control', activeTime.dataset.time);
+    if (activeLevel) localStorage.setItem('selected-ai-level', activeLevel.dataset.lv);
+    if (activeColor) localStorage.setItem('selected-player-color', activeColor.dataset.color);
+
+    window.location.href = 'play.html';
+  } 
   
   </script>
 </body>
