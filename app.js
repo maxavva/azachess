@@ -1,4 +1,9 @@
-// 1. КОНСТАНТЫ (ОБЪЯВЛЯЮТСЯ ОДИН РАЗ)
+/**
+ * AZACHESS - Официальный скрипт игрового режима
+ * Содержит: Движок Stockfish, Систему "Живого времени", Сохранение состояния.
+ */
+
+// 1. КОНСТАНТЫ
 const PIECE_IMAGES = {
     'wP': 'https://upload.wikimedia.org/wikipedia/commons/4/45/Chess_plt45.svg',
     'wR': 'https://upload.wikimedia.org/wikipedia/commons/7/72/Chess_rlt45.svg',
@@ -19,7 +24,7 @@ const AI_LEVELS = {
     5:{skill:14,depth:8}, 6:{skill:17,depth:12}, 7:{skill:20,depth:15}, 8:{skill:20,depth:20} 
 };
 
-// 2. ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ
+// 2. СОСТОЯНИЕ ИГРЫ
 var liveGame = new Chess();
 var displayGame = new Chess();
 window.game = liveGame; // Для доступа из sounds.js
@@ -35,19 +40,15 @@ let stockfishWorker = null, isStockfishReady = false, isWaitingForAIMove = false
 let promotionFrom = null, promotionTo = null;
 const DRAG_THRESHOLD = 10;
 
-// 3. ИНИЦИАЛИЗАЦИЯ ПРИ ЗАГРУЗКЕ
+// 3. ИНИЦИАЛИЗАЦИЯ
 document.addEventListener('DOMContentLoaded', () => {
     initApp();
 });
 
 function initApp() {
-    // Ждем загрузки библиотеки chess.js
-    if (typeof Chess === 'undefined') { 
-        setTimeout(initApp, 100); 
-        return; 
-    }
+    if (typeof Chess === 'undefined') { setTimeout(initApp, 100); return; }
 
-    // Привязка кнопок управления
+    // Навигация
     const setupBtn = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = fn; };
     setupBtn('btn-new-game', startNewGame);
     setupBtn('btn-flip', flipBoard);
@@ -56,7 +57,7 @@ function initApp() {
     setupBtn('btn-nav-next', () => jumpToMoveIndex(currentMoveIndex + 1));
     setupBtn('btn-nav-last', () => jumpToMoveIndex(fullMoveHistory.length));
 
-    // Навигация стрелками
+    // Слушатель клавиш
     window.addEventListener('keydown', (e) => {
         if (e.key === 'ArrowLeft') { e.preventDefault(); jumpToMoveIndex(currentMoveIndex - 1); }
         if (e.key === 'ArrowRight') { e.preventDefault(); jumpToMoveIndex(currentMoveIndex + 1); }
@@ -85,18 +86,16 @@ function initStockfish() {
         };
         stockfishWorker.postMessage('uci');
         stockfishWorker.postMessage('isready');
-    } catch (err) { console.error("Stockfish init error:", err); }
+    } catch (err) { console.error("Stockfish Error:", err); }
 }
 
-// 5. ЛОГИКА ДОСКИ
+// 5. ЛОГИКА ДОСКИ И ХОДОВ
 function renderBoard(rebuild = false) {
     const boardEl = document.getElementById('board');
     if (!boardEl) return;
 
     if (rebuild) {
         boardEl.innerHTML = '';
-        const theme = localStorage.getItem('chess-board-theme') || 'theme-brown';
-        boardEl.className = 'chessboard ' + theme;
         for (let r = 0; r < 8; r++) {
             const row = isFlipped ? r : (7 - r);
             for (let c = 0; c < 8; c++) {
@@ -126,18 +125,23 @@ function renderBoard(rebuild = false) {
             img.src = PIECE_IMAGES[`${piece.color}${piece.type.toUpperCase()}`];
         } else if (img) sq.removeChild(img);
 
-        let m = sq.querySelector('.move-dest, .move-dest-capture');
+        const m = sq.querySelector('.move-dest, .move-dest-capture');
+        if (m) sq.removeChild(m);
+
         if (currentMoveIndex === fullMoveHistory.length && validMoves.includes(name)) {
-            const cls = piece ? 'move-dest-capture' : 'move-dest';
-            if (!m || m.className !== cls) { if (m) sq.removeChild(m); m = document.createElement('div'); m.className = cls; sq.appendChild(m); }
-        } else if (m) sq.removeChild(m);
+            const dest = document.createElement('div');
+            dest.className = piece ? 'move-dest-capture' : 'move-dest';
+            sq.appendChild(dest);
+        }
     });
 }
 
-// 6. ХОДЫ И КЛИКИ
 function handlePointerDown(e, sq) {
     if (typeof unlockAudio === 'function') unlockAudio();
-    if (liveGame.game_over() || isWaitingForAIMove || currentMoveIndex < fullMoveHistory.length) return;
+    
+    // БЛОКИРОВКА ПРИ КОНЦЕ ВРЕМЕНИ
+    const isTimeOut = isClockEnabled && (whiteTime <= 0 || blackTime <= 0);
+    if (liveGame.game_over() || isWaitingForAIMove || currentMoveIndex < fullMoveHistory.length || isTimeOut) return;
 
     if (selectedSquare && validMoves.includes(sq)) {
         handleMoveAttempt(selectedSquare, sq);
@@ -191,6 +195,12 @@ function handleMoveAttempt(from, to) {
 }
 
 function executeMove(from, to, promo = 'q') {
+    // ЖЕСТКАЯ ПРОВЕРКА ВРЕМЕНИ
+    if (isClockEnabled && (whiteTime <= 0 || blackTime <= 0)) {
+        clearSelection();
+        return;
+    }
+
     const res = liveGame.move({ from, to, promotion: promo });
     if (res) {
         if (window.playMoveSound) playMoveSound(res);
@@ -205,8 +215,10 @@ function onMoveExecution() {
     selectedSquare = null; validMoves = [];
     updateMoveLog(); updateStatus(); updateClockDisplay(); renderBoard(false);
     saveGameState();
-    if (!liveGame.game_over()) { if (isClockEnabled) startTimer(); checkAndTriggerAI(); }
-    else stopTimer();
+    if (!liveGame.game_over() && !(isClockEnabled && (whiteTime <= 0 || blackTime <= 0))) { 
+        if (isClockEnabled) startTimer(); 
+        checkAndTriggerAI(); 
+    } else stopTimer();
 }
 
 function syncDisplayGame() {
@@ -214,18 +226,25 @@ function syncDisplayGame() {
     renderBoard(false);
 }
 
-// 7. ЧАСЫ И ТАЙМЕРЫ
+// 6. ЧАСЫ И ТАЙМЕР
 function startTimer() {
     stopTimer(); 
     if (!isClockEnabled || !isGameStarted || liveGame.game_over()) return;
     if (!lastTick) lastTick = Date.now();
+
     timerInterval = setInterval(() => {
         const now = Date.now(), delta = Math.floor((now - lastTick) / 1000);
         if (delta >= 1) {
             if (liveGame.turn() === 'w') whiteTime = Math.max(0, whiteTime - delta);
             else blackTime = Math.max(0, blackTime - delta);
             lastTick = now;
-            if (whiteTime <= 0 || blackTime <= 0) { stopTimer(); updateStatus(); }
+
+            if (whiteTime <= 0 || blackTime <= 0) { 
+                stopTimer(); 
+                if (stockfishWorker) stockfishWorker.postMessage('stop');
+                isWaitingForAIMove = false;
+                updateStatus(); 
+            }
             updateClockDisplay(); saveGameState();
         }
     }, 500);
@@ -244,7 +263,7 @@ function updateClockDisplay() {
     b.classList.toggle('active', active && ((!isFlipped && turn === 'w') || (isFlipped && turn === 'b')));
 }
 
-// 8. НАВИГАЦИЯ И СОСТОЯНИЕ
+// 7. СИСТЕМА СОХРАНЕНИЙ И НАВИГАЦИЯ
 function jumpToMoveIndex(idx) {
     if (idx < 0 || idx > fullMoveHistory.length) return;
     currentMoveIndex = idx;
@@ -268,6 +287,7 @@ function resetGameSettings() {
             isClockEnabled = s.isClockEnabled; increment = s.increment;
             displayGame = new Chess();
             for (let i = 0; i < currentMoveIndex; i++) displayGame.move(fullMoveHistory[i]);
+            
             if (isGameStarted && lastTick && !liveGame.game_over()) {
                 const elapsed = Math.floor((Date.now() - lastTick) / 1000);
                 if (liveGame.turn() === 'w') whiteTime = Math.max(0, whiteTime - elapsed);
@@ -283,7 +303,10 @@ function resetGameSettings() {
         const timeVal = localStorage.getItem('selected-time-control') || '5+3';
         if (timeVal === 'none') isClockEnabled = false;
         else {
-            const p = timeVal.split('+'); whiteTime = parseInt(p[0]) * 60; blackTime = whiteTime; increment = parseInt(p[1]) || 0;
+            const p = timeVal.split('+'); 
+            whiteTime = parseInt(p[0]) * 60; 
+            blackTime = whiteTime; 
+            increment = parseInt(p[1]) || 0;
         }
     }
     const cw = document.getElementById('clocks-wrapper');
@@ -309,7 +332,10 @@ function updateStatus() {
     else s.textContent = liveGame.turn()==='w' ? 'Ход белых' : 'Ход черных';
 }
 
-function checkAndTriggerAI() { if (liveGame.turn() !== userColor && !liveGame.game_over()) triggerEngineMove(); }
+function checkAndTriggerAI() { 
+    if (isClockEnabled && (whiteTime <= 0 || blackTime <= 0)) return;
+    if (liveGame.turn() !== userColor && !liveGame.game_over()) triggerEngineMove(); 
+}
 
 function triggerEngineMove() {
     if (!isStockfishReady || isWaitingForAIMove) return;
