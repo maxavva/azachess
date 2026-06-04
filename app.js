@@ -371,3 +371,38 @@ function renderPromotionChoices() {
         container.appendChild(btn);
     });
 }
+
+// ФУНКЦИЯ СОХРАНЕНИЯ В БАЗУ (АРХИВ)
+function saveToPermanentArchive(reason) {
+    // Чтобы не сохранять одну и ту же игру дважды
+    if (liveGame.isArchived) return;
+    liveGame.isArchived = true;
+
+    const archive = JSON.parse(localStorage.getItem('azachess-archive') || '[]');
+    
+    const gameRecord = {
+        id: Date.now(),
+        date: new Date().toLocaleString(),
+        result: reason,
+        moves: fullMoveHistory.map(m => m.san), // Сохраняем только текст ходов
+        fen: liveGame.fen(),
+        timeControl: localStorage.getItem('selected-time-control'),
+        aiLevel: localStorage.getItem('selected-ai-level'),
+        userColor: userColor
+    };
+
+    archive.unshift(gameRecord); // Добавляем в начало списка
+    localStorage.setItem('azachess-archive', JSON.stringify(archive));
+    console.log("Партия сохранена в архив");
+}
+
+// Модифицируем updateStatus, чтобы он вызывал сохранение
+const originalUpdateStatus = updateStatus;
+updateStatus = function() {
+    originalUpdateStatus();
+    const s = document.getElementById('status-text').textContent;
+    
+    if (liveGame.game_over() || s.includes('время вышло') || s.includes('Мат')) {
+        saveToPermanentArchive(s);
+    }
+};
