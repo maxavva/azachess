@@ -13,8 +13,12 @@ const pieceImagePaths = {
     'bK': 'https://upload.wikimedia.org/wikipedia/commons/f/f0/Chess_kdt45.svg'
 };
 
-const AI_LEVELS = { 1:{skill:0,depth:1}, 2:{skill:3,depth:2}, 3:{skill:6,depth:4}, 4:{skill:10,depth:6}, 5:{skill:14,depth:8}, 6:{skill:17,depth:12}, 7:{skill:20,depth:15}, 8:{skill:20,depth:20} };
+const AI_LEVELS = { 
+    1:{skill:0,depth:1}, 2:{skill:3,depth:2}, 3:{skill:6,depth:4}, 4:{skill:10,depth:6}, 
+    5:{skill:14,depth:8}, 6:{skill:17,depth:12}, 7:{skill:20,depth:15}, 8:{skill:20,depth:20} 
+};
 
+// --- ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ---
 var liveGame = new Chess();
 var displayGame = new Chess();
 window.game = liveGame;
@@ -29,6 +33,58 @@ let selectedSquare = null, validMoves = [];
 let stockfishWorker = null, isStockfishReady = false, isWaitingForAIMove = false;
 let promotionFrom = null, promotionTo = null;
 const DRAG_THRESHOLD = 10;
+
+// --- ИНИЦИАЛИЗАЦИЯ ---
+function initApp() {
+    if (typeof Chess === 'undefined') { setTimeout(initApp, 100); return; }
+    initStockfish();
+    
+    // Привязка кнопок
+    const bind = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = fn; };
+    bind('btn-new-game', startNewGame);
+    bind('btn-flip', flipBoard);
+    bind('btn-nav-first', () => jumpToMoveIndex(0));
+    bind('btn-nav-prev', () => jumpToMoveIndex(currentMoveIndex - 1));
+    bind('btn-nav-next', () => jumpToMoveIndex(currentMoveIndex + 1));
+    bind('btn-nav-last', () => jumpToMoveIndex(fullMoveHistory.length));
+
+    resetGameSettings();
+}
+
+// --- УПРАВЛЕНИЕ СТРЕЛКАМИ (Глобальное) ---
+window.addEventListener('keydown', (e) => {
+    if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) {
+        // Если фокус не в полях ввода, блокируем скролл страницы стрелками
+        if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+            e.preventDefault();
+        }
+    }
+
+    if (e.key === 'ArrowLeft') {
+        jumpToMoveIndex(currentMoveIndex - 1);
+    } else if (e.key === 'ArrowRight') {
+        jumpToMoveIndex(currentMoveIndex + 1);
+    }
+});
+
+document.addEventListener('DOMContentLoaded', initApp);
+
+// --- ЛОГИКА ИГРЫ ---
+function jumpToMoveIndex(idx) {
+    if (idx < 0 || idx > fullMoveHistory.length) return;
+    currentMoveIndex = idx;
+    selectedSquare = null;
+    validMoves = [];
+    
+    // Восстанавливаем позицию для отображения
+    displayGame = new Chess();
+    for (let i = 0; i < currentMoveIndex; i++) {
+        displayGame.move(fullMoveHistory[i]);
+    }
+    
+    renderBoard(false);
+    updateMoveLog();
+}
 
 function saveGameState() {
     const state = {
@@ -47,39 +103,11 @@ function saveGameState() {
     localStorage.setItem('azachess-save-game', JSON.stringify(state));
 }
 
-function initApp() {
-    if (typeof Chess === 'undefined') { setTimeout(initApp, 100); return; }
-    initStockfish();
-    
-    const bind = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = fn; };
-    bind('btn-new-game', startNewGame);
-    bind('btn-flip', flipBoard);
-    bind('btn-nav-first', () => jumpToMoveIndex(0));
-    bind('btn-nav-prev', () => jumpToMoveIndex(currentMoveIndex - 1));
-    bind('btn-nav-next', () => jumpToMoveIndex(currentMoveIndex + 1));
-    bind('btn-nav-last', () => jumpToMoveIndex(fullMoveHistory.length));
-
-    // ИСПРАВЛЕННОЕ УПРАВЛЕНИЕ СТРЕЛКАМИ
-    document.addEventListener('keydown', (e) => {
-        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-
-        if (e.key === 'ArrowLeft') {
-            e.preventDefault();
-            jumpToMoveIndex(currentMoveIndex - 1);
-        } else if (e.key === 'ArrowRight') {
-            e.preventDefault();
-            jumpToMoveIndex(currentMoveIndex + 1);
-        }
-    });
-
-    resetGameSettings();
-}
-document.addEventListener('DOMContentLoaded', initApp);
-
 function initStockfish() {
     try {
-        const blob = new Blob([`importScripts('https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js');`], { type: 'application/javascript' });
-        stockfishWorker = new Worker(URL.createObjectURL(blob));
+        const blobCode = `importScripts('https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js');`;
+        const workerBlob = new Blob([blobCode], { type: 'application/javascript' });
+        stockfishWorker = new Worker(URL.createObjectURL(workerBlob));
         stockfishWorker.onmessage = (e) => {
             if (e.data === 'readyok') { isStockfishReady = true; checkAndTriggerAI(); }
             if (e.data.startsWith('bestmove') && isWaitingForAIMove) {
@@ -90,7 +118,7 @@ function initStockfish() {
         };
         stockfishWorker.postMessage('uci');
         stockfishWorker.postMessage('isready');
-    } catch (err) { console.error(err); }
+    } catch (err) { console.error("Ошибка ИИ:", err); }
 }
 
 function renderBoard(rebuild = false) {
@@ -135,9 +163,7 @@ function renderBoard(rebuild = false) {
 
 function handlePointerDown(e, sq) {
     if (typeof unlockAudio === 'function') unlockAudio();
-    // Запрещаем ходить, если мы смотрим историю
     if (liveGame.game_over() || isWaitingForAIMove || currentMoveIndex < fullMoveHistory.length) return;
-    
     if (selectedSquare && validMoves.includes(sq)) { handleMoveAttempt(selectedSquare, sq); return; }
     const piece = liveGame.get(sq);
     if (piece && piece.color === userColor && piece.color === liveGame.turn()) {
@@ -221,20 +247,6 @@ function syncDisplayGame() {
     renderBoard(false);
 }
 
-function jumpToMoveIndex(idx) {
-    if (idx < 0 || idx > fullMoveHistory.length) return;
-    currentMoveIndex = idx;
-    selectedSquare = null; 
-    validMoves = [];
-    
-    displayGame = new Chess();
-    for (let i = 0; i < currentMoveIndex; i++) {
-        displayGame.move(fullMoveHistory[i]);
-    }
-    renderBoard(false); 
-    updateMoveLog();
-}
-
 function startTimer() {
     stopTimer(); if (!isClockEnabled || !isGameStarted || liveGame.game_over()) return;
     if (!lastTick) lastTick = Date.now();
@@ -279,13 +291,8 @@ function resetGameSettings() {
         isFlipped = s.isFlipped;
         isClockEnabled = s.isClockEnabled; 
         increment = s.increment;
-
-        // Синхронизируем displayGame с текущим индексом истории
         displayGame = new Chess();
-        for (let i = 0; i < currentMoveIndex; i++) {
-            displayGame.move(fullMoveHistory[i]);
-        }
-
+        for (let i = 0; i < currentMoveIndex; i++) { displayGame.move(fullMoveHistory[i]); }
         if (isGameStarted && lastTick && !liveGame.game_over()) {
             const elapsed = Math.floor((Date.now() - lastTick) / 1000);
             if (liveGame.turn() === 'w') whiteTime = Math.max(0, whiteTime - elapsed);
@@ -303,7 +310,8 @@ function resetGameSettings() {
             const p = timeVal.split('+'); whiteTime = parseInt(p[0]) * 60; blackTime = whiteTime; increment = parseInt(p[1]) || 0;
         }
     }
-    document.getElementById('clocks-wrapper').style.display = isClockEnabled ? 'flex' : 'none';
+    const cw = document.getElementById('clocks-wrapper');
+    if (cw) cw.style.display = isClockEnabled ? 'flex' : 'none';
     updateClockDisplay(); updateMoveLog(); updateStatus(); renderBoard(true);
     if (isGameStarted) startTimer();
     checkAndTriggerAI();
