@@ -1,3 +1,7 @@
+/**
+ * AZACHESS - Analysis Mode Engine
+ */
+
 const pieceImagePaths = {
     'wP': 'https://upload.wikimedia.org/wikipedia/commons/4/45/Chess_plt45.svg',
     'wR': 'https://upload.wikimedia.org/wikipedia/commons/7/72/Chess_rlt45.svg',
@@ -14,7 +18,6 @@ const pieceImagePaths = {
 };
 
 var game = new Chess();
-// ТО САМОЕ ДЕРЕВО
 let moveHistoryTree = { id: 0, parent: null, move: null, children: [] };
 let activeNode = moveHistoryTree;
 
@@ -22,14 +25,36 @@ let selectedSquare = null, validMoves = [], isFlipped = false;
 let isDragging = false, dragStartX = 0, dragStartY = 0, dragClone = null, draggedPieceImg = null, draggedSquare = null, dragMovedEnough = false;
 let stockfishWorker = null, isStockfishReady = false, analysisLines = [];
 let promotionFrom = null, promotionTo = null;
-const DRAG_THRESHOLD = 8;
 
 document.addEventListener('DOMContentLoaded', () => {
     initStockfish();
-    renderBoard(true);
-    updateStatus();
-    updateMoveLog();
+    
+    // ПРОВЕРКА ЗАГРУЗКИ ИЗ АРХИВА
+    const loadData = sessionStorage.getItem('analysis-load-game');
+    if (loadData) {
+        try {
+            const moves = JSON.parse(loadData);
+            game = new Chess();
+            moveHistoryTree = { id: 0, parent: null, move: null, children: [] };
+            activeNode = moveHistoryTree;
 
+            moves.forEach(m => {
+                const res = game.move(m);
+                if (res) {
+                    let child = { id: Math.random(), parent: activeNode, move: res, children: [] };
+                    activeNode.children.push(child);
+                    activeNode = child;
+                }
+            });
+            sessionStorage.removeItem('analysis-load-game'); // Очищаем после загрузки
+        } catch (e) { console.error("Archive Load Error:", e); }
+    }
+
+    renderBoard(true);
+    updateMoveLog();
+    updateStatus();
+
+    // Кнопки
     document.getElementById('btn-new-game').onclick = startNewGame;
     document.getElementById('btn-flip').onclick = flipBoard;
     document.getElementById('btn-nav-first').onclick = () => jumpToMoveNode(moveHistoryTree);
@@ -37,18 +62,17 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btn-nav-next').onclick = navigateNext;
     document.getElementById('btn-nav-last').onclick = navigateLast;
 
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'ArrowLeft') navigatePrev();
-        if (e.key === 'ArrowRight') navigateNext();
+    // Клавиатура
+    window.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowLeft') { e.preventDefault(); navigatePrev(); }
+        if (e.key === 'ArrowRight') { e.preventDefault(); navigateNext(); }
     });
 
-    const toggle = document.getElementById('engine-toggle');
-    if (toggle) toggle.onchange = runAnalysisTask;
-    document.getElementById('select-multipv').onchange = runAnalysisTask;
-    document.getElementById('select-threads').onchange = runAnalysisTask;
+    const engineToggle = document.getElementById('engine-toggle');
+    if (engineToggle) engineToggle.onchange = runAnalysisTask;
 });
 
-// --- ДВИЖОК ---
+// --- СИСТЕМА ДВИЖКА ---
 function initStockfish() {
     try {
         const blobCode = `importScripts('https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js');`;
@@ -57,7 +81,8 @@ function initStockfish() {
             if (e.data === 'readyok') { isStockfishReady = true; runAnalysisTask(); }
             if (e.data.startsWith('info')) handleAnalysisData(e.data);
         };
-        stockfishWorker.postMessage('uci'); stockfishWorker.postMessage('isready');
+        stockfishWorker.postMessage('uci');
+        stockfishWorker.postMessage('isready');
     } catch (err) { console.error(err); }
 }
 
@@ -65,6 +90,7 @@ function handleAnalysisData(data) {
     const multipvMatch = data.match(/multipv (\d+)/);
     const pvIndex = multipvMatch ? parseInt(multipvMatch[1]) - 1 : 0;
     let score = "0.00";
+    
     if (data.includes('score cp')) {
         let cp = parseInt(data.match(/score cp (-?\d+)/)[1]);
         if (game.turn() === 'b') cp = -cp;
@@ -73,6 +99,7 @@ function handleAnalysisData(data) {
     } else if (data.includes('score mate')) {
         score = "M" + Math.abs(data.match(/score mate (-?\d+)/)[1]);
     }
+
     const pvMatch = data.match(/ pv (.+)/);
     if (pvMatch) {
         const pvMoves = pvMatch[1].split(' ');
@@ -82,24 +109,20 @@ function handleAnalysisData(data) {
 }
 
 function runAnalysisTask() {
-    if (!isStockfishReady || !document.getElementById('engine-toggle').checked) return;
-    const multiPV = document.getElementById('select-multipv').value;
-    const threads = document.getElementById('select-threads').value;
+    if (!isStockfishReady || !document.getElementById('engine-toggle')?.checked) return;
+    const multiPV = document.getElementById('select-multipv')?.value || 3;
     stockfishWorker.postMessage('stop');
     analysisLines = [];
     stockfishWorker.postMessage(`setoption name MultiPV value ${multiPV}`);
-    stockfishWorker.postMessage(`setoption name Threads value ${threads}`);
     stockfishWorker.postMessage(`position fen ${game.fen()}`);
     stockfishWorker.postMessage('go depth 18');
 }
 
-// --- ДОСКА ---
+// --- ВИЗУАЛИЗАЦИЯ И ДОСКА ---
 function renderBoard(rebuild = false) {
     const boardEl = document.getElementById('board');
     if (!boardEl) return;
     if (rebuild) {
-        const theme = localStorage.getItem('chess-board-theme') || 'theme-brown';
-        boardEl.className = 'chessboard ' + theme;
         boardEl.innerHTML = '';
         for (let r = 0; r < 8; r++) {
             const row = isFlipped ? r : (7 - r);
@@ -119,13 +142,14 @@ function renderBoard(rebuild = false) {
         sq.classList.remove('last-move', 'selected', 'check');
         if (activeNode.move && (name === activeNode.move.from || name === activeNode.move.to)) sq.classList.add('last-move');
         if (selectedSquare === name) sq.classList.add('selected');
-        if (game.in_check() && piece && piece.type === 'k' && piece.color === game.turn()) sq.classList.add('check');
+        if (game.in_check() && piece?.type === 'k' && piece.color === game.turn()) sq.classList.add('check');
+        
         let img = sq.querySelector('.piece');
         if (piece) {
-            const src = pieceImagePaths[`${piece.color}${piece.type.toUpperCase()}`];
             if (!img) { img = document.createElement('img'); img.className = 'piece'; img.draggable = false; sq.appendChild(img); }
-            img.src = src;
+            img.src = pieceImagePaths[`${piece.color}${piece.type.toUpperCase()}`];
         } else if (img) sq.removeChild(img);
+        
         let m = sq.querySelector('.move-dest, .move-dest-capture');
         if (validMoves.includes(name)) {
             const cls = piece ? 'move-dest-capture' : 'move-dest';
@@ -134,12 +158,11 @@ function renderBoard(rebuild = false) {
     });
 }
 
-// --- ХОДЫ И КЛИКИ ---
 function handlePointerDown(e, sq) {
     if (typeof window.unlockAudio === 'function') window.unlockAudio();
     if (selectedSquare && validMoves.includes(sq)) {
         const move = game.moves({ square: selectedSquare, verbose: true }).find(m => m.to === sq);
-        if (move && move.flags.includes('p')) {
+        if (move?.flags.includes('p')) {
             promotionFrom = selectedSquare; promotionTo = sq;
             document.getElementById('promotion-modal').classList.remove('hidden');
             renderPromotionChoices();
@@ -148,13 +171,12 @@ function handlePointerDown(e, sq) {
     }
     const piece = game.get(sq);
     if (piece) {
-        isDragging = true; dragMovedEnough = false; draggedSquare = sq; dragStartX = e.clientX; dragStartY = e.clientY;
+        isDragging = true; draggedSquare = sq; dragStartX = e.clientX; dragStartY = e.clientY;
         draggedPieceImg = e.target.classList.contains('piece') ? e.target : e.target.querySelector('.piece');
         if (piece.color === game.turn()) { selectedSquare = sq; validMoves = game.moves({ square: sq, verbose: true }).map(m => m.to); }
         else { selectedSquare = null; validMoves = []; }
         renderBoard(false);
         window.onpointermove = handlePointerMove; window.onpointerup = handlePointerUp;
-        try { e.target.setPointerCapture(e.pointerId); } catch(err) {}
     } else clearSelection();
 }
 
@@ -165,10 +187,8 @@ function handlePointerMove(e) {
         if (!dragClone) {
             dragClone = draggedPieceImg.cloneNode(true);
             dragClone.className = 'piece drag-clone';
-            // ФИКС РАЗМЕРА:
-            const rect = draggedPieceImg.parentElement.getBoundingClientRect();
-            dragClone.style.width = rect.width * 0.9 + "px";
-            dragClone.style.height = rect.height * 0.9 + "px";
+            const rect = draggedPieceImg.getBoundingClientRect();
+            dragClone.style.width = rect.width + 'px'; dragClone.style.height = rect.height + 'px';
             document.body.appendChild(dragClone);
             draggedPieceImg.style.visibility = 'hidden';
         }
@@ -181,27 +201,20 @@ function handlePointerUp(e) {
     isDragging = false; window.onpointermove = null; window.onpointerup = null;
     if (dragClone) { document.body.removeChild(dragClone); dragClone = null; }
     if (draggedPieceImg) draggedPieceImg.style.visibility = 'visible';
-    const el = document.elementFromPoint(e.clientX, e.clientY);
-    const target = el?.closest('.square')?.dataset.square;
+    const target = document.elementFromPoint(e.clientX, e.clientY)?.closest('.square')?.dataset.square;
     if (dragMovedEnough && target && validMoves.includes(target)) {
-        const move = game.moves({ square: draggedSquare, verbose: true }).find(m => m.to === target);
-        if (move && move.flags.includes('p')) {
-            promotionFrom = draggedSquare; promotionTo = target;
-            document.getElementById('promotion-modal').classList.remove('hidden');
-            renderPromotionChoices();
-        } else executeAnalysisMove(draggedSquare, target);
+        handlePointerDown({ clientX: e.clientX, clientY: e.clientY }, target);
     } else if (dragMovedEnough) renderBoard(false);
+    dragMovedEnough = false;
 }
 
-// --- ЯДРО ДЕРЕВА ---
 function executeAnalysisMove(f, t, p = 'q') {
     const res = game.move({ from: f, to: t, promotion: p });
     if (res) {
         if (window.playMoveSound) playMoveSound(res);
-        // Запись в дерево (находим или создаем ветку)
         let child = activeNode.children.find(c => c.move.san === res.san);
         if (!child) {
-            child = { id: Date.now() + Math.random(), parent: activeNode, move: res, children: [] };
+            child = { id: Math.random(), parent: activeNode, move: res, children: [] };
             activeNode.children.push(child);
         }
         activeNode = child;
@@ -227,37 +240,32 @@ function jumpToMoveNode(node) {
 function updateMoveLog() {
     const log = document.getElementById('move-log'); if (!log) return; log.innerHTML = '';
     const path = []; let t = activeNode; while (t && t.move) { path.push(t); t = t.parent; } path.reverse();
-    // Показываем текущую линию + 1 ход будущего (первый ребенок), чтобы видеть ветку
-    let forward = activeNode;
-    while (forward.children.length > 0) { forward = forward.children[0]; path.push(forward); }
+    let forward = activeNode; while (forward.children.length > 0) { forward = forward.children[0]; path.push(forward); }
 
     for (let i = 0; i < path.length; i += 2) {
         const row = document.createElement('div'); row.className = 'move-row';
         const w = path[i], b = path[i+1], num = Math.floor(i/2)+1;
         row.innerHTML = `<span style="color:#666;width:25px;display:inline-block;">${num}.</span>
-        <span class="move-text ${w.id===activeNode.id?'active-move':''}" style="cursor:pointer;padding:0 5px;" onclick="jumpToNodeByRef(${w.id})">${w.move.san}</span>
-        ${b ? `<span class="move-text ${b.id===activeNode.id?'active-move':''}" style="cursor:pointer;padding:0 5px;" onclick="jumpToNodeByRef(${b.id})">${b.move.san}</span>` : ''}`;
+        <span class="move-text ${w.id===activeNode.id?'active-move':''}" style="cursor:pointer;padding:0 5px;" onclick="jumpToNodeByID(${w.id})">${w.move.san}</span>
+        ${b ? `<span class="move-text ${b.id===activeNode.id?'active-move':''}" style="cursor:pointer;padding:0 5px;" onclick="jumpToNodeByID(${b.id})">${b.move.san}</span>` : ''}`;
         log.appendChild(row);
     }
     updateBranchSelector();
 }
 
-// Поиск узла по ID для клика в логе
-window.jumpToNodeByRef = (nodeId) => {
-    const find = (root, id) => {
-        if (root.id == id) return root;
-        for (let c of root.children) { let res = find(c, id); if (res) return res; }
+window.jumpToNodeByID = (id) => {
+    const find = (root, targetId) => {
+        if (root.id === targetId) return root;
+        for (let c of root.children) { let res = find(c, targetId); if (res) return res; }
         return null;
     };
-    jumpToMoveNode(find(moveHistoryTree, nodeId));
+    jumpToMoveNode(find(moveHistoryTree, id));
 };
 
 function updateBranchSelector() {
     const panel = document.getElementById('branch-panel'), container = document.getElementById('branch-choices');
     if (!panel || !container) return;
-    const parent = activeNode.parent;
-    // Варианты - это дети родителя (все ходы из той же позиции)
-    const choices = (parent && parent.children.length > 1) ? parent.children : [];
+    const choices = (activeNode.parent && activeNode.parent.children.length > 1) ? activeNode.parent.children : [];
     if (choices.length > 1) {
         panel.style.display = 'block'; container.innerHTML = '';
         choices.forEach(c => {
@@ -270,33 +278,32 @@ function updateBranchSelector() {
 }
 
 function renderPromotionChoices() {
-    const container = document.querySelector('.promotion-choices');
-    const turn = game.turn(); container.innerHTML = '';
+    const container = document.querySelector('.promotion-choices'), turn = game.turn();
+    container.innerHTML = '';
     ['q','r','b','n'].forEach(p => {
-        const btn = document.createElement('button'); btn.className = 'promo-btn';
+        const btn = document.createElement('button');
         btn.innerHTML = `<img src="${pieceImagePaths[turn+p.toUpperCase()]}" style="width:100%">`;
         btn.onclick = () => { executeAnalysisMove(promotionFrom, promotionTo, p); document.getElementById('promotion-modal').classList.add('hidden'); };
         container.appendChild(btn);
     });
 }
 
-// --- НАВИГАЦИЯ ---
 function navigatePrev() { if (activeNode.parent) jumpToMoveNode(activeNode.parent); }
 function navigateNext() { if (activeNode.children.length > 0) jumpToMoveNode(activeNode.children[0]); }
 function navigateLast() { let t = activeNode; while(t.children.length > 0) t = t.children[0]; jumpToMoveNode(t); }
 function startNewGame() { game = new Chess(); moveHistoryTree = { id:0, parent:null, move:null, children:[] }; activeNode = moveHistoryTree; finalizeMove(); }
 function flipBoard() { isFlipped = !isFlipped; renderBoard(true); }
 function clearSelection() { selectedSquare = null; validMoves = []; renderBoard(false); }
-function updateStatus() { document.getElementById('status-text').textContent = game.in_checkmate() ? "Мат!" : "Свободный анализ"; }
+function updateStatus() { document.getElementById('status-text').textContent = game.in_checkmate() ? "Мат!" : "Анализ"; }
 function updateEvaluationBar(cp) {
-    const fill = document.getElementById('eval-fill'), text = document.getElementById('eval-text');
+    const fill = document.getElementById('eval-fill');
     let p = 50 + (Math.max(-800, Math.min(800, cp)) / 800) * 45;
     if (fill) fill.style.height = `${p}%`;
+    const text = document.getElementById('eval-text');
     if (text) text.textContent = (cp / 100).toFixed(1);
 }
-
 function renderMultiPV() {
-    const container = document.getElementById('multipv-container'), toggle = document.getElementById('engine-toggle');
-    if (!container || (toggle && !toggle.checked)) return;
+    const container = document.getElementById('multipv-container');
+    if (!container) return;
     container.innerHTML = analysisLines.map(line => `<div style="display:flex;gap:10px;font-family:monospace;font-size:0.85rem;background:rgba(255,255,255,0.05);padding:5px;margin-bottom:2px;"><div style="font-weight:bold;color:#fff;min-width:40px;">${line.score}</div><div style="color:#258039;font-weight:bold;">${line.move}</div><div style="color:#777;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${line.path}</div></div>`).join('');
 }
