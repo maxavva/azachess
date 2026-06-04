@@ -300,52 +300,66 @@ function updateClockDisplay() {
 }
 
 function resetGameSettings() {
-    stopTimer(); 
-    liveGame = new Chess(); 
-    displayGame = new Chess(); 
-    fullMoveHistory = []; 
-    currentMoveIndex = 0; 
-    isGameStarted = false;
+    stopTimer();
     
-    // 1. Получаем выбранный цвет
-    let chosenColor = localStorage.getItem('selected-player-color') || 'w';
-    console.log("Загруженный цвет из памяти:", chosenColor); // Для отладки
-
-    // 2. Обработка случайного выбора
-    if (chosenColor === 'random') {
-        chosenColor = Math.random() > 0.5 ? 'w' : 'b';
-    }
+    // Пробуем загрузить сохранение
+    const savedData = localStorage.getItem('azachess-save-game');
     
-    // 3. Устанавливаем глобальную переменную цвета игрока
-    userColor = chosenColor;
-    
-    // 4. Поворачиваем доску: если играем за черных, то isFlipped = true
-    isFlipped = (userColor === 'b'); 
-
-    // 5. Настройка часов
-    const timeVal = localStorage.getItem('selected-time-control') || '5+3';
-    const cw = document.getElementById('clocks-wrapper');
-    if (timeVal === 'none') { 
-        isClockEnabled = false; 
-        if(cw) cw.style.display = 'none'; 
+    if (savedData) {
+        // --- ЛОГИКА ЗАГРУЗКИ ---
+        const state = JSON.parse(savedData);
+        
+        liveGame = new Chess(state.fen);
+        displayGame = new Chess(state.fen);
+        fullMoveHistory = state.history;
+        currentMoveIndex = state.currentIdx;
+        whiteTime = state.whiteTime;
+        blackTime = state.blackTime;
+        isGameStarted = state.isGameStarted;
+        userColor = state.userColor;
+        isFlipped = state.isFlipped;
+        isClockEnabled = state.isClockEnabled;
+        increment = state.increment;
+        
+        console.log("Игра восстановлена из сохранения");
     } else {
-        isClockEnabled = true; 
-        if(cw) cw.style.display = 'flex';
-        const parts = timeVal.split('+');
-        whiteTime = parseInt(parts[0]) * 60; 
-        blackTime = whiteTime; 
-        increment = parseInt(parts[1]) || 0;
+        // --- ЛОГИКА НОВОЙ ИГРЫ (если сохранения нет) ---
+        liveGame = new Chess();
+        displayGame = new Chess();
+        fullMoveHistory = [];
+        currentMoveIndex = 0;
+        isGameStarted = false;
+
+        let chosenColor = localStorage.getItem('selected-player-color') || 'w';
+        if (chosenColor === 'random') chosenColor = Math.random() > 0.5 ? 'w' : 'b';
+        userColor = chosenColor;
+        isFlipped = (userColor === 'b');
+
+        const timeVal = localStorage.getItem('selected-time-control') || '5+3';
+        if (timeVal === 'none') {
+            isClockEnabled = false;
+        } else {
+            isClockEnabled = true;
+            const parts = timeVal.split('+');
+            whiteTime = parseInt(parts[0]) * 60;
+            blackTime = whiteTime;
+            increment = parseInt(parts[1]) || 0;
+        }
+        console.log("Начата новая партия");
     }
+
+    // Общий код для обоих случаев
+    const cw = document.getElementById('clocks-wrapper');
+    if (cw) cw.style.display = isClockEnabled ? 'flex' : 'none';
+
+    updateClockDisplay();
+    updateMoveLog();
+    updateStatus();
+    renderBoard(true);
     
-    updateClockDisplay(); 
-    updateMoveLog(); 
-    updateStatus(); 
-    renderBoard(true); // Важно: перерисовываем доску полностью
-    
-    // 6. Запускаем анализ или ход ИИ, если игрок выбрал черных
+    if (isGameStarted && !liveGame.game_over()) startTimer();
     checkAndTriggerAI();
 }
-
 function updateStatus() {
     const s = document.getElementById('status-text'); if (!s) return;
     if (isClockEnabled && whiteTime <= 0) s.textContent = 'Белые: время вышло!';
