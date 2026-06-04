@@ -23,15 +23,15 @@ var liveGame = new Chess();
 var displayGame = new Chess();
 window.game = liveGame;
 
-let gameStartTime = null; // Метка времени начала самого первого хода
-let whiteTime = 0, blackTime = 0;
-
 let fullMoveHistory = [], currentMoveIndex = 0;
-let whiteTime = 300, blackTime = 300, increment = 3, isClockEnabled = true, isGameStarted = false, timerInterval = null;
+// ОБЪЯВЛЯЕМ ПЕРЕМЕННЫЕ ВРЕМЕНИ ОДИН РАЗ
+let whiteTime = 0, blackTime = 0, increment = 0;
+let isClockEnabled = true, isGameStarted = false, timerInterval = null;
+let gameStartTime = null;
 
 // ПЕРЕМЕННЫЕ ПОВОРОТА И ЦВЕТА
-let isFlipped = false;   // Отвечает только за картинку (кто внизу экрана)
-let userColor = 'w';    // Отвечает за логику (каким цветом играет человек)
+let isFlipped = false;   
+let userColor = 'w';    
 
 let isDragging = false, dragStartX = 0, dragStartY = 0, dragClone = null, draggedPieceImg = null, draggedSquare = null, dragMovedEnough = false;
 let selectedSquare = null, validMoves = [];
