@@ -302,28 +302,39 @@ function updateClockDisplay() {
 function resetGameSettings() {
     stopTimer();
     
-    // Пробуем загрузить сохранение
+    // Пытаемся достать сохраненную игру
     const savedData = localStorage.getItem('azachess-save-game');
     
     if (savedData) {
-        // --- ЛОГИКА ЗАГРУЗКИ ---
-        const state = JSON.parse(savedData);
-        
-        liveGame = new Chess(state.fen);
-        displayGame = new Chess(state.fen);
-        fullMoveHistory = state.history;
-        currentMoveIndex = state.currentIdx;
-        whiteTime = state.whiteTime;
-        blackTime = state.blackTime;
-        isGameStarted = state.isGameStarted;
-        userColor = state.userColor;
-        isFlipped = state.isFlipped;
-        isClockEnabled = state.isClockEnabled;
-        increment = state.increment;
-        
-        console.log("Игра восстановлена из сохранения");
+        try {
+            const state = JSON.parse(savedData);
+            
+            liveGame = new Chess(state.fen);
+            fullMoveHistory = state.history;
+            currentMoveIndex = state.currentIdx;
+            
+            // ВАЖНО: Синхронизируем видимую доску с историей
+            displayGame = new Chess();
+            for (let i = 0; i < currentMoveIndex; i++) {
+                displayGame.move(fullMoveHistory[i]);
+            }
+
+            whiteTime = state.whiteTime;
+            blackTime = state.blackTime;
+            isGameStarted = state.isGameStarted;
+            userColor = state.userColor;
+            isFlipped = state.isFlipped;
+            isClockEnabled = state.isClockEnabled;
+            increment = state.increment;
+            
+            console.log("Игра успешно восстановлена");
+        } catch (e) {
+            console.error("Ошибка загрузки сохранения, начинаем новую игру", e);
+            localStorage.removeItem('azachess-save-game');
+            return resetGameSettings(); 
+        }
     } else {
-        // --- ЛОГИКА НОВОЙ ИГРЫ (если сохранения нет) ---
+        // ЛОГИКА НОВОЙ ИГРЫ
         liveGame = new Chess();
         displayGame = new Chess();
         fullMoveHistory = [];
@@ -345,21 +356,23 @@ function resetGameSettings() {
             blackTime = whiteTime;
             increment = parseInt(parts[1]) || 0;
         }
-        console.log("Начата новая партия");
+        console.log("Новая партия создана");
     }
 
-    // Общий код для обоих случаев
+    // Обновляем UI
     const cw = document.getElementById('clocks-wrapper');
     if (cw) cw.style.display = isClockEnabled ? 'flex' : 'none';
 
+    window.game = liveGame; // Для звуков
     updateClockDisplay();
     updateMoveLog();
     updateStatus();
-    renderBoard(true);
+    renderBoard(true); // Полная перерисовка доски
     
     if (isGameStarted && !liveGame.game_over()) startTimer();
     checkAndTriggerAI();
 }
+
 function updateStatus() {
     const s = document.getElementById('status-text'); if (!s) return;
     if (isClockEnabled && whiteTime <= 0) s.textContent = 'Белые: время вышло!';
