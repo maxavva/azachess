@@ -286,10 +286,10 @@ function jumpToMoveIndex(idx) {
 
 function startTimer() {
     stopTimer();
-    if (!isClockEnabled || !isGameStarted || liveGame.game_over()) return;
+    if (!isClockEnabled || liveGame.game_over()) return;
 
     timerInterval = setInterval(() => {
-        const times = calculateRemainingTimes(); // Берем данные из истории
+        const times = calculateRemainingTimes();
         whiteTime = times.white;
         blackTime = times.black;
 
@@ -298,6 +298,7 @@ function startTimer() {
             updateStatus();
         }
         updateClockDisplay();
+        // Сохраняем каждую секунду, чтобы история была актуальной
         saveGameState(); 
     }, 1000);
 }
@@ -336,49 +337,31 @@ function updateClockDisplay() {
 
 function resetGameSettings() {
     stopTimer();
-    
-    // Пытаемся достать сохраненную игру
     const savedData = localStorage.getItem('azachess-save-game');
     
     if (savedData) {
-        try {
-            const state = JSON.parse(savedData);
+        const state = JSON.parse(savedData);
         liveGame = new Chess(state.fen);
         fullMoveHistory = state.history;
-        gameStartTime = state.gameStartTime; // Загружаем начало
-        
-        // Пересчитываем время на основе загруженной истории прямо сейчас
-        const times = calculateRemainingTimes();
-        whiteTime = times.white;
-        blackTime = times.black;
-            
-            // ВАЖНО: Синхронизируем видимую доску с историей
-            displayGame = new Chess();
-            for (let i = 0; i < currentMoveIndex; i++) {
-                displayGame.move(fullMoveHistory[i]);
-            }
+        currentMoveIndex = state.currentIdx;
+        gameStartTime = state.gameStartTime; // Восстанавливаем точку отсчета
+        isGameStarted = state.isGameStarted;
+        userColor = state.userColor;
+        isFlipped = state.isFlipped;
+        isClockEnabled = state.isClockEnabled;
+        increment = state.increment;
 
-            whiteTime = state.whiteTime;
-            blackTime = state.blackTime;
-            isGameStarted = state.isGameStarted;
-            userColor = state.userColor;
-            isFlipped = state.isFlipped;
-            isClockEnabled = state.isClockEnabled;
-            increment = state.increment;
-            
-            console.log("Игра успешно восстановлена");
-        } catch (e) {
-            console.error("Ошибка загрузки сохранения, начинаем новую игру", e);
-            localStorage.removeItem('azachess-save-game');
-            return resetGameSettings(); 
-        }
+        // Восстанавливаем визуальную доску из истории
+        displayGame = new Chess();
+        fullMoveHistory.slice(0, currentMoveIndex).forEach(m => displayGame.move(m));
     } else {
-        // ЛОГИКА НОВОЙ ИГРЫ
+        // НОВАЯ ИГРА
         liveGame = new Chess();
         displayGame = new Chess();
         fullMoveHistory = [];
         currentMoveIndex = 0;
-        isGameStarted = false;
+        isGameStarted = true; // Считаем, что игра началась сразу
+        gameStartTime = Date.now(); // Фиксируем время СТАРТА партии
 
         let chosenColor = localStorage.getItem('selected-player-color') || 'w';
         if (chosenColor === 'random') chosenColor = Math.random() > 0.5 ? 'w' : 'b';
@@ -386,37 +369,27 @@ function resetGameSettings() {
         isFlipped = (userColor === 'b');
 
         const timeVal = localStorage.getItem('selected-time-control') || '5+3';
-        if (timeVal === 'none') {
-            isClockEnabled = false;
-        } else {
-            isClockEnabled = true;
-            const parts = timeVal.split('+');
-            whiteTime = parseInt(parts[0]) * 60;
-            blackTime = whiteTime;
-            increment = parseInt(parts[1]) || 0;
-        }
-        console.log("Новая партия создана");
+        const parts = timeVal.split('+');
+        isClockEnabled = timeVal !== 'none';
+        increment = parseInt(parts[1]) || 0;
     }
 
     const cw = document.getElementById('clocks-wrapper');
     if (cw) cw.style.display = isClockEnabled ? 'flex' : 'none';
 
-    // СРАЗУ вычисляем время, чтобы часы не были пустыми до первого тика таймера
+    // Сразу считаем время, чтобы не было 0:00
     const times = calculateRemainingTimes();
     whiteTime = times.white;
     blackTime = times.black;
 
-    updateClockDisplay(); // Рисуем цифры на часах
+    updateClockDisplay();
     updateMoveLog();
     updateStatus();
     renderBoard(true);
     
-    // Если игра уже идет — запускаем «тиканье»
-    if (isGameStarted && !liveGame.game_over()) {
-        startTimer();
-    }
-    
+    if (isClockEnabled && !liveGame.game_over()) startTimer();
     checkAndTriggerAI();
+    saveGameState(); // Сразу сохраняем точку отсчета в память
 }
 
 function updateStatus() {
