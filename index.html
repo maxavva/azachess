@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Azachess — Главная</title>
-  <!-- ВАЖНО: ПРОВЕРЬ ЭТУ ССЫЛКУ -->
   <link rel="stylesheet" href="home-style.css">
 </head>
 <body>
@@ -43,13 +42,13 @@
       </section>
 
       <section class="mode-section">
-  <h2 class="section-title">3. Выберите цвет</h2>
-  <div class="level-grid" id="color-grid" style="grid-template-columns: repeat(3, 1fr);">
-    <button class="level-btn active" data-color="w">Белые</button>
-    <button class="level-btn" data-color="random">?</button>
-    <button class="level-btn" data-color="b">Черные</button>
-  </div>
-</section>
+        <h2 class="section-title">3. Выберите цвет</h2>
+        <div class="level-grid" id="color-grid" style="grid-template-columns: repeat(3, 1fr);">
+          <button class="level-btn active" data-color="w">Белые</button>
+          <button class="level-btn" data-color="random">?</button>
+          <button class="level-btn" data-color="b">Черные</button>
+        </div>
+      </section>
      
       <div class="main-actions">
         <button class="start-btn" onclick="startGame()">ИГРАТЬ</button>
@@ -63,55 +62,32 @@
   </div>
 
   <script>
-  // Инициализация значений по умолчанию, если их нет
-  if(!localStorage.getItem('selected-time-control')) localStorage.setItem('selected-time-control', '5+3');
-  if(!localStorage.getItem('selected-ai-level')) localStorage.setItem('selected-ai-level', '3');
-  if(!localStorage.getItem('selected-player-color')) localStorage.setItem('selected-player-color', 'w');
+    // 1. Инициализация дефолтов
+    if(!localStorage.getItem('selected-time-control')) localStorage.setItem('selected-time-control', '5+3');
+    if(!localStorage.getItem('selected-ai-level')) localStorage.setItem('selected-ai-level', '3');
+    if(!localStorage.getItem('selected-player-color')) localStorage.setItem('selected-player-color', 'w');
 
-  // Обработка выбора времени
-  document.querySelectorAll('#time-grid .time-card').forEach(card => {
-    card.onclick = () => {
-      document.querySelectorAll('#time-grid .time-card').forEach(c => c.classList.remove('active'));
-      card.classList.add('active');
-      localStorage.setItem('selected-time-control', card.dataset.time);
-    };
-  });
+    // 2. Обработчики кликов (обновляют визуальную часть и пишут в память)
+    function setupGrid(containerId, storageKey) {
+      document.querySelectorAll(`#${containerId} .time-card, #${containerId} .level-btn`).forEach(el => {
+        el.addEventListener('click', () => {
+          document.querySelectorAll(`#${containerId} .time-card, #${containerId} .level-btn`).forEach(c => c.classList.remove('active'));
+          el.classList.add('active');
+          localStorage.setItem(storageKey, el.dataset.time || el.dataset.lv || el.dataset.color);
+        });
+      });
+    }
 
-  // Обработка выбора уровня ИИ
-  document.querySelectorAll('#level-grid .level-btn').forEach(btn => {
-    btn.onclick = () => {
-      document.querySelectorAll('#level-grid .level-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      localStorage.setItem('selected-ai-level', btn.dataset.lv);
-    };
-  });
+    setupGrid('time-grid', 'selected-time-control');
+    setupGrid('level-grid', 'selected-ai-level');
+    setupGrid('color-grid', 'selected-player-color');
 
-  // Обработка выбора цвета
-  document.querySelectorAll('#color-grid .level-btn').forEach(btn => {
-    btn.onclick = () => {
-      document.querySelectorAll('#color-grid .level-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      localStorage.setItem('selected-player-color', btn.dataset.color);
-    };
-  });
-
-  // Единая функция запуска игры
-  function startGame() {
-    // На всякий случай еще раз сохраняем активные значения перед переходом
-    const activeTime = document.querySelector('#time-grid .time-card.active');
-    const activeLevel = document.querySelector('#level-grid .level-btn.active');
-    const activeColor = document.querySelector('#color-grid .level-btn.active');
-
-    if (activeTime) localStorage.setItem('selected-time-control', activeTime.dataset.time);
-    if (activeLevel) localStorage.setItem('selected-ai-level', activeLevel.dataset.lv);
-    if (activeColor) localStorage.setItem('selected-player-color', activeColor.dataset.color);
-  
-  localStorage.removeItem('azachess-save-game'); // ОЧИСТКА ПРИ НОВОМ СТАРТЕ
-  window.location.href = 'play.html';
-}
-    window.location.href = 'play.html';
-  } 
-  
+    // 3. Единственная функция запуска
+    function startGame() {
+      // Удаляем старое сохранение, так как мы заходим с главной (хотим новую игру)
+      localStorage.removeItem('azachess-save-game');
+      window.location.href = 'play.html';
+    }
   </script>
 </body>
 </html>
