@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Azachess - Архив партий</title>
+  <link rel="stylesheet" href="home-style.css">
+  <style>
+    .game-card {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      padding: 15px;
+      margin-bottom: 10px;
+      border-radius: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .game-info { flex-grow: 1; }
+    .game-date { font-size: 0.8rem; color: #888; }
+    .game-result { color: var(--accent); font-weight: bold; margin: 5px 0; }
+    .game-moves { font-family: monospace; font-size: 0.85rem; color: #aaa; max-width: 400px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .del-btn { background: #d9534f; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; margin-left: 10px; }
+    .empty-msg { text-align: center; padding: 50px; color: #666; }
+  </style>
+</head>
+<body>
+  <div class="hub-container">
+    <header class="hub-header">
+      <h1 class="logo">AZA<span>ARCHIVE</span></h1>
+      <a href="index.html" style="color: var(--accent); text-decoration: none;">← На главную</a>
+    </header>
+
+    <main id="archive-list">
+      <!-- Сюда будут подгружаться партии -->
+    </main>
+
+    <div style="margin-top: 20px; text-align: center;">
+        <button class="start-btn secondary" onclick="exportArchive()">Скачать все партии (JSON)</button>
+        <button class="del-btn" style="padding: 10px; margin: 20px 0;" onclick="clearArchive()">Очистить весь архив</button>
+    </div>
+  </div>
+
+  <script>
+    function renderArchive() {
+        const list = document.getElementById('archive-list');
+        const archive = JSON.parse(localStorage.getItem('azachess-archive') || '[]');
+        
+        if (archive.length === 0) {
+            list.innerHTML = '<div class="empty-msg">У вас пока нет завершенных партий</div>';
+            return;
+        }
+
+        list.innerHTML = archive.map(game => `
+            <div class="game-card">
+                <div class="game-info">
+                    <div class="game-date">${game.date} (Уровень ${game.aiLevel}, ${game.timeControl})</div>
+                    <div class="game-result">${game.result}</div>
+                    <div class="game-moves">${game.moves.join(' ')}</div>
+                </div>
+                <button class="del-btn" onclick="deleteGame(${game.id})">Удалить</button>
+            </div>
+        `).join('');
+    }
+
+    function deleteGame(id) {
+        let archive = JSON.parse(localStorage.getItem('azachess-archive') || '[]');
+        archive = archive.filter(g => g.id !== id);
+        localStorage.setItem('azachess-archive', JSON.stringify(archive));
+        renderArchive();
+    }
+
+    function clearArchive() {
+        if (confirm("Удалить ВСЕ сохраненные партии?")) {
+            localStorage.removeItem('azachess-archive');
+            renderArchive();
+        }
+    }
+
+    function exportArchive() {
+        const data = localStorage.getItem('azachess-archive') || '[]';
+        const blob = new Blob([data], {type: 'application/json'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'azachess_history.json';
+        a.click();
+    }
+
+    renderArchive();
+  </script>
+</body>
+</html>
