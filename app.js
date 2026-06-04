@@ -382,7 +382,12 @@ function triggerEngineMove() {
     stockfishWorker.postMessage(`go depth ${AI_LEVELS[lv].depth}`);
 }
 
-function startNewGame() { resetGameSettings(); }
+function startNewGame() {
+    if (confirm("Вы уверены, что хотите начать новую игру? Текущий прогресс будет удален.")) {
+        localStorage.removeItem('azachess-save-game'); // Удаляем сохранение
+        resetGameSettings(); // Запускаем создание чистой игры
+    }
+}
 function clearSelection() { selectedSquare = null; validMoves = []; renderBoard(false); }
 
 function flipBoard() { 
