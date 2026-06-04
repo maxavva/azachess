@@ -61,16 +61,26 @@ function initApp() {
 
     resetGameSettings();
 }
-document.addEventListener('DOMContentLoaded', initApp);
-// Добавляем управление стрелками
-    document.addEventListener('keydown', (e) => {
+
+// НАВИГАЦИЯ КЛАВИАТУРОЙ (Исправлено)
+    window.addEventListener('keydown', (e) => {
+        // Если фокус в каком-то поле ввода (если они появятся), не переключаем ходы
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
         if (e.key === 'ArrowLeft') {
-            e.preventDefault(); // Чтобы страница не скроллилась
-            jumpToMoveIndex(currentMoveIndex - 1);
+            e.preventDefault(); // Запрещаем скролл страницы
+            const targetIdx = currentMoveIndex - 1;
+            if (targetIdx >= 0) {
+                jumpToMoveIndex(targetIdx);
+            }
         }
+        
         if (e.key === 'ArrowRight') {
-            e.preventDefault();
-            jumpToMoveIndex(currentMoveIndex + 1);
+            e.preventDefault(); // Запрещаем скролл страницы
+            const targetIdx = currentMoveIndex + 1;
+            if (targetIdx <= fullMoveHistory.length) {
+                jumpToMoveIndex(targetIdx);
+            }
         }
     });
 
@@ -219,10 +229,19 @@ function syncDisplayGame() {
 
 function jumpToMoveIndex(idx) {
     if (idx < 0 || idx > fullMoveHistory.length) return;
-    currentMoveIndex = idx; selectedSquare = null; validMoves = [];
+    
+    currentMoveIndex = idx;
+    selectedSquare = null; // Очищаем выбор при перемещении
+    validMoves = [];       // Очищаем доступные ходы
+    
+    // Пересоздаем состояние доски для отображения выбранного хода
     displayGame = new Chess();
-    fullMoveHistory.slice(0, currentMoveIndex).forEach(m => displayGame.move(m));
-    renderBoard(false); updateMoveLog();
+    for (let i = 0; i < currentMoveIndex; i++) {
+        displayGame.move(fullMoveHistory[i]);
+    }
+    
+    renderBoard(false);
+    updateMoveLog();
 }
 
 function startTimer() {
