@@ -59,30 +59,22 @@ function initApp() {
     bind('btn-nav-next', () => jumpToMoveIndex(currentMoveIndex + 1));
     bind('btn-nav-last', () => jumpToMoveIndex(fullMoveHistory.length));
 
-    resetGameSettings();
-}
-
-// НАВИГАЦИЯ КЛАВИАТУРОЙ (Исправлено)
-    window.addEventListener('keydown', (e) => {
-        // Если фокус в каком-то поле ввода (если они появятся), не переключаем ходы
+    // ИСПРАВЛЕННОЕ УПРАВЛЕНИЕ СТРЕЛКАМИ
+    document.addEventListener('keydown', (e) => {
         if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 
         if (e.key === 'ArrowLeft') {
-            e.preventDefault(); // Запрещаем скролл страницы
-            const targetIdx = currentMoveIndex - 1;
-            if (targetIdx >= 0) {
-                jumpToMoveIndex(targetIdx);
-            }
-        }
-        
-        if (e.key === 'ArrowRight') {
-            e.preventDefault(); // Запрещаем скролл страницы
-            const targetIdx = currentMoveIndex + 1;
-            if (targetIdx <= fullMoveHistory.length) {
-                jumpToMoveIndex(targetIdx);
-            }
+            e.preventDefault();
+            jumpToMoveIndex(currentMoveIndex - 1);
+        } else if (e.key === 'ArrowRight') {
+            e.preventDefault();
+            jumpToMoveIndex(currentMoveIndex + 1);
         }
     });
+
+    resetGameSettings();
+}
+document.addEventListener('DOMContentLoaded', initApp);
 
 function initStockfish() {
     try {
@@ -143,7 +135,9 @@ function renderBoard(rebuild = false) {
 
 function handlePointerDown(e, sq) {
     if (typeof unlockAudio === 'function') unlockAudio();
+    // Запрещаем ходить, если мы смотрим историю
     if (liveGame.game_over() || isWaitingForAIMove || currentMoveIndex < fullMoveHistory.length) return;
+    
     if (selectedSquare && validMoves.includes(sq)) { handleMoveAttempt(selectedSquare, sq); return; }
     const piece = liveGame.get(sq);
     if (piece && piece.color === userColor && piece.color === liveGame.turn()) {
@@ -229,18 +223,15 @@ function syncDisplayGame() {
 
 function jumpToMoveIndex(idx) {
     if (idx < 0 || idx > fullMoveHistory.length) return;
-    
     currentMoveIndex = idx;
-    selectedSquare = null; // Очищаем выбор при перемещении
-    validMoves = [];       // Очищаем доступные ходы
+    selectedSquare = null; 
+    validMoves = [];
     
-    // Пересоздаем состояние доски для отображения выбранного хода
     displayGame = new Chess();
     for (let i = 0; i < currentMoveIndex; i++) {
         displayGame.move(fullMoveHistory[i]);
     }
-    
-    renderBoard(false);
+    renderBoard(false); 
     updateMoveLog();
 }
 
@@ -277,11 +268,24 @@ function resetGameSettings() {
     const saved = localStorage.getItem('azachess-save-game');
     if (saved) {
         const s = JSON.parse(saved);
-        liveGame = new Chess(s.fen); displayGame = new Chess(s.fen);
-        fullMoveHistory = s.history; currentMoveIndex = s.currentIdx;
-        whiteTime = s.whiteTime; blackTime = s.blackTime; lastTick = s.lastTick;
-        isGameStarted = s.isGameStarted; userColor = s.userColor; isFlipped = s.isFlipped;
-        isClockEnabled = s.isClockEnabled; increment = s.increment;
+        liveGame = new Chess(s.fen); 
+        fullMoveHistory = s.history; 
+        currentMoveIndex = s.currentIdx;
+        whiteTime = s.whiteTime; 
+        blackTime = s.blackTime; 
+        lastTick = s.lastTick;
+        isGameStarted = s.isGameStarted; 
+        userColor = s.userColor; 
+        isFlipped = s.isFlipped;
+        isClockEnabled = s.isClockEnabled; 
+        increment = s.increment;
+
+        // Синхронизируем displayGame с текущим индексом истории
+        displayGame = new Chess();
+        for (let i = 0; i < currentMoveIndex; i++) {
+            displayGame.move(fullMoveHistory[i]);
+        }
+
         if (isGameStarted && lastTick && !liveGame.game_over()) {
             const elapsed = Math.floor((Date.now() - lastTick) / 1000);
             if (liveGame.turn() === 'w') whiteTime = Math.max(0, whiteTime - elapsed);
