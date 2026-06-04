@@ -373,10 +373,11 @@ function renderPromotionChoices() {
 }
 
 // ФУНКЦИЯ СОХРАНЕНИЯ В БАЗУ (АРХИВ)
+let isGameOverSaved = false; // Флаг, чтобы не сохранять дважды
+
 function saveToPermanentArchive(reason) {
-    // Чтобы не сохранять одну и ту же игру дважды
-    if (liveGame.isArchived) return;
-    liveGame.isArchived = true;
+    if (isGameOverSaved || fullMoveHistory.length < 2) return; 
+    isGameOverSaved = true;
 
     const archive = JSON.parse(localStorage.getItem('azachess-archive') || '[]');
     
@@ -384,25 +385,32 @@ function saveToPermanentArchive(reason) {
         id: Date.now(),
         date: new Date().toLocaleString(),
         result: reason,
-        moves: fullMoveHistory.map(m => m.san), // Сохраняем только текст ходов
+        // Сохраняем историю как массив объектов для точности
+        history: fullMoveHistory, 
         fen: liveGame.fen(),
         timeControl: localStorage.getItem('selected-time-control'),
-        aiLevel: localStorage.getItem('selected-ai-level'),
         userColor: userColor
     };
 
-    archive.unshift(gameRecord); // Добавляем в начало списка
+    archive.unshift(gameRecord);
     localStorage.setItem('azachess-archive', JSON.stringify(archive));
-    console.log("Партия сохранена в архив");
+    console.log("Партия заархивирована.");
 }
 
-// Модифицируем updateStatus, чтобы он вызывал сохранение
+// Вызываем это в updateStatus
 const originalUpdateStatus = updateStatus;
 updateStatus = function() {
     originalUpdateStatus();
     const s = document.getElementById('status-text').textContent;
-    
-    if (liveGame.game_over() || s.includes('время вышло') || s.includes('Мат')) {
+    // Если игра закончена (Мат, Пат или Время)
+    if (liveGame.game_over() || s.includes('вышло')) {
         saveToPermanentArchive(s);
     }
+};
+
+// Сбрасываем флаг при новой игре
+const originalReset = resetGameSettings;
+resetGameSettings = function() {
+    isGameOverSaved = false;
+    originalReset();
 };
