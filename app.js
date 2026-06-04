@@ -220,12 +220,12 @@ function executeMove(from, to, promo = 'q') {
     if (res) {
         if (window.playMoveSound) playMoveSound(res);
         
-        // ДОБАВЛЯЕМ МЕТКУ ВРЕМЕНИ К ХОДУ
+        // Фиксируем время хода
         res.timestamp = Date.now(); 
         
-        // Если это самый первый ход в игре — фиксируем начало партии
+        // Если это вообще самый первый ход в партии (любой стороны)
         if (fullMoveHistory.length === 0) {
-            gameStartTime = res.timestamp;
+            gameStartTime = Date.now(); 
         }
 
         fullMoveHistory.push(res); 
@@ -234,6 +234,7 @@ function executeMove(from, to, promo = 'q') {
         onMoveExecution();
     } else clearSelection();
 }
+
 function renderPromotionChoices() {
     const container = document.querySelector('.promotion-choices');
     const turn = liveGame.turn(); container.innerHTML = '';
@@ -396,17 +397,24 @@ function resetGameSettings() {
         console.log("Новая партия создана");
     }
 
-    // Обновляем UI
     const cw = document.getElementById('clocks-wrapper');
     if (cw) cw.style.display = isClockEnabled ? 'flex' : 'none';
 
-    window.game = liveGame; // Для звуков
-    updateClockDisplay();
+    // СРАЗУ вычисляем время, чтобы часы не были пустыми до первого тика таймера
+    const times = calculateRemainingTimes();
+    whiteTime = times.white;
+    blackTime = times.black;
+
+    updateClockDisplay(); // Рисуем цифры на часах
     updateMoveLog();
     updateStatus();
-    renderBoard(true); // Полная перерисовка доски
+    renderBoard(true);
     
-    if (isGameStarted && !liveGame.game_over()) startTimer();
+    // Если игра уже идет — запускаем «тиканье»
+    if (isGameStarted && !liveGame.game_over()) {
+        startTimer();
+    }
+    
     checkAndTriggerAI();
 }
 
