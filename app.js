@@ -343,25 +343,29 @@ function resetGameSettings() {
         const state = JSON.parse(savedData);
         liveGame = new Chess(state.fen);
         fullMoveHistory = state.history;
-        currentMoveIndex = state.currentIdx;
-        gameStartTime = state.gameStartTime; // Восстанавливаем точку отсчета
+        // Загружаем индекс хода и фиксируем его как текущий
+        currentMoveIndex = state.currentIdx || fullMoveHistory.length; 
+        gameStartTime = state.gameStartTime;
         isGameStarted = state.isGameStarted;
         userColor = state.userColor;
         isFlipped = state.isFlipped;
         isClockEnabled = state.isClockEnabled;
         increment = state.increment;
 
-        // Восстанавливаем визуальную доску из истории
+        // ВАЖНО: Синхронизируем видимую доску с последним ходом из истории
         displayGame = new Chess();
-        fullMoveHistory.slice(0, currentMoveIndex).forEach(m => displayGame.move(m));
+        for (let i = 0; i < currentMoveIndex; i++) {
+            displayGame.move(fullMoveHistory[i]);
+        }
+        console.log("Партия восстановлена на ходу:", currentMoveIndex);
     } else {
         // НОВАЯ ИГРА
         liveGame = new Chess();
         displayGame = new Chess();
         fullMoveHistory = [];
         currentMoveIndex = 0;
-        isGameStarted = true; // Считаем, что игра началась сразу
-        gameStartTime = Date.now(); // Фиксируем время СТАРТА партии
+        isGameStarted = true;
+        gameStartTime = Date.now();
 
         let chosenColor = localStorage.getItem('selected-player-color') || 'w';
         if (chosenColor === 'random') chosenColor = Math.random() > 0.5 ? 'w' : 'b';
@@ -374,24 +378,52 @@ function resetGameSettings() {
         increment = parseInt(parts[1]) || 0;
     }
 
+    // UI элементы
     const cw = document.getElementById('clocks-wrapper');
     if (cw) cw.style.display = isClockEnabled ? 'flex' : 'none';
 
-    // Сразу считаем время, чтобы не было 0:00
+    // Обновляем время ПЕРЕД отрисовкой
+    refreshClocks(); 
+
+    updateMoveLog();
+    updateStatus();
+    renderBoard(true); // Рисуем доску
+    
+    // Если игра запущена и не закончена - запускаем таймер
+    if (isClockEnabled && !liveGame.game_over()) {
+        startTimer();
+    }
+    
+    checkAndTriggerAI();
+    saveGameState();
+}
+
+// Вспомогательная функция для обновления цифр на часах
+function refreshClocks() {
     const times = calculateRemainingTimes();
     whiteTime = times.white;
     blackTime = times.black;
-
     updateClockDisplay();
-    updateMoveLog();
-    updateStatus();
-    renderBoard(true);
-    
-    if (isClockEnabled && !liveGame.game_over()) startTimer();
-    checkAndTriggerAI();
-    saveGameState(); // Сразу сохраняем точку отсчета в память
 }
 
+function startTimer() {
+    stopTimer();
+    if (!isClockEnabled || liveGame.game_over()) return;
+
+    // Сразу обновляем при запуске
+    refreshClocks();
+
+    timerInterval = setInterval(() => {
+        refreshClocks();
+        
+        if (whiteTime <= 0 || blackTime <= 0) {
+            stopTimer();
+            updateStatus();
+        }
+        // Сохраняем состояние каждую секунду, чтобы метки времени были актуальны
+        saveGameState(); 
+    }, 1000);
+}
 function updateStatus() {
     const s = document.getElementById('status-text'); if (!s) return;
     if (isClockEnabled && whiteTime <= 0) s.textContent = 'Белые: время вышло!';
@@ -445,33 +477,32 @@ function calculateRemainingTimes() {
     const totalStartSeconds = (parseInt(parts[0]) || 5) * 60;
     const inc = parseInt(parts[1]) || 0;
 
-    // Если время старта еще не задано (игра не инициализирована)
-    if (!gameStartTime) {
-        return { white: totalStartSeconds, black: totalStartSeconds };
-    }
+    if (!gameStartTime) return { white: totalStartSeconds, black: totalStartSeconds };
 
     let usedWhite = 0;
     let usedBlack = 0;
     const now = Date.now();
 
-    // 1. Считаем время по завершенным ходам
+    // Считаем время прошлых ходов
     for (let i = 0; i < fullMoveHistory.length; i++) {
         const moveTime = fullMoveHistory[i].timestamp;
         const startTime = (i === 0) ? gameStartTime : fullMoveHistory[i - 1].timestamp;
         const duration = Math.floor((moveTime - startTime) / 1000);
 
-        if (i % 2 === 0) usedWhite += duration; // Потратили белые
-        else usedBlack += duration; // Потратили черные
+        if (i % 2 === 0) usedWhite += duration; 
+        else usedBlack += duration;
     }
 
-    // 2. Считаем время, которое тикает СЕЙЧАС (у текущего игрока)
-    const lastEventTime = (fullMoveHistory.length === 0) ? gameStartTime : fullMoveHistory[fullMoveHistory.length - 1].timestamp;
-    const thinkingTime = Math.floor((now - lastEventTime) / 1000);
+    // Считаем текущее время (кто сейчас думает)
+    if (!liveGame.game_over()) {
+        const lastEventTime = (fullMoveHistory.length === 0) ? gameStartTime : fullMoveHistory[fullMoveHistory.length - 1].timestamp;
+        const thinkingTime = Math.floor((now - lastEventTime) / 1000);
 
-    if (liveGame.turn() === 'w') usedWhite += thinkingTime;
-    else usedBlack += thinkingTime;
+        if (liveGame.turn() === 'w') usedWhite += thinkingTime;
+        else usedBlack += thinkingTime;
+    }
 
-    // 3. Бонусы (инкремент)
+    // Добавляем бонусы за завершенные ходы
     const whiteBonus = Math.floor((fullMoveHistory.length + 1) / 2) * inc;
     const blackBonus = Math.floor(fullMoveHistory.length / 2) * inc;
 
