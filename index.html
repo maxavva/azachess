@@ -74,13 +74,16 @@
       };
     });
 
-    document.querySelectorAll('#level-grid .level-btn').forEach(btn => {
-      btn.onclick = () => {
-        document.querySelectorAll('#level-grid .level-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        localStorage.setItem('selected-ai-level', btn.dataset.lv);
-      };
-    });
+    // Значение по умолчанию
+if(!localStorage.getItem('selected-player-color')) localStorage.setItem('selected-player-color', 'w');
+
+document.querySelectorAll('#color-grid .level-btn').forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll('#color-grid .level-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    localStorage.setItem('selected-player-color', btn.dataset.color);
+  };
+});
 
     function startGame() {
       window.location.href = 'play.html';
