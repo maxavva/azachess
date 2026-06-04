@@ -52,16 +52,31 @@
         }
 
         list.innerHTML = archive.map(game => `
-            <div class="game-card">
-                <div class="game-info">
-                    <div class="game-date">${game.date} (Уровень ${game.aiLevel}, ${game.timeControl})</div>
-                    <div class="game-result">${game.result}</div>
-                    <div class="game-moves">${game.moves.join(' ')}</div>
-                </div>
-                <button class="del-btn" onclick="deleteGame(${game.id})">Удалить</button>
-            </div>
-        `).join('');
+         // В функции renderArchive измени вывод карточки (добавь кнопку "Анализ"):
+list.innerHTML = archive.map(game => `
+    <div class="game-card">
+        <div class="game-info">
+            <div class="game-date">${game.date} (${game.timeControl})</div>
+            <div class="game-result">${game.result}</div>
+            <div class="game-moves">${game.history.map(m => m.san).join(' ')}</div>
+        </div>
+        <div style="display: flex; gap: 5px;">
+            <button class="start-btn" style="padding: 5px 15px; font-size: 0.8rem;" onclick="viewInAnalysis(${game.id})">Анализ</button>
+            <button class="del-btn" onclick="deleteGame(${game.id})">×</button>
+        </div>
+    </div>
+`).join('');
+
+// Добавь новую функцию перехода:
+function viewInAnalysis(id) {
+    const archive = JSON.parse(localStorage.getItem('azachess-archive') || '[]');
+    const game = archive.find(g => g.id === id);
+    if (game) {
+        // Сохраняем данные партии для страницы анализа
+        sessionStorage.setItem('analysis-load-game', JSON.stringify(game.history));
+        window.location.href = 'analysis.html';
     }
+}
 
     function deleteGame(id) {
         let archive = JSON.parse(localStorage.getItem('azachess-archive') || '[]');
