@@ -23,6 +23,8 @@ var liveGame = new Chess();
 var displayGame = new Chess();
 window.game = liveGame;
 
+let gameStartTime = null; // Метка времени начала самого первого хода
+
 let fullMoveHistory = [], currentMoveIndex = 0;
 let whiteTime = 300, blackTime = 300, increment = 3, isClockEnabled = true, isGameStarted = false, timerInterval = null;
 
@@ -217,11 +219,21 @@ function executeMove(from, to, promo = 'q') {
     const res = liveGame.move({ from, to, promotion: promo });
     if (res) {
         if (window.playMoveSound) playMoveSound(res);
-        fullMoveHistory.push(res); currentMoveIndex = fullMoveHistory.length;
-        syncDisplayGame(); onMoveExecution();
+        
+        // ДОБАВЛЯЕМ МЕТКУ ВРЕМЕНИ К ХОДУ
+        res.timestamp = Date.now(); 
+        
+        // Если это самый первый ход в игре — фиксируем начало партии
+        if (fullMoveHistory.length === 0) {
+            gameStartTime = res.timestamp;
+        }
+
+        fullMoveHistory.push(res); 
+        currentMoveIndex = fullMoveHistory.length;
+        syncDisplayGame(); 
+        onMoveExecution();
     } else clearSelection();
 }
-
 function renderPromotionChoices() {
     const container = document.querySelector('.promotion-choices');
     const turn = liveGame.turn(); container.innerHTML = '';
