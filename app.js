@@ -275,23 +275,22 @@ function resetGameSettings() {
     currentMoveIndex = 0; 
     isGameStarted = false;
     
-    // 1. Получаем выбранный цвет из localStorage
+    // 1. Получаем выбранный цвет
     let chosenColor = localStorage.getItem('selected-player-color') || 'w';
-    
+    console.log("Загруженный цвет из памяти:", chosenColor); // Для отладки
+
     // 2. Обработка случайного выбора
     if (chosenColor === 'random') {
         chosenColor = Math.random() > 0.5 ? 'w' : 'b';
     }
     
-    // 3. Устанавливаем цвет игрока
+    // 3. Устанавливаем глобальную переменную цвета игрока
     userColor = chosenColor;
     
-    // 4. Автоматически переворачиваем доску: 
-    // Если играем за черных - доска должна быть перевернута (isFlipped = true)
-    // Если за белых - не перевернута (isFlipped = false)
+    // 4. Поворачиваем доску: если играем за черных, то isFlipped = true
     isFlipped = (userColor === 'b'); 
 
-    // Настройка времени
+    // 5. Настройка часов
     const timeVal = localStorage.getItem('selected-time-control') || '5+3';
     const cw = document.getElementById('clocks-wrapper');
     if (timeVal === 'none') { 
@@ -309,7 +308,9 @@ function resetGameSettings() {
     updateClockDisplay(); 
     updateMoveLog(); 
     updateStatus(); 
-    renderBoard(true); // Перерисовываем доску с учетом нового isFlipped
+    renderBoard(true); // Важно: перерисовываем доску полностью
+    
+    // 6. Запускаем анализ или ход ИИ, если игрок выбрал черных
     checkAndTriggerAI();
 }
 
