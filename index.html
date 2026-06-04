@@ -105,7 +105,10 @@
     if (activeTime) localStorage.setItem('selected-time-control', activeTime.dataset.time);
     if (activeLevel) localStorage.setItem('selected-ai-level', activeLevel.dataset.lv);
     if (activeColor) localStorage.setItem('selected-player-color', activeColor.dataset.color);
-
+  
+  localStorage.removeItem('azachess-save-game'); // ОЧИСТКА ПРИ НОВОМ СТАРТЕ
+  window.location.href = 'play.html';
+}
     window.location.href = 'play.html';
   } 
   
