@@ -12,7 +12,7 @@
   <div class="game-wrapper-root">
     <div class="nav-bar">
       <a href="index.html" class="nav-link">← На главную</a>
-      <span class="nav-link active">Режим анализа</span>
+      <span class="nav-link active">Доска для анализа</span>
     </div>
 
     <div class="game-container">
@@ -41,31 +41,7 @@
           <div id="branch-choices" style="display: flex; flex-wrap: wrap; gap: 8px;"></div>
         </div>
 
-        <div id="analysis-engine-panel" class="analysis-engine-panel" style="max-height: none;">
-          <div class="analysis-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-            <div id="analysis-engine-title-text" class="analysis-engine-title">ИИ Анализ</div>
-            <label style="font-size: 0.8rem; display: flex; align-items: center; gap: 5px; cursor: pointer;">
-              <input type="checkbox" id="engine-toggle" checked> ИИ
-            </label>
-          </div>
-          
-          <div class="engine-settings" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; background: rgba(0,0,0,0.2); padding: 8px; border-radius: 4px;">
-            <div>
-              <label style="font-size: 0.7rem; color: #888;">Линии:</label>
-              <select id="select-multipv" style="width: 100%; background: #333; color: #fff; border: 1px solid #444;">
-                <option value="1">1</option>
-                <option value="3" selected>3</option>
-                <option value="5">5</option>
-              </select>
-            </div>
-            <div>
-              <label style="font-size: 0.7rem; color: #888;">Ядра:</label>
-              <select id="select-threads" style="width: 100%; background: #333; color: #fff; border: 1px solid #444;">
-                <option value="1">1</option>
-                <option value="4" selected>4</option>
-              </select>
-            </div>
-          </div>
+       
 
           <div id="multipv-container" class="multipv-container"></div>
         </div>
