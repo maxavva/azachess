@@ -423,3 +423,6 @@ resetGameSettings = function() {
         isGameOverSaved = true;
     }
 };
+
+// Финальная проверка логики Firebase
+
