@@ -1,6 +1,4 @@
-/**
- * AZACHESS - Официальный скрипт игрового режима (Версия 2.5)
- */
+import { db, collection, addDoc } from "./firebase-logic.js";
 
 const PIECE_IMAGES = {
     'wP': 'https://upload.wikimedia.org/wikipedia/commons/4/45/Chess_plt45.svg',
@@ -26,8 +24,7 @@ window.game = liveGame;
 let fullMoveHistory = [], currentMoveIndex = 0;
 let whiteTime = 300, blackTime = 300, increment = 0, lastTick = null;
 let isClockEnabled = true, isGameStarted = false, timerInterval = null;
-let isFlipped = false, userColor = 'w';
-let isGameOverSaved = false; 
+let isFlipped = false, userColor = 'w', isGameOverSaved = false;
 
 let selectedSquare = null, validMoves = [];
 let isDragging = false, dragStartX = 0, dragStartY = 0, dragClone = null, draggedPieceImg = null, draggedSquare = null, dragMovedEnough = false;
@@ -35,24 +32,22 @@ let stockfishWorker = null, isStockfishReady = false, isWaitingForAIMove = false
 let promotionFrom = null, promotionTo = null;
 const DRAG_THRESHOLD = 10;
 
-document.addEventListener('DOMContentLoaded', initApp);
-
-function initApp() {
-    // ВЫШИБАЛА: если нет ID — гоу на регистрацию
-    if (!localStorage.getItem('azachess-user-id')) {
+// ИНИЦИАЛИЗАЦИЯ
+document.addEventListener('DOMContentLoaded', () => {
+    // 1. Вышибала
+    const uid = localStorage.getItem('azachess-user-id');
+    if (!uid || uid === "null") {
         window.location.href = 'auth.html';
         return;
     }
 
-    if (typeof Chess === 'undefined') { setTimeout(initApp, 100); return; }
-    
-    const setupBtn = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = fn; };
-    setupBtn('btn-new-game', startNewGame);
-    setupBtn('btn-flip', flipBoard);
-    setupBtn('btn-nav-first', () => jumpToMoveIndex(0));
-    setupBtn('btn-nav-prev', () => jumpToMoveIndex(currentMoveIndex - 1));
-    setupBtn('btn-nav-next', () => jumpToMoveIndex(currentMoveIndex + 1));
-    setupBtn('btn-nav-last', () => jumpToMoveIndex(fullMoveHistory.length));
+    // 2. Привязка кнопок (для модулей нужно делать через window или addEventListener)
+    document.getElementById('btn-new-game').onclick = startNewGame;
+    document.getElementById('btn-flip').onclick = flipBoard;
+    document.getElementById('btn-nav-first').onclick = () => jumpToMoveIndex(0);
+    document.getElementById('btn-nav-prev').onclick = () => jumpToMoveIndex(currentMoveIndex - 1);
+    document.getElementById('btn-nav-next').onclick = () => jumpToMoveIndex(currentMoveIndex + 1);
+    document.getElementById('btn-nav-last').onclick = () => jumpToMoveIndex(fullMoveHistory.length);
 
     window.addEventListener('keydown', (e) => {
         if (e.key === 'ArrowLeft') { e.preventDefault(); jumpToMoveIndex(currentMoveIndex - 1); }
@@ -61,9 +56,7 @@ function initApp() {
 
     initStockfish();
     resetGameSettings();
-}
-
-// ... (функции initStockfish, renderBoard, handlePointerDown, handlePointerMove, handlePointerUp, handleMoveAttempt без изменений) ...
+});
 
 function initStockfish() {
     try {
@@ -122,7 +115,7 @@ function renderBoard(rebuild = false) {
 }
 
 function handlePointerDown(e, sq) {
-    if (typeof unlockAudio === 'function') unlockAudio();
+    if (typeof window.unlockAudio === 'function') window.unlockAudio();
     const isTimeOut = isClockEnabled && (whiteTime <= 0 || blackTime <= 0);
     if (liveGame.game_over() || isWaitingForAIMove || currentMoveIndex < fullMoveHistory.length || isTimeOut) return;
     if (selectedSquare && validMoves.includes(sq)) { handleMoveAttempt(selectedSquare, sq); return; }
@@ -176,7 +169,7 @@ function executeMove(from, to, promo = 'q') {
     if (isClockEnabled && (whiteTime <= 0 || blackTime <= 0)) { clearSelection(); return; }
     const res = liveGame.move({ from, to, promotion: promo });
     if (res) {
-        if (window.playMoveSound) playMoveSound(res);
+        if (window.playMoveSound) window.playMoveSound(res);
         if (!isGameStarted) { isGameStarted = true; lastTick = Date.now(); }
         else { if (liveGame.turn() === 'b') whiteTime += increment; else blackTime += increment; }
         fullMoveHistory.push(res); currentMoveIndex = fullMoveHistory.length;
@@ -251,7 +244,7 @@ function saveGameState() {
 
 function resetGameSettings() {
     stopTimer();
-    isGameOverSaved = false; // Сбрасываем флаг сохранения
+    isGameOverSaved = false;
     const saved = localStorage.getItem('azachess-save-game');
     if (saved) {
         try {
@@ -292,43 +285,27 @@ function updateStatus() {
     else if (isClockEnabled && blackTime <= 0) statusText = 'Черные: время вышло!';
     else if (liveGame.in_checkmate()) statusText = 'Мат!';
     else statusText = liveGame.turn()==='w' ? 'Ход белых' : 'Ход черных';
-    
     s.textContent = statusText;
-
-    if ((liveGame.game_over() || statusText.includes('вышло')) && !isGameOverSaved) {
-        saveToPermanentArchive(statusText);
-    }
+    if ((liveGame.game_over() || statusText.includes('вышло')) && !isGameOverSaved) saveToPermanentArchive(statusText);
 }
 
 async function saveToPermanentArchive(reason) {
     const userId = localStorage.getItem('azachess-user-id');
-    if (!userId || userId === "null") return; // Жесткая блокировка гостя
-
-    if (isGameOverSaved || fullMoveHistory.length < 2) return;
+    if (!userId || userId === "null" || isGameOverSaved || fullMoveHistory.length < 2) return;
     isGameOverSaved = true;
-
     const gameData = { 
         id: Date.now(), userId, date: new Date().toLocaleString(), result: reason, 
         aiLevel: localStorage.getItem('selected-ai-level') || '3',
         history: fullMoveHistory.map(m => ({from: m.from, to: m.to, san: m.san, promotion: m.promotion || null})), 
         fen: liveGame.fen(), timeControl: localStorage.getItem('selected-time-control') || '5+3', userColor 
     };
-
     const archive = JSON.parse(localStorage.getItem('azachess-archive') || '[]');
     archive.unshift(gameData);
     localStorage.setItem('azachess-archive', JSON.stringify(archive));
-
-   try {
-    const { db, collection, addDoc, doc } = await import('./firebase-logic.js');
-    
-    // МЕНЯЕМ ПУТЬ: теперь мы сохраняем в под-коллекцию пользователя
-    // users -> [userId] -> history -> [новая игра]
-    const userHistoryRef = collection(db, "users", userId, "history");
-    
-    await addDoc(userHistoryRef, gameData);
-    console.log("Партия сохранена в ваш личный облачный контейнер!");
-} catch (e) {
-    console.error("Ошибка сохранения в облако:", e);
+    try {
+        const userHistoryRef = collection(db, "users", userId, "history");
+        await addDoc(userHistoryRef, gameData);
+    } catch (e) { console.error("Firebase Error:", e); }
 }
 
 function checkAndTriggerAI() { 
