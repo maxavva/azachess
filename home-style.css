@@ -1,116 +1,19 @@
-:root {
-  --bg-dark: #161512;
-  --bg-panel: #262421;
-  --accent: #258039;
-  --border: #3c3934;
-  --text-bright: #ffffff;
-  --glass: rgba(255, 255, 255, 0.03);
-}
-
-body {
-  margin: 0;
-  font-family: 'Segoe UI', Roboto, sans-serif;
-  background-color: var(--bg-dark);
-  color: #bababa;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  min-height: 100vh;
-}
-
-/* Красивая шапка */
-.top-profile-bar {
-  width: 100%;
-  max-width: 1000px;
-  padding: 15px 20px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background: var(--bg-panel);
-  border-bottom: 1px solid var(--border);
-  border-radius: 0 0 12px 12px;
-}
-
-.hub-container {
-  width: 100%;
-  max-width: 500px;
-  padding: 40px 20px;
-}
-
-.logo {
-  font-size: 3rem;
-  font-weight: 900;
-  text-align: center;
-  color: var(--text-bright);
-  letter-spacing: -2px;
-  margin-bottom: 5px;
-}
-
-.logo span { color: var(--accent); }
-
-.tagline {
-  text-align: center;
-  font-size: 0.9rem;
-  color: #666;
-  margin-bottom: 40px;
-}
-
-/* Сетки выбора */
-.mode-section { margin-bottom: 30px; }
-.section-title {
-  font-size: 0.8rem;
-  text-transform: uppercase;
-  color: #888;
-  margin-bottom: 12px;
-  font-weight: bold;
-}
-
+/* Обнови или добавь это в home-style.css */
 .selection-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, 1fr); /* Для времени */
   gap: 8px;
 }
 
-.grid-item {
-  background: var(--glass);
-  border: 1px solid var(--border);
-  padding: 12px 5px;
-  border-radius: 6px;
-  text-align: center;
-  cursor: pointer;
-  transition: 0.2s;
-  color: #fff;
-  font-weight: 600;
+#level-grid {
+  grid-template-columns: repeat(4, 1fr) !important; /* Для 8 уровней: 2 ряда по 4 */
 }
 
-.grid-item.active {
-  background: var(--accent);
-  border-color: var(--accent);
+@media (max-width: 400px) {
+  #level-grid {
+    grid-template-columns: repeat(4, 1fr) !important;
+  }
+  .selection-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
-
-.grid-item span.label {
-  display: block;
-  font-size: 0.7rem;
-  font-weight: normal;
-  opacity: 0.6;
-}
-
-/* Кнопки */
-.main-actions { display: flex; flex-direction: column; gap: 12px; margin-top: 30px; }
-
-.start-btn {
-  background: var(--accent);
-  color: #fff;
-  border: none;
-  padding: 18px;
-  border-radius: 8px;
-  font-size: 1.1rem;
-  font-weight: bold;
-  cursor: pointer;
-  transition: 0.2s;
-  text-decoration: none;
-  text-align: center;
-}
-
-.start-btn.secondary { background: var(--bg-panel); border: 1px solid var(--border); }
-.start-btn:hover { filter: brightness(1.2); }
