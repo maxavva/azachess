@@ -382,12 +382,15 @@ function renderPromotionChoices() {
 let isGameOverSaved = false; // Флаг, чтобы не сохранять дважды
 
 async function saveToPermanentArchive(reason) {
-    // Проверка авторизации
     const userId = localStorage.getItem('azachess-user-id');
-    if (!userId) {
-        console.log("Гостевой режим, архив пропущен");
+    
+    // Проверяем не только отсутствие, но и возможные ошибки типа строк "null"
+    if (!userId || userId === "null" || userId === "undefined") {
+        console.log("РЕЖИМ ГОСТЯ: Сохранение заблокировано.");
         return; 
     }
+    
+    // Дальше идет код сохранения только для своих...
 
     if (isGameOverSaved || fullMoveHistory.length < 2) return;
     isGameOverSaved = true;
