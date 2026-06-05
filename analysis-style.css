@@ -1,70 +1,97 @@
-/* Основной контейнер: Доска + Панель */
-.game-container {
-  display: grid;
-  grid-template-columns: minmax(300px, 600px) 380px;
-  gap: 30px;
+:root {
+  --bg-dark: #161512;
+  --bg-panel: #262421;
+  --accent: #258039;
+  --border: #3c3934;
+  --square-light: #f0d9b5;
+  --square-dark: #b58863;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, sans-serif;
+  background-color: var(--bg-dark);
+  color: #bababa;
+  display: flex;
+  justify-content: center;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+.game-wrapper-root {
   width: 100%;
-  max-width: 1100px;
-  margin-top: 20px;
-}
-
-/* Статус разбора */
-.status-card {
-  background: var(--bg-panel);
-  padding: 15px;
-  border-radius: 8px;
-  border-left: 4px solid var(--accent);
-  margin-bottom: 15px;
-  font-weight: bold;
-  color: #fff;
-}
-
-/* Контейнер истории (PGN) */
-.history-container {
-  flex-grow: 1;
-  background: rgba(0,0,0,0.2);
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  max-width: 1200px;
+  padding: 20px;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
-  min-height: 300px;
+  align-items: center;
 }
 
-.history-header {
-  padding: 10px;
-  background: var(--border);
-  font-size: 0.8rem;
-  text-transform: uppercase;
+/* Навигация сверху */
+.nav-bar {
+  width: 100%;
+  display: flex;
+  gap: 20px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 10px;
+}
+
+.nav-link {
   color: #888;
-}
-
-.move-log-content {
-  padding: 10px;
-  overflow-y: auto;
-}
-
-/* Стили ходов */
-.move-row {
-  display: grid;
-  grid-template-columns: 35px 1fr 1fr;
-  gap: 5px;
-  padding: 5px 0;
-  border-bottom: 1px solid rgba(255,255,255,0.02);
-}
-
-.active-move {
-  background: var(--accent) !important;
-  color: #fff !important;
-  border-radius: 3px;
+  text-decoration: none;
   font-weight: bold;
 }
 
-/* Кнопки навигации */
+.nav-link.active { color: #fff; }
+
+/* Сетка: Доска + Панель */
+.game-container {
+  display: grid;
+  grid-template-columns: minmax(300px, 600px) 400px;
+  gap: 20px;
+  width: 100%;
+}
+
+@media (max-width: 900px) {
+  .game-container { grid-template-columns: 1fr; }
+}
+
+/* ДОСКА */
+.chessboard {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  grid-template-rows: repeat(8, 1fr);
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border: 2px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+  touch-action: none;
+}
+
+.square {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+}
+
+.square.light { background-color: var(--square-light); }
+.square.dark { background-color: var(--square-dark); }
+
+.piece {
+  width: 90%;
+  height: 90%;
+  cursor: grab;
+  z-index: 2;
+}
+
+/* Кнопки навигации под доской */
 .navigation-controls {
   display: flex;
-  gap: 4px;
-  margin-top: 15px;
+  gap: 5px;
+  margin-top: 10px;
 }
 
 .btn-nav {
@@ -72,46 +99,79 @@
   background: var(--bg-panel);
   border: 1px solid var(--border);
   color: #fff;
-  padding: 12px;
+  padding: 15px;
   cursor: pointer;
-  font-size: 1.1rem;
   border-radius: 4px;
+  font-weight: bold;
 }
 
-.btn-nav:hover { background: var(--border); }
-
-/* Панель вариантов */
-.branch-panel {
-  background: rgba(37, 128, 57, 0.1);
-  padding: 12px;
+/* ПАНЕЛЬ УПРАВЛЕНИЯ */
+.control-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  background: var(--bg-panel);
+  padding: 20px;
   border-radius: 8px;
-  margin-bottom: 15px;
+  border: 1px solid var(--border);
 }
 
-.branch-btn {
-  background: #333;
-  color: #fff;
-  border: 1px solid #444;
-  padding: 6px 12px;
+.status-card {
+  padding: 15px;
+  background: rgba(0,0,0,0.2);
   border-radius: 4px;
-  cursor: pointer;
+  border-left: 4px solid var(--accent);
+  font-weight: bold;
+  color: #fff;
 }
 
+.history-container {
+  height: 350px;
+  background: rgba(0,0,0,0.3);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+}
+
+.history-header {
+  padding: 10px;
+  background: var(--border);
+  font-size: 0.8rem;
+  color: #aaa;
+}
+
+.move-log-content {
+  flex-grow: 1;
+  overflow-y: auto;
+  padding: 10px;
+}
+
+.move-row {
+  display: grid;
+  grid-template-columns: 40px 1fr 1fr;
+  padding: 5px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
+.move-text { cursor: pointer; padding: 2px 5px; border-radius: 3px; }
+.move-text:hover { background: rgba(255,255,255,0.1); }
+.active-move { background: var(--accent) !important; color: #fff; font-weight: bold; }
+
+/* Варианты ходов */
+.branch-panel { background: rgba(37, 128, 57, 0.1); padding: 10px; border-radius: 4px; }
+.branch-btn {
+  background: #333; color: #fff; border: 1px solid #444;
+  padding: 5px 10px; margin: 2px; border-radius: 3px; cursor: pointer;
+}
 .active-branch { background: var(--accent); border-color: var(--accent); }
 
-/* Футер кнопок */
-.action-footer {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin-top: 15px;
-}
+/* Модалка */
+.modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; display: flex; justify-content: center; align-items: center; }
+.modal.hidden { display: none; }
+.modal-content { background: var(--bg-panel); padding: 20px; border-radius: 8px; text-align: center; }
 
-.btn-danger { background: #4a1c1c; color: #ff8a8a; border: 1px solid #632525; }
-
-/* Мобильная версия */
-@media (max-width: 900px) {
-  .game-container {
-    grid-template-columns: 1fr;
-  }
+.drag-clone {
+  position: fixed; pointer-events: none; z-index: 9999;
+  width: 60px; height: 60px; opacity: 0.8;
 }
