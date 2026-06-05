@@ -23,6 +23,8 @@
   const loginLink = document.getElementById('login-link');
   const logoutBtn = document.getElementById('logout-btn');
 
+  const playBtn = document.getElementById('play-btn');
+
   onAuthStateChanged(auth, async (user) => {
     if (user) {
       localStorage.setItem('azachess-user-id', user.uid);
@@ -31,11 +33,15 @@
       userInfo.innerText = "👋 Привет, " + username;
       loginLink.style.display = 'none';
       logoutBtn.style.display = 'block';
+      playBtn.textContent = 'ИГРАТЬ';
+      playBtn.onclick = startGame;
     } else {
       localStorage.removeItem('azachess-user-id');
       userInfo.innerText = "Вы не вошли в систему";
       loginLink.style.display = 'block';
       logoutBtn.style.display = 'none';
+      playBtn.textContent = 'ВОЙДИТЕ, ЧТОБЫ ИГРАТЬ';
+      playBtn.onclick = () => { window.location.href = 'auth.html'; };
     }
   });
 
@@ -90,11 +96,11 @@
       </section>
      
       <div class="main-actions">
-    <button class="start-btn" onclick="startGame()">ИГРАТЬ</button>
+    <button class="start-btn" id="play-btn" onclick="startGame()">ИГРАТЬ</button>
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
         <a href="analysis.html" class="start-btn secondary">АНАЛИЗ</a>
         <a href="archive.html" class="start-btn secondary">АРХИВ</a>
-    </div>
+
 </div>
     </main>
 

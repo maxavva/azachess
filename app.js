@@ -50,6 +50,12 @@ document.addEventListener('DOMContentLoaded', () => {
 function initApp() {
     if (typeof Chess === 'undefined') { setTimeout(initApp, 100); return; }
 
+    const userId = localStorage.getItem('azachess-user-id');
+    if (!userId || userId === "null" || userId === "undefined") {
+        window.location.href = 'auth.html';
+        return;
+    }
+
     // Навигация
     const setupBtn = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = fn; };
     setupBtn('btn-new-game', startNewGame);
@@ -384,13 +390,7 @@ let isGameOverSaved = false; // Флаг, чтобы не сохранять д�
 async function saveToPermanentArchive(reason) {
     const userId = localStorage.getItem('azachess-user-id');
     
-    // Проверяем не только отсутствие, но и возможные ошибки типа строк "null"
-    if (!userId || userId === "null" || userId === "undefined") {
-        console.log("РЕЖИМ ГОСТЯ: Сохранение заблокировано.");
-        return; 
-    }
-    
-    // Дальше идет код сохранения только для своих...
+    if (!userId || userId === "null" || userId === "undefined") return;
 
     if (isGameOverSaved || fullMoveHistory.length < 2) return;
     isGameOverSaved = true;
