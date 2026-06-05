@@ -15,7 +15,7 @@
 
   <div class="hub-container">
     <h1 class="logo">AZA<span>CHESS</span></h1>
-    <p class="tagline">Персональная шахматная платформа</p>
+    <p class="tagline">игровая шахматная платформа</p>
 
     <main>
       <!-- КОНТРОЛЬ ВРЕМЕНИ (ВСЕ ВАРИАНТЫ) -->
@@ -48,19 +48,19 @@
 
       <!-- ЦВЕТ -->
       <section class="mode-section">
-        <h2 class="section-title">Ваш цвет</h2>
+        <h2 class="section-title">Выберите цвет</h2>
         <div class="selection-grid" id="color-grid">
           <div class="grid-item active" data-color="w">Белые</div>
-          <div class="grid-item" data-color="random">?</div>
+          <div class="grid-item" data-color="random">Случайный</div>
           <div class="grid-item" data-color="b">Черные</div>
         </div>
       </section>
      
       <div class="main-actions">
-        <button class="start-btn" onclick="startGame()">ИГРАТЬ ПРОТИВ ИИ</button>
+        <button class="start-btn" onclick="startGame()">Играть</button>
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-            <button class="start-btn secondary" onclick="openAnalysis()">АНАЛИЗ</button>
-            <button class="start-btn secondary" onclick="location.href='archive.html'">АРХИВ</button>
+            <button class="start-btn secondary" onclick="openAnalysis()">Доска для анализа</button>
+            <button class="start-btn secondary" onclick="location.href='archive.html'">История игр</button>
         </div>
       </div>
     </main>
