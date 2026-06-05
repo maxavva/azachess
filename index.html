@@ -2,99 +2,213 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Azachess — Главная</title>
   <link rel="stylesheet" href="home-style.css">
+  <style>
+    /* Дополнительные стили для красоты профиля */
+    .top-profile-bar {
+      width: 100%;
+      background: rgba(0, 0, 0, 0.4);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 25px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .user-tag {
+      color: #fff;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .auth-btn-small {
+      background: var(--accent);
+      color: white;
+      text-decoration: none;
+      padding: 6px 14px;
+      border-radius: 4px;
+      font-size: 0.85rem;
+      font-weight: bold;
+      border: none;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+    .auth-btn-small.logout {
+      background: transparent;
+      border: 1px solid #d9534f;
+      color: #d9534f;
+    }
+    .auth-btn-small:hover {
+      opacity: 0.8;
+    }
+    .main-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-top: 20px;
+    }
+    .secondary-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+  </style>
 </head>
 <body>
 
+  <!-- ВЕРХНЯЯ ПАНЕЛЬ -->
   <div class="top-profile-bar">
-    <div id="user-info" style="font-weight: bold;">👣 Гость</div>
+    <div class="user-tag" id="user-info">Загрузка...</div>
     <div id="auth-controls">
-        <a href="auth.html" class="grid-item" style="padding: 5px 15px; font-size: 0.8rem; text-decoration: none;">Войти</a>
+      <!-- Сюда скрипт вставит кнопку Войти или Выйти -->
     </div>
   </div>
 
   <div class="hub-container">
-    <h1 class="logo">AZA<span>CHESS</span></h1>
-    <p class="tagline">Персональная шахматная платформа</p>
+    <header class="hub-header">
+      <h1 class="logo">AZA<span>CHESS</span></h1>
+      <p class="tagline">Начни свою партию</p>
+    </header>
 
-    <main>
+    <main class="hub-content">
+      <!-- 1. ВРЕМЯ -->
       <section class="mode-section">
-        <h2 class="section-title">Контроль времени</h2>
-        <div class="selection-grid" id="time-grid">
-          <div class="grid-item" data-time="1+0">1+0 <span class="label">Пуля</span></div>
-          <div class="grid-item active" data-time="5+3">5+3 <span class="label">Блиц</span></div>
-          <div class="grid-item" data-time="10+5">10+5 <span class="label">Рапид</span></div>
+        <h2 class="section-title">1. Выберите время</h2>
+        <div class="time-grid" id="time-grid">
+          <div class="time-card" data-time="1+0"><span class="val">1+0</span><span class="lab">Пуля</span></div>
+          <div class="time-card" data-time="3+2"><span class="val">3+2</span><span class="lab">Блиц</span></div>
+          <div class="time-card active" data-time="5+3"><span class="val">5+3</span><span class="lab">Блиц</span></div>
+          <div class="time-card" data-time="10+5"><span class="val">10+5</span><span class="lab">Рапид</span></div>
+          <div class="time-card" data-time="30+0"><span class="val">30+0</span><span class="lab">Классика</span></div>
+          <div class="time-card special" data-time="none"><span class="val">∞</span><span class="lab">Без времени</span></div>
         </div>
       </section>
 
+      <!-- 2. УРОВЕНЬ -->
       <section class="mode-section">
-        <h2 class="section-title">Сложность ИИ</h2>
-        <div class="selection-grid" id="level-grid">
-          <div class="grid-item" data-lv="1">1</div>
-          <div class="grid-item active" data-lv="3">3</div>
-          <div class="grid-item" data-lv="8">8</div>
+        <h2 class="section-title">2. Выберите уровень ИИ</h2>
+        <div class="level-grid" id="level-grid">
+          <button class="level-btn" data-lv="1">1</button>
+          <button class="level-btn" data-lv="2">2</button>
+          <button class="level-btn active" data-lv="3">3</button>
+          <button class="level-btn" data-lv="4">4</button>
+          <button class="level-btn" data-lv="5">5</button>
+          <button class="level-btn" data-lv="6">6</button>
+          <button class="level-btn" data-lv="7">7</button>
+          <button class="level-btn" data-lv="8">8</button>
         </div>
       </section>
 
+      <!-- 3. ЦВЕТ -->
       <section class="mode-section">
-        <h2 class="section-title">Ваш цвет</h2>
-        <div class="selection-grid" id="color-grid">
-          <div class="grid-item active" data-color="w">Белые</div>
-          <div class="grid-item" data-color="random">?</div>
-          <div class="grid-item" data-color="b">Черные</div>
+        <h2 class="section-title">3. Выберите цвет</h2>
+        <div class="level-grid" id="color-grid" style="grid-template-columns: repeat(3, 1fr);">
+          <button class="level-btn active" data-color="w">Белые</button>
+          <button class="level-btn" data-color="random">?</button>
+          <button class="level-btn" data-color="b">Черные</button>
         </div>
       </section>
      
+      <!-- КНОПКИ ДЕЙСТВИЯ -->
       <div class="main-actions">
-        <button class="start-btn" onclick="startGame()">ИГРАТЬ ПРОТИВ ИИ</button>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+        <button class="start-btn" onclick="startGame()">ИГРАТЬ</button>
+        <div class="secondary-row">
             <button class="start-btn secondary" onclick="openAnalysis()">АНАЛИЗ</button>
             <button class="start-btn secondary" onclick="location.href='archive.html'">АРХИВ</button>
         </div>
       </div>
     </main>
+
+    <footer class="hub-footer">
+      <p>&copy; 2026 Azachess Project</p>
+    </footer>
   </div>
 
+  <!-- ЛОГИКА FIREBASE -->
   <script type="module">
     import { auth, db, onAuthStateChanged, signOut, doc, getDoc } from "./firebase-logic.js";
 
+    const userInfo = document.getElementById('user-info');
+    const authControls = document.getElementById('auth-controls');
+
     onAuthStateChanged(auth, async (user) => {
       if (user) {
+        // Пользователь в аккаунте
         localStorage.setItem('azachess-user-id', user.uid);
-        const snap = await getDoc(doc(db, "users", user.uid));
-        document.getElementById('user-info').innerText = "👤 " + (snap.exists() ? snap.data().username : "Игрок");
-        document.getElementById('auth-controls').innerHTML = `<button onclick="window.logout()" class="grid-item" style="padding: 5px 15px; font-size: 0.8rem; color: #d9534f; border-color: #d9534f; background: none;">Выйти</button>`;
+        const userSnap = await getDoc(doc(db, "users", user.uid));
+        const name = userSnap.exists() ? userSnap.data().username : "Игрок";
+        
+        userInfo.innerHTML = `<span>👤</span> ${name}`;
+        authControls.innerHTML = `<button class="auth-btn-small logout" id="logout-btn">Выйти</button>`;
+        
+        document.getElementById('logout-btn').onclick = () => {
+          if(confirm("Выйти из аккаунта?")) {
+            signOut(auth).then(() => {
+              localStorage.clear();
+              location.reload();
+            });
+          }
+        };
+      } else {
+        // Гость
+        localStorage.removeItem('azachess-user-id');
+        userInfo.innerHTML = `<span>👣</span> Гость`;
+        authControls.innerHTML = `<a href="auth.html" class="auth-btn-small">Войти</a>`;
       }
     });
-
-    window.logout = () => { if(confirm("Выйти?")) { signOut(auth).then(() => { localStorage.clear(); location.reload(); }); } };
   </script>
 
+  <!-- ЛОГИКА ИНТЕРФЕЙСА -->
   <script>
-    function setup(id, key) {
-        document.querySelectorAll(`#${id} .grid-item`).forEach(el => {
-            el.onclick = () => {
-                document.querySelectorAll(`#${id} .grid-item`).forEach(i => i.classList.remove('active'));
-                el.classList.add('active');
-                localStorage.setItem(key, el.dataset.time || el.dataset.lv || el.dataset.color);
-            };
-        });
+    // Проверка входа перед действием
+    function isAuthorized() {
+      const uid = localStorage.getItem('azachess-user-id');
+      return (uid && uid !== "null" && uid !== "undefined");
     }
-    setup('time-grid', 'selected-time-control');
-    setup('level-grid', 'selected-ai-level');
-    setup('color-grid', 'selected-player-color');
 
     function startGame() {
-        if (!localStorage.getItem('azachess-user-id')) { window.location.href = 'auth.html'; return; }
-        localStorage.removeItem('azachess-save-game');
-        window.location.href = 'play.html';
+      if (!isAuthorized()) {
+        window.location.href = 'auth.html';
+        return;
+      }
+      localStorage.removeItem('azachess-save-game');
+      window.location.href = 'play.html';
     }
+
     function openAnalysis() {
-        if (!localStorage.getItem('azachess-user-id')) { window.location.href = 'auth.html'; return; }
-        window.location.href = 'analysis.html';
+      if (!isAuthorized()) {
+        window.location.href = 'auth.html';
+        return;
+      }
+      window.location.href = 'analysis.html';
     }
+
+    // Сетки выбора (Время, Сложность, Цвет)
+    function setupGrid(selector, storageKey) {
+      document.querySelectorAll(selector).forEach(el => {
+        el.addEventListener('click', () => {
+          document.querySelectorAll(selector).forEach(c => c.classList.remove('active'));
+          el.classList.add('active');
+          const val = el.dataset.time || el.dataset.lv || el.dataset.color;
+          localStorage.setItem(storageKey, val);
+        });
+      });
+    }
+
+    setupGrid('#time-grid .time-card', 'selected-time-control');
+    setupGrid('#level-grid .level-btn', 'selected-ai-level');
+    setupGrid('#color-grid .level-btn', 'selected-player-color');
+
+    // Значения по умолчанию
+    if(!localStorage.getItem('selected-time-control')) localStorage.setItem('selected-time-control', '5+3');
+    if(!localStorage.getItem('selected-ai-level')) localStorage.setItem('selected-ai-level', '3');
+    if(!localStorage.getItem('selected-player-color')) localStorage.setItem('selected-player-color', 'w');
   </script>
 </body>
 </html>
