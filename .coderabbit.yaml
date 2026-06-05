@@ -1,0 +1,16 @@
+language: "ru-RU"
+reviews:
+  profile: "assertive"
+  request_changes_workflow: true
+instructions: |
+  Ты — техлид Azachess. У нас строгие правила разделения доступа:
+  
+  1. ГОСТЕВОЙ РЕЖИМ (userId отсутствует):
+     - Функция `saveToPermanentArchive` должна ПРЕРЫВАТЬСЯ немедленно. 
+     - Запрещено сохранять что-либо в `localStorage` (раздел azachess-archive) или Firebase, если пользователь не авторизован.
+  
+  2. РЕЖИМ АККАУНТА (userId присутствует):
+     - Сохранение идет параллельно: и в локальный архив (для скорости), и в Firebase Firestore (для надежности).
+  
+  3. БЕЗОПАСНОСТЬ:
+     - При выходе (logout) в index.html Обязательно полностью очищать `azachess-archive` из памяти браузера.

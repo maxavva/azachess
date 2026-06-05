@@ -8,6 +8,8 @@
 </head>
 <body>
 
+
+  
 <div id="user-bar" style="background: rgba(0,0,0,0.3); padding: 8px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #3c3934;">
   <div id="user-info" style="color: white; font-size: 0.85rem;"></div>
   <button id="logout-btn" style="display: none; background: none; border: 1px solid #666; color: #aaa; font-size: 0.8rem; padding: 4px 10px; border-radius: 4px; cursor: pointer;">Выйти</button>
@@ -32,6 +34,40 @@
     });
   })();
 </script>
+
+
+<div id="user-bar" style="background: rgba(0,0,0,0.3); padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #3c3934;">
+  <div id="user-info" style="color: white; font-weight: bold;">Загрузка...</div>
+  <div id="auth-links">
+    <a href="auth.html" id="login-link" class="nav-link" style="font-size: 0.8rem;">Войти</a>
+    <button id="logout-btn" class="nav-link" style="display: none; background: none; border: none; font-size: 0.8rem; cursor: pointer;">Выйти</button>
+  </div>
+</div>
+
+<script type="module">
+  import { auth, db, onAuthStateChanged, signOut, doc, getDoc } from "./firebase-logic.js";
+
+  const userInfo = document.getElementById('user-info');
+  const loginLink = document.getElementById('login-link');
+  const logoutBtn = document.getElementById('logout-btn');
+
+  onAuthStateChanged(auth, async (user) => {
+    if (user) {
+      const userSnap = await getDoc(doc(db, "users", user.uid));
+      const username = userSnap.exists() ? userSnap.data().username : "Игрок";
+      userInfo.innerText = "👋 Привет, " + username;
+      loginLink.style.display = 'none';
+      logoutBtn.style.display = 'block';
+    } else {
+      userInfo.innerText = "Вы не вошли в систему";
+      loginLink.style.display = 'block';
+      logoutBtn.style.display = 'none';
+    }
+  });
+
+  logoutBtn.onclick = () => signOut(auth);
+</script>
+  
 
   <div class="hub-container">
     <header class="hub-header">
