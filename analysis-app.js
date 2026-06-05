@@ -109,11 +109,17 @@ function handleAnalysisData(data) {
 }
 
 function runAnalysisTask() {
-    if (!isStockfishReady || !document.getElementById('engine-toggle')?.checked) return;
-    const multiPV = document.getElementById('select-multipv')?.value || 3;
+    if (!isStockfishReady) return;
+    
+    // Настройки теперь жестко заданы или берутся из логики, а не из HTML
+    const multiPV = 3; // Всегда анализируем 3 лучшие линии
+    const threads = 4;  // Используем 4 ядра (оптимально для большинства)
+
     stockfishWorker.postMessage('stop');
     analysisLines = [];
+    
     stockfishWorker.postMessage(`setoption name MultiPV value ${multiPV}`);
+    stockfishWorker.postMessage(`setoption name Threads value ${threads}`);
     stockfishWorker.postMessage(`position fen ${game.fen()}`);
     stockfishWorker.postMessage('go depth 18');
 }
