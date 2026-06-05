@@ -171,7 +171,13 @@ body {
 .modal.hidden { display: none; }
 .modal-content { background: var(--bg-panel); padding: 20px; border-radius: 8px; text-align: center; }
 
+/* В файле analysis-style.css */
 .drag-clone {
-  position: fixed; pointer-events: none; z-index: 9999;
-  width: 60px; height: 60px; opacity: 0.8;
+  position: fixed;
+  pointer-events: none;
+  z-index: 9999;
+  width: 60px; /* Размер подстроится скриптом, но это база */
+  height: 60px;
+  opacity: 1 !important; /* Убираем прозрачность полностью */
+  filter: drop-shadow(0 5px 15px rgba(0,0,0,0.5)); /* Добавляем тень для объема */
 }
