@@ -2,124 +2,99 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Azachess - Архив партий</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Azachess — Главная</title>
   <link rel="stylesheet" href="home-style.css">
-  <style>
-    .archive-container { max-width: 800px; margin: 0 auto; padding: 20px; }
-    .game-card {
-      background: var(--bg-panel);
-      border: 1px solid var(--border);
-      padding: 15px;
-      margin-bottom: 12px;
-      border-radius: 8px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      transition: transform 0.2s;
-    }
-    .game-card:hover { transform: translateY(-2px); border-color: var(--accent); }
-    .game-info { flex-grow: 1; margin-right: 15px; }
-    .game-date { font-size: 0.75rem; color: #888; text-transform: uppercase; letter-spacing: 1px; }
-    .game-result { color: #fff; font-size: 1.1rem; font-weight: bold; margin: 4px 0; }
-    .game-meta { font-size: 0.85rem; color: var(--accent); margin-bottom: 8px; }
-    .game-moves { 
-      font-family: 'Courier New', monospace; 
-      font-size: 0.8rem; 
-      color: #666; 
-      display: -webkit-box;
-      -webkit-line-clamp: 1;
-      -webkit-box-orient: vertical;
-      overflow: hidden;
-    }
-    .card-actions { display: flex; gap: 8px; }
-    .btn-view { background: var(--accent); color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; }
-    .btn-del { background: rgba(217, 83, 79, 0.1); color: #d9534f; border: 1px solid #d9534f; padding: 8px 12px; border-radius: 4px; cursor: pointer; }
-    .btn-del:hover { background: #d9534f; color: white; }
-    .empty-state { text-align: center; padding: 60px; color: #555; }
-  </style>
 </head>
 <body>
-  <div class="archive-container">
-    <header class="hub-header">
-      <h1 class="logo">AZA<span>ARCHIVE</span></h1>
-      <div style="margin-top: 10px;">
-        <a href="index.html" style="color: var(--accent); text-decoration: none; font-weight: bold;">← НА ГЛАВНУЮ</a>
-      </div>
-    </header>
 
-    <main id="archive-list">
-      <!-- Список партий -->
-    </main>
-
-    <div id="archive-tools" style="margin-top: 30px; border-top: 1px solid var(--border); padding-top: 20px; display: none; justify-content: center; gap: 10px;">
-        <button class="start-btn secondary" style="padding: 10px 20px; font-size: 0.9rem;" onclick="exportJSON()">СКАЧАТЬ JSON</button>
-        <button class="start-btn secondary" style="padding: 10px 20px; font-size: 0.9rem; border-color: #d9534f; color: #d9534f;" onclick="clearAll()">ОЧИСТИТЬ ВСЁ</button>
+  <div class="top-profile-bar">
+    <div id="user-info" style="font-weight: bold;">👣 Гость</div>
+    <div id="auth-controls">
+        <a href="auth.html" class="grid-item" style="padding: 5px 15px; font-size: 0.8rem; text-decoration: none;">Войти</a>
     </div>
   </div>
 
+  <div class="hub-container">
+    <h1 class="logo">AZA<span>CHESS</span></h1>
+    <p class="tagline">Персональная шахматная платформа</p>
+
+    <main>
+      <section class="mode-section">
+        <h2 class="section-title">Контроль времени</h2>
+        <div class="selection-grid" id="time-grid">
+          <div class="grid-item" data-time="1+0">1+0 <span class="label">Пуля</span></div>
+          <div class="grid-item active" data-time="5+3">5+3 <span class="label">Блиц</span></div>
+          <div class="grid-item" data-time="10+5">10+5 <span class="label">Рапид</span></div>
+        </div>
+      </section>
+
+      <section class="mode-section">
+        <h2 class="section-title">Сложность ИИ</h2>
+        <div class="selection-grid" id="level-grid">
+          <div class="grid-item" data-lv="1">1</div>
+          <div class="grid-item active" data-lv="3">3</div>
+          <div class="grid-item" data-lv="8">8</div>
+        </div>
+      </section>
+
+      <section class="mode-section">
+        <h2 class="section-title">Ваш цвет</h2>
+        <div class="selection-grid" id="color-grid">
+          <div class="grid-item active" data-color="w">Белые</div>
+          <div class="grid-item" data-color="random">?</div>
+          <div class="grid-item" data-color="b">Черные</div>
+        </div>
+      </section>
+     
+      <div class="main-actions">
+        <button class="start-btn" onclick="startGame()">ИГРАТЬ ПРОТИВ ИИ</button>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <button class="start-btn secondary" onclick="openAnalysis()">АНАЛИЗ</button>
+            <button class="start-btn secondary" onclick="location.href='archive.html'">АРХИВ</button>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script type="module">
+    import { auth, db, onAuthStateChanged, signOut, doc, getDoc } from "./firebase-logic.js";
+
+    onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        localStorage.setItem('azachess-user-id', user.uid);
+        const snap = await getDoc(doc(db, "users", user.uid));
+        document.getElementById('user-info').innerText = "👤 " + (snap.exists() ? snap.data().username : "Игрок");
+        document.getElementById('auth-controls').innerHTML = `<button onclick="window.logout()" class="grid-item" style="padding: 5px 15px; font-size: 0.8rem; color: #d9534f; border-color: #d9534f; background: none;">Выйти</button>`;
+      }
+    });
+
+    window.logout = () => { if(confirm("Выйти?")) { signOut(auth).then(() => { localStorage.clear(); location.reload(); }); } };
+  </script>
+
   <script>
-    function render() {
-        const list = document.getElementById('archive-list');
-        const tools = document.getElementById('archive-tools');
-        const data = JSON.parse(localStorage.getItem('azachess-archive') || '[]');
-
-        if (data.length === 0) {
-            list.innerHTML = '<div class="empty-state"><h3>Ваш архив пуст</h3><p>Завершите хотя бы одну партию в режиме игры</p></div>';
-            tools.style.display = 'none';
-            return;
-        }
-
-        tools.style.display = 'flex';
-        list.innerHTML = data.map(game => `
-            <div class="game-card">
-                <div class="game-info">
-                    <div class="game-date">${game.date}</div>
-                    <div class="game-result">${game.result}</div>
-                    <div class="game-meta">Уровень ${game.aiLevel} • Режим ${game.timeControl}</div>
-                    <div class="game-moves">${game.history.map(m => m.san).join(' ')}</div>
-                </div>
-                <div class="card-actions">
-                    <button class="btn-view" onclick="analyze(${game.id})">АНАЛИЗ</button>
-                    <button class="btn-del" onclick="remove(${game.id})">×</button>
-                </div>
-            </div>
-        `).join('');
+    function setup(id, key) {
+        document.querySelectorAll(`#${id} .grid-item`).forEach(el => {
+            el.onclick = () => {
+                document.querySelectorAll(`#${id} .grid-item`).forEach(i => i.classList.remove('active'));
+                el.classList.add('active');
+                localStorage.setItem(key, el.dataset.time || el.dataset.lv || el.dataset.color);
+            };
+        });
     }
+    setup('time-grid', 'selected-time-control');
+    setup('level-grid', 'selected-ai-level');
+    setup('color-grid', 'selected-player-color');
 
-    function analyze(id) {
-        const data = JSON.parse(localStorage.getItem('azachess-archive') || '[]');
-        const game = data.find(g => g.id === id);
-        if (game) {
-            sessionStorage.setItem('analysis-load-game', JSON.stringify(game.history));
-            window.location.href = 'analysis.html';
-        }
+    function startGame() {
+        if (!localStorage.getItem('azachess-user-id')) { window.location.href = 'auth.html'; return; }
+        localStorage.removeItem('azachess-save-game');
+        window.location.href = 'play.html';
     }
-
-    function remove(id) {
-        let data = JSON.parse(localStorage.getItem('azachess-archive') || '[]');
-        data = data.filter(g => g.id !== id);
-        localStorage.setItem('azachess-archive', JSON.stringify(data));
-        render();
+    function openAnalysis() {
+        if (!localStorage.getItem('azachess-user-id')) { window.location.href = 'auth.html'; return; }
+        window.location.href = 'analysis.html';
     }
-
-    function clearAll() {
-        if (confirm("Удалить все сохраненные партии безвозвратно?")) {
-            localStorage.removeItem('azachess-archive');
-            render();
-        }
-    }
-
-    function exportJSON() {
-        const data = localStorage.getItem('azachess-archive') || '[]';
-        const blob = new Blob([data], {type: 'application/json'});
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = `azachess_archive_${new Date().toLocaleDateString()}.json`;
-        a.click();
-    }
-
-    render();
   </script>
 </body>
 </html>
