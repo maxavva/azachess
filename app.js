@@ -247,7 +247,7 @@ function startTimer() {
                 isWaitingForAIMove = false;
                 updateStatus(); 
             }
-            updateClockDisplay();
+            updateClockDisplay(); saveGameState();
         }
     }, 500);
 }
@@ -413,6 +413,13 @@ updateStatus = function() {
 // Сбрасываем флаг при новой игре
 const originalReset = resetGameSettings;
 resetGameSettings = function() {
+    // Останавливаем движок до сброса — иначе отложенный bestmove сделает ход в новой партии
+    if (stockfishWorker) stockfishWorker.postMessage('stop');
+    isWaitingForAIMove = false;
     isGameOverSaved = false;
     originalReset();
+    // Если загружена уже завершённая партия — помечаем как сохранённую, чтобы не писать в архив дважды
+    if (liveGame.game_over() || (isClockEnabled && (whiteTime <= 0 || blackTime <= 0))) {
+        isGameOverSaved = true;
+    }
 };
