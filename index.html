@@ -2,17 +2,15 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Azachess — Главная</title>
   <link rel="stylesheet" href="home-style.css">
 </head>
 <body>
 
   <div class="top-profile-bar">
-    <div id="user-info" style="font-weight: bold;">👣 Гость</div>
-    <div id="auth-controls">
-        <a href="auth.html" class="grid-item" style="padding: 5px 15px; font-size: 0.8rem; text-decoration: none;">Войти</a>
-    </div>
+    <div id="user-info" style="font-weight: bold; color: #fff;">👣 Загрузка...</div>
+    <div id="auth-controls"></div>
   </div>
 
   <div class="hub-container">
@@ -20,24 +18,35 @@
     <p class="tagline">Персональная шахматная платформа</p>
 
     <main>
+      <!-- КОНТРОЛЬ ВРЕМЕНИ (ВСЕ ВАРИАНТЫ) -->
       <section class="mode-section">
         <h2 class="section-title">Контроль времени</h2>
         <div class="selection-grid" id="time-grid">
           <div class="grid-item" data-time="1+0">1+0 <span class="label">Пуля</span></div>
+          <div class="grid-item" data-time="3+2">3+2 <span class="label">Блиц</span></div>
           <div class="grid-item active" data-time="5+3">5+3 <span class="label">Блиц</span></div>
           <div class="grid-item" data-time="10+5">10+5 <span class="label">Рапид</span></div>
+          <div class="grid-item" data-time="30+0">30+0 <span class="label">Классика</span></div>
+          <div class="grid-item" data-time="none">∞ <span class="label">Без времени</span></div>
         </div>
       </section>
 
+      <!-- УРОВНИ ИИ (ВСЕ 8) -->
       <section class="mode-section">
         <h2 class="section-title">Сложность ИИ</h2>
-        <div class="selection-grid" id="level-grid">
+        <div class="selection-grid" id="level-grid" style="grid-template-columns: repeat(4, 1fr);">
           <div class="grid-item" data-lv="1">1</div>
+          <div class="grid-item" data-lv="2">2</div>
           <div class="grid-item active" data-lv="3">3</div>
+          <div class="grid-item" data-lv="4">4</div>
+          <div class="grid-item" data-lv="5">5</div>
+          <div class="grid-item" data-lv="6">6</div>
+          <div class="grid-item" data-lv="7">7</div>
           <div class="grid-item" data-lv="8">8</div>
         </div>
       </section>
 
+      <!-- ЦВЕТ -->
       <section class="mode-section">
         <h2 class="section-title">Ваш цвет</h2>
         <div class="selection-grid" id="color-grid">
@@ -61,15 +70,29 @@
     import { auth, db, onAuthStateChanged, signOut, doc, getDoc } from "./firebase-logic.js";
 
     onAuthStateChanged(auth, async (user) => {
+      const info = document.getElementById('user-info');
+      const ctrls = document.getElementById('auth-controls');
       if (user) {
         localStorage.setItem('azachess-user-id', user.uid);
         const snap = await getDoc(doc(db, "users", user.uid));
-        document.getElementById('user-info').innerText = "👤 " + (snap.exists() ? snap.data().username : "Игрок");
-        document.getElementById('auth-controls').innerHTML = `<button onclick="window.logout()" class="grid-item" style="padding: 5px 15px; font-size: 0.8rem; color: #d9534f; border-color: #d9534f; background: none;">Выйти</button>`;
+        info.innerText = "👤 " + (snap.exists() ? snap.data().username : "Игрок");
+        ctrls.innerHTML = `<button id="l-btn" class="grid-item" style="padding: 5px 15px; font-size: 0.8rem; color: #d9534f; border-color: #d9534f; background: none;">Выйти</button>`;
+        document.getElementById('l-btn').onclick = window.logout;
+      } else {
+        localStorage.removeItem('azachess-user-id');
+        info.innerText = "👣 Гость";
+        ctrls.innerHTML = `<a href="auth.html" class="grid-item" style="padding: 5px 15px; font-size: 0.8rem; text-decoration: none;">Войти</a>`;
       }
     });
 
-    window.logout = () => { if(confirm("Выйти?")) { signOut(auth).then(() => { localStorage.clear(); location.reload(); }); } };
+    window.logout = () => { 
+        if(confirm("Выйти?")) { 
+            signOut(auth).then(() => { 
+                localStorage.clear(); 
+                location.reload(); 
+            }); 
+        } 
+    };
   </script>
 
   <script>
