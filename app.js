@@ -17,9 +17,10 @@ const PIECE_IMAGES = {
 
 const AI_LEVELS = { 1:{skill:0,depth:1}, 2:{skill:3,depth:2}, 3:{skill:6,depth:4}, 4:{skill:10,depth:6}, 5:{skill:14,depth:8}, 6:{skill:17,depth:12}, 7:{skill:20,depth:15}, 8:{skill:20,depth:20} };
 
+// СОСТОЯНИЕ
 var liveGame = new Chess();
 var displayGame = new Chess();
-window.game = liveGame;
+window.game = liveGame; 
 
 let fullMoveHistory = [], currentMoveIndex = 0;
 let whiteTime = 300, blackTime = 300, increment = 0, lastTick = null;
@@ -32,22 +33,23 @@ let stockfishWorker = null, isStockfishReady = false, isWaitingForAIMove = false
 let promotionFrom = null, promotionTo = null;
 const DRAG_THRESHOLD = 10;
 
-// ИНИЦИАЛИЗАЦИЯ
-document.addEventListener('DOMContentLoaded', () => {
-    // 1. Вышибала
+// ЗАПУСК
+function initApp() {
+    console.log("Запуск Azachess...");
     const uid = localStorage.getItem('azachess-user-id');
     if (!uid || uid === "null") {
         window.location.href = 'auth.html';
         return;
     }
 
-    // 2. Привязка кнопок (для модулей нужно делать через window или addEventListener)
-    document.getElementById('btn-new-game').onclick = startNewGame;
-    document.getElementById('btn-flip').onclick = flipBoard;
-    document.getElementById('btn-nav-first').onclick = () => jumpToMoveIndex(0);
-    document.getElementById('btn-nav-prev').onclick = () => jumpToMoveIndex(currentMoveIndex - 1);
-    document.getElementById('btn-nav-next').onclick = () => jumpToMoveIndex(currentMoveIndex + 1);
-    document.getElementById('btn-nav-last').onclick = () => jumpToMoveIndex(fullMoveHistory.length);
+    // Привязка кнопок
+    const setup = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = fn; };
+    setup('btn-new-game', startNewGame);
+    setup('btn-flip', flipBoard);
+    setup('btn-nav-first', () => jumpToMoveIndex(0));
+    setup('btn-nav-prev', () => jumpToMoveIndex(currentMoveIndex - 1));
+    setup('btn-nav-next', () => jumpToMoveIndex(currentMoveIndex + 1));
+    setup('btn-nav-last', () => jumpToMoveIndex(fullMoveHistory.length));
 
     window.addEventListener('keydown', (e) => {
         if (e.key === 'ArrowLeft') { e.preventDefault(); jumpToMoveIndex(currentMoveIndex - 1); }
@@ -56,7 +58,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     initStockfish();
     resetGameSettings();
-});
+}
+
+// Вызываем инициализацию сразу, так как модули загружаются асинхронно
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initApp);
+} else {
+    initApp();
+}
+
+// --- ВСЕ ОСТАЛЬНЫЕ ФУНКЦИИ (ПРОСТО СКОПИРУЙ ИЗ ПРОШЛОГО ОТВЕТА) ---
 
 function initStockfish() {
     try {
