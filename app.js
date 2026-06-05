@@ -388,12 +388,10 @@ function renderPromotionChoices() {
 let isGameOverSaved = false; // Флаг, чтобы не сохранять дважды
 
 async function saveToPermanentArchive(reason) {
-    const userId = localStorage.getItem('azachess-user-id');
-    
-    if (!userId || userId === "null" || userId === "undefined") return;
-
     if (isGameOverSaved || fullMoveHistory.length < 2) return;
     isGameOverSaved = true;
+
+    const userId = localStorage.getItem('azachess-user-id');
 
     const gameData = {
         id: Date.now() + '_' + Math.random().toString(36).slice(2, 7),

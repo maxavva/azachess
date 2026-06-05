@@ -98,7 +98,7 @@
       <div class="main-actions">
     <button class="start-btn" id="play-btn" onclick="startGame()">ИГРАТЬ</button>
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-        <a href="analysis.html" class="start-btn secondary">АНАЛИЗ</a>
+        <button class="start-btn secondary" onclick="goToAnalysis()">АНАЛИЗ</button>
         <a href="archive.html" class="start-btn secondary">АРХИВ</a>
 
 </div>
@@ -131,9 +131,21 @@
   initGrid('#color-grid .level-btn', 'selected-player-color');
 
   function startGame() {
+    if (!localStorage.getItem('azachess-user-id')) {
+      window.location.href = 'auth.html';
+      return;
+    }
     // Принудительно чистим старую игру, так как идем с главной
     localStorage.removeItem('azachess-save-game');
     window.location.href = 'play.html';
+  }
+
+  function goToAnalysis() {
+    if (!localStorage.getItem('azachess-user-id')) {
+      window.location.href = 'auth.html';
+      return;
+    }
+    window.location.href = 'analysis.html';
   }
 </script>
 </body>
