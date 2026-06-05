@@ -5,8 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Azachess - Игра против ИИ</title>
   <link rel="stylesheet" href="style.css">
-  <script src="https://cdn.jsdelivr.net/npm/chess.js@0.10.3/chess.min.js"></script>
-</head>
+  <!-- Библиотека шахмат (глобальная) -->
+<script src="https://cdn.jsdelivr.net/npm/chess.js@0.10.3/chess.min.js"></script>
+
+<!-- Звуки (обычный скрипт) -->
+<script src="sounds.js"></script>
+
+<!-- Твой код (ОБЯЗАТЕЛЬНО type="module") -->
+<script type="module" src="app.js"></script>
 <body>
 
   <div class="game-wrapper-root">
@@ -54,7 +60,6 @@
     </div>
   </div>
 
-  <script src="sounds.js"></script>
-  <script type="module" src="app.js"></script>
+
 </body>
 </html>
