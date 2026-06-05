@@ -22,9 +22,8 @@
     <main id="archive-list"></main>
   </div>
 
-  <script type="module">
-    import { dbol, collection, query, where, getDocs, db } from "./firebase-logic.js";
-    // Используем db из твоего экспорта в firebase-logic.js
+ <script type="module">
+    import { db, collection, query, getDocs } from "./firebase-logic.js";
 
     async function loadGames() {
         const userId = localStorage.getItem('azachess-user-id');
@@ -32,24 +31,24 @@
         const loader = document.getElementById('loader');
 
         if (!userId) {
-            list.innerHTML = '<div style="text-align:center; padding: 20px;">Войдите в аккаунт, чтобы просмотреть свои партии.</div>';
+            list.innerHTML = '<div style="text-align:center; padding: 20px;">Войдите в аккаунт.</div>';
             loader.style.display = 'none';
             return;
         }
 
         try {
-            // Упрощенный запрос без сложной сортировки (чтобы не требовать индексы сразу)
-            const q = query(collection(db, "games"), where("userId", "==", userId));
-            const querySnapshot = await getDocs(q);
+            // МЕНЯЕМ ПУТЬ ЗАПРОСА: заходим в личный контейнер
+            const userHistoryRef = collection(db, "users", userId, "history");
+            const querySnapshot = await getDocs(userHistoryRef);
             
             loader.style.display = 'none';
 
             if (querySnapshot.empty) {
-                list.innerHTML = '<div style="text-align:center; padding: 20px;">Партий пока нет. Сыграйте свою первую игру!</div>';
+                list.innerHTML = '<div style="text-align:center; padding: 20px;">Ваш контейнер пуст. Сыграйте партию!</div>';
                 return;
             }
 
-            // Сортируем вручную по ID (времени создания), чтобы не настраивать индексы в Firebase
+            // Сортируем локально по дате (самые свежие сверху)
             const sortedDocs = querySnapshot.docs.sort((a, b) => b.data().id - a.data().id);
 
             list.innerHTML = sortedDocs.map(doc => {
@@ -57,30 +56,30 @@
                 return `
                     <div class="game-card">
                         <div class="game-info">
-                            <div style="font-size: 0.75rem; color: #888; text-transform: uppercase;">${game.date} • Уровень ${game.aiLevel}</div>
+                            <div style="font-size: 0.75rem; color: #888;">${game.date}</div>
                             <div style="font-size: 1.1rem; font-weight: bold; color: #fff; margin: 4px 0;">${game.result}</div>
+                            <div class="game-meta">Уровень ${game.aiLevel} • ${game.timeControl}</div>
                             <div class="game-moves">${game.history.map(m => m.san).join(' ')}</div>
                         </div>
-                        <button class="grid-item" style="padding: 10px 15px; margin-left: 15px;" onclick="viewGame('${doc.id}')">АНАЛИЗ</button>
+                        <button class="grid-item" style="padding: 10px 15px;" onclick="viewGame('${doc.id}')">АНАЛИЗ</button>
                     </div>
                 `;
             }).join('');
 
             window.viewGame = (docId) => {
-                const doc = sortedDocs.find(d => d.id === docId);
-                if (doc) {
-                    sessionStorage.setItem('analysis-load-game', JSON.stringify(doc.data().history));
+                const found = sortedDocs.find(d => d.id === docId);
+                if (found) {
+                    sessionStorage.setItem('analysis-load-game', JSON.stringify(found.data().history));
                     window.location.href = 'analysis.html';
                 }
             };
 
         } catch (e) {
             console.error("Firebase Error:", e);
-            loader.innerText = "Ошибка загрузки. Проверьте интернет.";
+            loader.innerText = "Ошибка доступа к контейнеру.";
         }
     }
-
     loadGames();
-  </script>
+</script>
 </body>
 </html>
