@@ -377,52 +377,42 @@ function renderPromotionChoices() {
 // ФУНКЦИЯ СОХРАНЕНИЯ В БАЗУ (АРХИВ)
 let isGameOverSaved = false; // Флаг, чтобы не сохранять дважды
 
-function saveToPermanentArchive(reason) {
-    if (isGameOverSaved || fullMoveHistory.length < 2) return; 
+async function saveToPermanentArchive(reason) {
+    // Проверка авторизации
+    const userId = localStorage.getItem('azachess-user-id');
+    if (!userId) {
+        console.log("Гостевой режим: сохранение пропущено.");
+        return; 
+    }
+
+    if (isGameOverSaved || fullMoveHistory.length < 2) return;
     isGameOverSaved = true;
 
-    const archive = JSON.parse(localStorage.getItem('azachess-archive') || '[]');
-    
-    const gameRecord = {
-        id: Date.now(),
-        date: new Date().toLocaleString(),
-        result: reason,
-        // Сохраняем историю как массив объектов для точности
-        history: fullMoveHistory, 
-        fen: liveGame.fen(),
-        timeControl: localStorage.getItem('selected-time-control'),
-        userColor: userColor
+    const gameData = { 
+        userId: userId, // Привязываем игру к пользователю
+        date: new Date().toLocaleString(), 
+        result: reason, 
+        history: fullMoveHistory.map(m => ({from: m.from, to: m.to, san: m.san})), 
+        fen: liveGame.fen(), 
+        timeControl: localStorage.getItem('selected-time-control') || '5+3',
+        userColor: userColor 
     };
 
-    archive.unshift(gameRecord);
+    // 1. Сохраняем локально (для быстрого доступа)
+    const archive = JSON.parse(localStorage.getItem('azachess-archive') || '[]');
+    archive.unshift(gameData);
     localStorage.setItem('azachess-archive', JSON.stringify(archive));
-    console.log("Партия заархивирована.");
+
+    // 2. ОТПРАВКА В ОБЛАКО FIREBASE (Новая логика)
+    try {
+        // Мы импортируем функции из нашего нового файла логики
+        const { db, collection, addDoc } = await import('./firebase-logic.js');
+        await addDoc(collection(db, "games"), gameData);
+        console.log("Партия успешно сохранена в облако Firebase!");
+    } catch (e) {
+        console.error("Ошибка сохранения в облако:", e);
+    }
 }
-
-// Вызываем это в updateStatus
-const originalUpdateStatus = updateStatus;
-updateStatus = function() {
-    originalUpdateStatus();
-    const s = document.getElementById('status-text').textContent;
-    // Если игра закончена (Мат, Пат или Время)
-    if (liveGame.game_over() || s.includes('вышло')) {
-        saveToPermanentArchive(s);
-    }
-};
-
-// Сбрасываем флаг при новой игре
-const originalReset = resetGameSettings;
-resetGameSettings = function() {
-    // Останавливаем движок до сброса — иначе отложенный bestmove сделает ход в новой партии
-    if (stockfishWorker) stockfishWorker.postMessage('stop');
-    isWaitingForAIMove = false;
-    isGameOverSaved = false;
-    originalReset();
-    // Если загружена уже завершённая партия — помечаем как сохранённую, чтобы не писать в архив дважды
-    if (liveGame.game_over() || (isClockEnabled && (whiteTime <= 0 || blackTime <= 0))) {
-        isGameOverSaved = true;
-    }
-};
 
 // Финальная проверка логики Firebase
 
