@@ -1,19 +1,227 @@
-/* Обнови или добавь это в home-style.css */
+/* ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ */
+:root {
+  --bg-dark: #161512;       /* Фон страницы */
+  --bg-panel: #262421;      /* Фон панелей */
+  --accent: #258039;        /* Зеленый акцент (Lichess style) */
+  --border: #3c3934;        /* Цвет границ */
+  --text-bright: #ffffff;   /* Яркий текст */
+  --text-dim: #bababa;      /* Приглушенный текст */
+  --glass: rgba(255, 255, 255, 0.03);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background-color: var(--bg-dark);
+  color: var(--text-dim);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ВЕРХНЯЯ ПАНЕЛЬ ПРОФИЛЯ */
+.top-profile-bar {
+  width: 100%;
+  max-width: 1000px;
+  padding: 12px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  border-radius: 0 0 8px 8px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+}
+
+/* КОНТЕЙНЕР ГЛАВНОГО ЭКРАНА */
+.hub-container {
+  width: 100%;
+  max-width: 500px; /* Узкий удобный формат */
+  padding: 40px 20px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ЛОГОТИП */
+.hub-header {
+  text-align: center;
+  margin-bottom: 40px;
+}
+
+.logo {
+  font-size: 3.2rem;
+  font-weight: 900;
+  color: var(--text-bright);
+  margin: 0;
+  letter-spacing: -2px;
+  text-transform: uppercase;
+}
+
+.logo span {
+  color: var(--accent);
+}
+
+.tagline {
+  font-size: 0.9rem;
+  color: #666;
+  margin-top: 5px;
+}
+
+/* СЕКЦИИ ВЫБОРА */
+.mode-section {
+  margin-bottom: 32px;
+}
+
+.section-title {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  color: #888;
+  margin-bottom: 15px;
+  font-weight: bold;
+  letter-spacing: 1px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 8px;
+}
+
+/* СЕТКИ ПЛИТОК */
 .selection-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr); /* Для времени */
   gap: 8px;
 }
 
-#level-grid {
-  grid-template-columns: repeat(4, 1fr) !important; /* Для 8 уровней: 2 ряда по 4 */
+/* Плитки времени: 3 колонки (для 6 штук будет 2 ряда) */
+#time-grid {
+  grid-template-columns: repeat(3, 1fr);
 }
 
-@media (max-width: 400px) {
-  #level-grid {
-    grid-template-columns: repeat(4, 1fr) !important;
+/* Плитки уровней ИИ: 4 колонки (для 8 уровней будет 2 ряда) */
+#level-grid {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+/* Плитки цвета: 3 колонки */
+#color-grid {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+/* ЭЛЕМЕНТ СЕТКИ (ПЛИТКА) */
+.grid-item {
+  background: var(--glass);
+  border: 1px solid var(--border);
+  padding: 14px 5px;
+  border-radius: 6px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: #fff;
+  font-weight: 600;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  user-select: none;
+}
+
+.grid-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: #555;
+}
+
+.grid-item.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 0 15px rgba(37, 128, 57, 0.3);
+}
+
+/* Подписи внутри плиток времени (Пуля, Блиц...) */
+.grid-item span.label {
+  display: block;
+  font-size: 0.65rem;
+  font-weight: normal;
+  margin-top: 4px;
+  opacity: 0.6;
+}
+
+/* КНОПКИ ДЕЙСТВИЯ */
+.main-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.start-btn {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  padding: 20px;
+  border-radius: 8px;
+  font-size: 1.2rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform 0.1s active, filter 0.2s;
+  text-decoration: none;
+  text-align: center;
+  box-shadow: 0 4px 0px #1a5e26;
+}
+
+.start-btn:hover {
+  filter: brightness(1.1);
+}
+
+.start-btn:active {
+  transform: translateY(2px);
+  box-shadow: 0 2px 0px #1a5e26;
+}
+
+.start-btn.secondary {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  box-shadow: none;
+  font-size: 1rem;
+  padding: 15px;
+}
+
+.start-btn.secondary:active {
+  transform: scale(0.98);
+}
+
+/* СЕТКА ДЛЯ ВТОРОСТЕПЕННЫХ КНОПОК (Анализ/Архив) */
+.main-actions div {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+/* ФУТЕР */
+.hub-footer {
+  text-align: center;
+  padding: 40px 0;
+  font-size: 0.8rem;
+  color: #444;
+}
+
+/* АДАПТИВНОСТЬ ДЛЯ МОБИЛОК */
+@media (max-width: 480px) {
+  .logo {
+    font-size: 2.5rem;
   }
-  .selection-grid {
-    grid-template-columns: repeat(2, 1fr);
+  
+  #time-grid {
+    grid-template-columns: repeat(2, 1fr); /* 2 колонки для времени на узких экранах */
+  }
+
+  .grid-item {
+    padding: 12px 2px;
+    font-size: 0.9rem;
   }
 }
