@@ -318,10 +318,17 @@ async function saveToPermanentArchive(reason) {
     archive.unshift(gameData);
     localStorage.setItem('azachess-archive', JSON.stringify(archive));
 
-    try {
-        const { db, collection, addDoc } = await import('./firebase-logic.js');
-        await addDoc(collection(db, "games"), gameData);
-    } catch (e) { console.error("Firebase Error:", e); }
+   try {
+    const { db, collection, addDoc, doc } = await import('./firebase-logic.js');
+    
+    // МЕНЯЕМ ПУТЬ: теперь мы сохраняем в под-коллекцию пользователя
+    // users -> [userId] -> history -> [новая игра]
+    const userHistoryRef = collection(db, "users", userId, "history");
+    
+    await addDoc(userHistoryRef, gameData);
+    console.log("Партия сохранена в ваш личный облачный контейнер!");
+} catch (e) {
+    console.error("Ошибка сохранения в облако:", e);
 }
 
 function checkAndTriggerAI() { 
