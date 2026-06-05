@@ -1,4 +1,4 @@
-// Проверка нейросети CodeRabbit
+//? Проверка нейросети CodeRabbit
 
 /**
  * AZACHESS - Официальный скрипт игрового режима
@@ -49,6 +49,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function initApp() {
     if (typeof Chess === 'undefined') { setTimeout(initApp, 100); return; }
+
+    const userId = localStorage.getItem('azachess-user-id');
+    if (!userId || userId === "null" || userId === "undefined") {
+        window.location.href = 'auth.html';
+        return;
+    }
 
     // Навигация
     const setupBtn = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = fn; };
@@ -332,6 +338,10 @@ function updateStatus() {
     else if (isClockEnabled && blackTime <= 0) s.textContent = 'Черные: время вышло!';
     else if (liveGame.in_checkmate()) s.textContent = 'Мат!';
     else s.textContent = liveGame.turn()==='w' ? 'Ход белых' : 'Ход черных';
+
+    if ((isClockEnabled && (whiteTime <= 0 || blackTime <= 0)) || liveGame.game_over()) {
+        saveToPermanentArchive(s.textContent);
+    }
 }
 
 function checkAndTriggerAI() { 
@@ -348,7 +358,7 @@ function triggerEngineMove() {
     stockfishWorker.postMessage(`go depth ${AI_LEVELS[lv].depth}`);
 }
 
-function startNewGame() { if (confirm("Начать новую игру?")) { localStorage.removeItem('azachess-save-game'); resetGameSettings(); } }
+function startNewGame() { if (confirm("Начать новую игру?")) { localStorage.removeItem('azachess-save-game'); isGameOverSaved = false; resetGameSettings(); } }
 function flipBoard() { isFlipped = !isFlipped; renderBoard(true); updateClockDisplay(); }
 function clearSelection() { selectedSquare = null; validMoves = []; renderBoard(false); }
 
@@ -377,42 +387,39 @@ function renderPromotionChoices() {
 // ФУНКЦИЯ СОХРАНЕНИЯ В БАЗУ (АРХИВ)
 let isGameOverSaved = false; // Флаг, чтобы не сохранять дважды
 
-function saveToPermanentArchive(reason) {
-    if (isGameOverSaved || fullMoveHistory.length < 2) return; 
+async function saveToPermanentArchive(reason) {
+    if (isGameOverSaved || fullMoveHistory.length < 2) return;
     isGameOverSaved = true;
 
-    const archive = JSON.parse(localStorage.getItem('azachess-archive') || '[]');
-    
-    const gameRecord = {
-        id: Date.now(),
+    const userId = localStorage.getItem('azachess-user-id');
+
+    const gameData = {
+        id: Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+        userId: userId, // Привязываем игру к пользователю
         date: new Date().toLocaleString(),
         result: reason,
-        // Сохраняем историю как массив объектов для точности
-        history: fullMoveHistory, 
+        history: fullMoveHistory.map(m => ({from: m.from, to: m.to, san: m.san, promotion: m.promotion || null})),
         fen: liveGame.fen(),
-        timeControl: localStorage.getItem('selected-time-control'),
+        timeControl: localStorage.getItem('selected-time-control') || '5+3',
+        aiLevel: localStorage.getItem('selected-ai-level') || '3',
         userColor: userColor
     };
 
-    archive.unshift(gameRecord);
+    // 1. Сохраняем локально (для быстрого доступа)
+    const archive = JSON.parse(localStorage.getItem('azachess-archive') || '[]');
+    archive.unshift(gameData);
     localStorage.setItem('azachess-archive', JSON.stringify(archive));
-    console.log("Партия заархивирована.");
+
+    // 2. ОТПРАВКА В ОБЛАКО FIREBASE (Новая логика)
+    try {
+        // Мы импортируем функции из нашего нового файла логики
+        const { db, collection, addDoc } = await import('./firebase-logic.js');
+        await addDoc(collection(db, "games"), gameData);
+        console.log("Партия успешно сохранена в облако Firebase!");
+    } catch (e) {
+        console.error("Ошибка сохранения в облако:", e);
+    }
 }
 
-// Вызываем это в updateStatus
-const originalUpdateStatus = updateStatus;
-updateStatus = function() {
-    originalUpdateStatus();
-    const s = document.getElementById('status-text').textContent;
-    // Если игра закончена (Мат, Пат или Время)
-    if (liveGame.game_over() || s.includes('вышло')) {
-        saveToPermanentArchive(s);
-    }
-};
+// Финальная проверка логики Firebase
 
-// Сбрасываем флаг при новой игре
-const originalReset = resetGameSettings;
-resetGameSettings = function() {
-    isGameOverSaved = false;
-    originalReset();
-};

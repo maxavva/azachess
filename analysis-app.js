@@ -27,6 +27,11 @@ let stockfishWorker = null, isStockfishReady = false, analysisLines = [];
 let promotionFrom = null, promotionTo = null;
 
 document.addEventListener('DOMContentLoaded', () => {
+    if (!localStorage.getItem('azachess-user-id')) {
+        window.location.href = 'auth.html';
+        return;
+    }
+
     initStockfish();
     
     // ПРОВЕРКА ЗАГРУЗКИ ИЗ АРХИВА

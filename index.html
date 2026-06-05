@@ -23,27 +23,40 @@
   const loginLink = document.getElementById('login-link');
   const logoutBtn = document.getElementById('logout-btn');
 
+  const playBtn = document.getElementById('play-btn');
+
   onAuthStateChanged(auth, async (user) => {
     if (user) {
+      localStorage.setItem('azachess-user-id', user.uid);
       const userSnap = await getDoc(doc(db, "users", user.uid));
       const username = userSnap.exists() ? userSnap.data().username : "Игрок";
       userInfo.innerText = "👋 Привет, " + username;
       loginLink.style.display = 'none';
       logoutBtn.style.display = 'block';
+      playBtn.textContent = 'ИГРАТЬ';
+      playBtn.onclick = startGame;
     } else {
+      localStorage.removeItem('azachess-user-id');
       userInfo.innerText = "Вы не вошли в систему";
       loginLink.style.display = 'block';
       logoutBtn.style.display = 'none';
+      playBtn.textContent = 'ВОЙДИТЕ, ЧТОБЫ ИГРАТЬ';
+      playBtn.onclick = () => { window.location.href = 'auth.html'; };
     }
   });
 
-  logoutBtn.onclick = () => signOut(auth);
+  logoutBtn.onclick = () => {
+    localStorage.removeItem('azachess-archive');
+    localStorage.removeItem('azachess-user-id');
+    signOut(auth);
+  };
 </script>
   
-  <div class="hub-container">
+
+
     <header class="hub-header">
       <h1 class="logo">AZA<span>CHESS</span></h1>
-      <p class="tagline">Начни свою партию</p>
+
     </header>
 
     <main class="hub-content">
@@ -83,11 +96,11 @@
       </section>
      
       <div class="main-actions">
-    <button class="start-btn" onclick="startGame()">ИГРАТЬ</button>
+    <button class="start-btn" id="play-btn" onclick="startGame()">ИГРАТЬ</button>
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-        <a href="analysis.html" class="start-btn secondary">АНАЛИЗ</a>
+        <button class="start-btn secondary" onclick="goToAnalysis()">АНАЛИЗ</button>
         <a href="archive.html" class="start-btn secondary">АРХИВ</a>
-    </div>
+
 </div>
     </main>
 
@@ -118,9 +131,21 @@
   initGrid('#color-grid .level-btn', 'selected-player-color');
 
   function startGame() {
+    if (!localStorage.getItem('azachess-user-id')) {
+      window.location.href = 'auth.html';
+      return;
+    }
     // Принудительно чистим старую игру, так как идем с главной
     localStorage.removeItem('azachess-save-game');
     window.location.href = 'play.html';
+  }
+
+  function goToAnalysis() {
+    if (!localStorage.getItem('azachess-user-id')) {
+      window.location.href = 'auth.html';
+      return;
+    }
+    window.location.href = 'analysis.html';
   }
 </script>
 </body>
