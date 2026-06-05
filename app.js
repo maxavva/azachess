@@ -1,4 +1,5 @@
 // Проверка нейросети CodeRabbit
+console.log("Проверка CodeRabbit");
 
 /**
  * AZACHESS - Официальный скрипт игрового режима
