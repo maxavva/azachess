@@ -247,7 +247,7 @@ function startTimer() {
                 isWaitingForAIMove = false;
                 updateStatus(); 
             }
-            updateClockDisplay(); saveGameState();
+            updateClockDisplay();
         }
     }, 500);
 }
