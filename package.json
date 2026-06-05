@@ -1,7 +1,0 @@
-{
-  "name": "azachess",
-  "version": "1.0.0",
-  "dependencies": {
-    "chess.js": "0.10.3"
-  }
-}
