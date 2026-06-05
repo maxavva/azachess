@@ -12,7 +12,7 @@
   <div id="user-info" style="color: white; font-weight: bold;">Загрузка...</div>
   <div id="auth-links">
     <a href="auth.html" id="login-link" class="nav-link" style="font-size: 0.8rem;">Войти</a>
-    <button id="logout-btn" class="nav-link" style="display: none; background: none; border: none; font-size: 0.8rem; cursor: pointer;">Выйти</button>
+    <button id="logout-btn" class="nav-link" style="display: none; background: none; border: none; font-size: 0.8rem; cursor: pointer; color: #d9534f;">Выйти</button>
   </div>
 </div>
 
@@ -25,19 +25,28 @@
 
   onAuthStateChanged(auth, async (user) => {
     if (user) {
+      localStorage.setItem('azachess-user-id', user.uid);
       const userSnap = await getDoc(doc(db, "users", user.uid));
       const username = userSnap.exists() ? userSnap.data().username : "Игрок";
       userInfo.innerText = "👋 Привет, " + username;
       loginLink.style.display = 'none';
       logoutBtn.style.display = 'block';
     } else {
+      localStorage.removeItem('azachess-user-id');
       userInfo.innerText = "Вы не вошли в систему";
       loginLink.style.display = 'block';
       logoutBtn.style.display = 'none';
     }
   });
 
-  logoutBtn.onclick = () => signOut(auth);
+  logoutBtn.onclick = () => {
+    if(confirm("Выйти из аккаунта?")) {
+        signOut(auth).then(() => {
+            localStorage.clear();
+            location.reload();
+        });
+    }
+  };
 </script>
   
   <div class="hub-container">
@@ -83,12 +92,12 @@
       </section>
      
       <div class="main-actions">
-    <button class="start-btn" onclick="startGame()">ИГРАТЬ</button>
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-        <a href="analysis.html" class="start-btn secondary">АНАЛИЗ</a>
-        <a href="archive.html" class="start-btn secondary">АРХИВ</a>
-    </div>
-</div>
+        <button class="start-btn" onclick="startGame()">ИГРАТЬ</button>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <button class="start-btn secondary" onclick="openAnalysis()">АНАЛИЗ</button>
+            <button class="start-btn secondary" onclick="location.href='archive.html'">АРХИВ</button>
+        </div>
+      </div>
     </main>
 
     <footer class="hub-footer">
@@ -97,12 +106,28 @@
   </div>
 
   <script>
-  // Дефолтные настройки
-  if(!localStorage.getItem('selected-time-control')) localStorage.setItem('selected-time-control', '5+3');
-  if(!localStorage.getItem('selected-ai-level')) localStorage.setItem('selected-ai-level', '3');
-  if(!localStorage.getItem('selected-player-color')) localStorage.setItem('selected-player-color', 'w');
+  function checkAuth() {
+    return !!localStorage.getItem('azachess-user-id');
+  }
 
-  // Универсальный обработчик для всех сеток (время, уровень, цвет)
+  function startGame() {
+    if (!checkAuth()) {
+      window.location.href = 'auth.html';
+      return;
+    }
+    localStorage.removeItem('azachess-save-game');
+    window.location.href = 'play.html';
+  }
+
+  function openAnalysis() {
+    if (!checkAuth()) {
+      window.location.href = 'auth.html';
+      return;
+    }
+    window.location.href = 'analysis.html';
+  }
+
+  // Сетки выбора
   function initGrid(selector, storageKey) {
     document.querySelectorAll(selector).forEach(el => {
       el.addEventListener('click', () => {
@@ -116,12 +141,6 @@
   initGrid('#time-grid .time-card', 'selected-time-control');
   initGrid('#level-grid .level-btn', 'selected-ai-level');
   initGrid('#color-grid .level-btn', 'selected-player-color');
-
-  function startGame() {
-    // Принудительно чистим старую игру, так как идем с главной
-    localStorage.removeItem('azachess-save-game');
-    window.location.href = 'play.html';
-  }
 </script>
 </body>
 </html>
