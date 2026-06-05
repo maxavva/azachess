@@ -1,5 +1,6 @@
 /**
- * AZACHESS - Analysis Mode Engine
+ * AZACHESS - Режим анализа (Песочница)
+ * Версия без движка: только навигация, история и варианты.
  */
 
 const pieceImagePaths = {
@@ -23,13 +24,16 @@ let activeNode = moveHistoryTree;
 
 let selectedSquare = null, validMoves = [], isFlipped = false;
 let isDragging = false, dragStartX = 0, dragStartY = 0, dragClone = null, draggedPieceImg = null, draggedSquare = null, dragMovedEnough = false;
-let stockfishWorker = null, isStockfishReady = false, analysisLines = [];
 let promotionFrom = null, promotionTo = null;
 
 document.addEventListener('DOMContentLoaded', () => {
-    initStockfish();
-    
-    // ПРОВЕРКА ЗАГРУЗКИ ИЗ АРХИВА
+    // 1. ПРОВЕРКА АВТОРИЗАЦИИ (ВЫШИБАЛА)
+    if (!localStorage.getItem('azachess-user-id')) {
+        window.location.href = 'auth.html';
+        return;
+    }
+
+    // 2. ЗАГРУЗКА ПАРТИИ ИЗ СЕССИИ (если пришли из архива)
     const loadData = sessionStorage.getItem('analysis-load-game');
     if (loadData) {
         try {
@@ -46,15 +50,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     activeNode = child;
                 }
             });
-            sessionStorage.removeItem('analysis-load-game'); // Очищаем после загрузки
-        } catch (e) { console.error("Archive Load Error:", e); }
+            sessionStorage.removeItem('analysis-load-game');
+        } catch (e) { console.error("Ошибка загрузки партии:", e); }
     }
 
     renderBoard(true);
     updateMoveLog();
     updateStatus();
 
-    // Кнопки
+    // Привязка кнопок управления
     document.getElementById('btn-new-game').onclick = startNewGame;
     document.getElementById('btn-flip').onclick = flipBoard;
     document.getElementById('btn-nav-first').onclick = () => jumpToMoveNode(moveHistoryTree);
@@ -62,69 +66,14 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btn-nav-next').onclick = navigateNext;
     document.getElementById('btn-nav-last').onclick = navigateLast;
 
-    // Клавиатура
+    // Управление клавиатурой
     window.addEventListener('keydown', (e) => {
         if (e.key === 'ArrowLeft') { e.preventDefault(); navigatePrev(); }
         if (e.key === 'ArrowRight') { e.preventDefault(); navigateNext(); }
     });
-
-    const engineToggle = document.getElementById('engine-toggle');
-    if (engineToggle) engineToggle.onchange = runAnalysisTask;
 });
 
-// --- СИСТЕМА ДВИЖКА ---
-function initStockfish() {
-    try {
-        const blobCode = `importScripts('https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js');`;
-        stockfishWorker = new Worker(URL.createObjectURL(new Blob([blobCode], { type: 'application/javascript' })));
-        stockfishWorker.onmessage = (e) => {
-            if (e.data === 'readyok') { isStockfishReady = true; runAnalysisTask(); }
-            if (e.data.startsWith('info')) handleAnalysisData(e.data);
-        };
-        stockfishWorker.postMessage('uci');
-        stockfishWorker.postMessage('isready');
-    } catch (err) { console.error(err); }
-}
-
-function handleAnalysisData(data) {
-    const multipvMatch = data.match(/multipv (\d+)/);
-    const pvIndex = multipvMatch ? parseInt(multipvMatch[1]) - 1 : 0;
-    let score = "0.00";
-    
-    if (data.includes('score cp')) {
-        let cp = parseInt(data.match(/score cp (-?\d+)/)[1]);
-        if (game.turn() === 'b') cp = -cp;
-        score = (cp / 100).toFixed(2);
-        if (pvIndex === 0) updateEvaluationBar(cp);
-    } else if (data.includes('score mate')) {
-        score = "M" + Math.abs(data.match(/score mate (-?\d+)/)[1]);
-    }
-
-    const pvMatch = data.match(/ pv (.+)/);
-    if (pvMatch) {
-        const pvMoves = pvMatch[1].split(' ');
-        analysisLines[pvIndex] = { score, move: pvMoves[0].substring(0,2)+"→"+pvMoves[0].substring(2,4), path: pvMoves.slice(1, 4).join(' ') };
-        renderMultiPV();
-    }
-}
-
-function runAnalysisTask() {
-    if (!isStockfishReady) return;
-    
-    // Настройки теперь жестко заданы или берутся из логики, а не из HTML
-    const multiPV = 3; // Всегда анализируем 3 лучшие линии
-    const threads = 4;  // Используем 4 ядра (оптимально для большинства)
-
-    stockfishWorker.postMessage('stop');
-    analysisLines = [];
-    
-    stockfishWorker.postMessage(`setoption name MultiPV value ${multiPV}`);
-    stockfishWorker.postMessage(`setoption name Threads value ${threads}`);
-    stockfishWorker.postMessage(`position fen ${game.fen()}`);
-    stockfishWorker.postMessage('go depth 18');
-}
-
-// --- ВИЗУАЛИЗАЦИЯ И ДОСКА ---
+// --- ЛОГИКА ДОСКИ ---
 function renderBoard(rebuild = false) {
     const boardEl = document.getElementById('board');
     if (!boardEl) return;
@@ -208,16 +157,15 @@ function handlePointerUp(e) {
     if (dragClone) { document.body.removeChild(dragClone); dragClone = null; }
     if (draggedPieceImg) draggedPieceImg.style.visibility = 'visible';
     const target = document.elementFromPoint(e.clientX, e.clientY)?.closest('.square')?.dataset.square;
-    if (dragMovedEnough && target && validMoves.includes(target)) {
-        handlePointerDown({ clientX: e.clientX, clientY: e.clientY }, target);
-    } else if (dragMovedEnough) renderBoard(false);
+    if (dragMovedEnough && target && validMoves.includes(target)) executeAnalysisMove(draggedSquare, target);
+    else if (dragMovedEnough) renderBoard(false);
     dragMovedEnough = false;
 }
 
 function executeAnalysisMove(f, t, p = 'q') {
     const res = game.move({ from: f, to: t, promotion: p });
     if (res) {
-        if (window.playMoveSound) playMoveSound(res);
+        if (window.playMoveSound) window.playMoveSound(res);
         let child = activeNode.children.find(c => c.move.san === res.san);
         if (!child) {
             child = { id: Math.random(), parent: activeNode, move: res, children: [] };
@@ -230,7 +178,7 @@ function executeAnalysisMove(f, t, p = 'q') {
 
 function finalizeMove() {
     selectedSquare = null; validMoves = [];
-    renderBoard(true); updateMoveLog(); updateStatus(); runAnalysisTask();
+    renderBoard(true); updateMoveLog(); updateStatus();
 }
 
 function jumpToMoveNode(node) {
@@ -300,16 +248,4 @@ function navigateLast() { let t = activeNode; while(t.children.length > 0) t = t
 function startNewGame() { game = new Chess(); moveHistoryTree = { id:0, parent:null, move:null, children:[] }; activeNode = moveHistoryTree; finalizeMove(); }
 function flipBoard() { isFlipped = !isFlipped; renderBoard(true); }
 function clearSelection() { selectedSquare = null; validMoves = []; renderBoard(false); }
-function updateStatus() { document.getElementById('status-text').textContent = game.in_checkmate() ? "Мат!" : "Анализ"; }
-function updateEvaluationBar(cp) {
-    const fill = document.getElementById('eval-fill');
-    let p = 50 + (Math.max(-800, Math.min(800, cp)) / 800) * 45;
-    if (fill) fill.style.height = `${p}%`;
-    const text = document.getElementById('eval-text');
-    if (text) text.textContent = (cp / 100).toFixed(1);
-}
-function renderMultiPV() {
-    const container = document.getElementById('multipv-container');
-    if (!container) return;
-    container.innerHTML = analysisLines.map(line => `<div style="display:flex;gap:10px;font-family:monospace;font-size:0.85rem;background:rgba(255,255,255,0.05);padding:5px;margin-bottom:2px;"><div style="font-weight:bold;color:#fff;min-width:40px;">${line.score}</div><div style="color:#258039;font-weight:bold;">${line.move}</div><div style="color:#777;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${line.path}</div></div>`).join('');
-}
+function updateStatus() { document.getElementById('status-text').textContent = game.in_checkmate() ? "Мат!" : "Свободный анализ"; }
