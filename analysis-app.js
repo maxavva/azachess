@@ -1,7 +1,4 @@
-/**
- * AZACHESS - Режим анализа (Песочница)
- * Версия без движка: только навигация, история и варианты.
- */
+import { auth, onAuthStateChanged } from "./firebase-logic.js";
 
 const pieceImagePaths = {
     'wP': 'https://upload.wikimedia.org/wikipedia/commons/4/45/Chess_plt45.svg',
@@ -26,22 +23,32 @@ let selectedSquare = null, validMoves = [], isFlipped = false;
 let isDragging = false, dragStartX = 0, dragStartY = 0, dragClone = null, draggedPieceImg = null, draggedSquare = null, dragMovedEnough = false;
 let promotionFrom = null, promotionTo = null;
 
-document.addEventListener('DOMContentLoaded', () => {
-    // 1. ПРОВЕРКА АВТОРИЗАЦИИ (ВЫШИБАЛА)
-    if (!localStorage.getItem('azachess-user-id')) {
+// ФУНКЦИЯ ИНИЦИАЛИЗАЦИИ
+function initAnalysis() {
+    const uid = localStorage.getItem('azachess-user-id');
+    if (!uid || uid === "null") {
         window.location.href = 'auth.html';
         return;
     }
 
-    // 2. ЗАГРУЗКА ПАРТИИ ИЗ СЕССИИ (если пришли из архива)
+    // Привязка кнопок
+    document.getElementById('btn-new-game').onclick = startNewGame;
+    document.getElementById('btn-flip').onclick = flipBoard;
+    document.getElementById('btn-nav-first').onclick = () => jumpToMoveNode(moveHistoryTree);
+    document.getElementById('btn-nav-prev').onclick = navigatePrev;
+    document.getElementById('btn-nav-next').onclick = navigateNext;
+    document.getElementById('btn-nav-last').onclick = navigateLast;
+
+    window.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowLeft') { e.preventDefault(); navigatePrev(); }
+        if (e.key === 'ArrowRight') { e.preventDefault(); navigateNext(); }
+    });
+
+    // ПРОВЕРКА ЗАГРУЗКИ ИЗ АРХИВА
     const loadData = sessionStorage.getItem('analysis-load-game');
     if (loadData) {
         try {
             const moves = JSON.parse(loadData);
-            game = new Chess();
-            moveHistoryTree = { id: 0, parent: null, move: null, children: [] };
-            activeNode = moveHistoryTree;
-
             moves.forEach(m => {
                 const res = game.move(m);
                 if (res) {
@@ -51,29 +58,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
             sessionStorage.removeItem('analysis-load-game');
-        } catch (e) { console.error("Ошибка загрузки партии:", e); }
+        } catch (e) { console.error(e); }
     }
 
     renderBoard(true);
     updateMoveLog();
     updateStatus();
+}
 
-    // Привязка кнопок управления
-    document.getElementById('btn-new-game').onclick = startNewGame;
-    document.getElementById('btn-flip').onclick = flipBoard;
-    document.getElementById('btn-nav-first').onclick = () => jumpToMoveNode(moveHistoryTree);
-    document.getElementById('btn-nav-prev').onclick = navigatePrev;
-    document.getElementById('btn-nav-next').onclick = navigateNext;
-    document.getElementById('btn-nav-last').onclick = navigateLast;
+// Запуск
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initAnalysis);
+} else {
+    initAnalysis();
+}
 
-    // Управление клавиатурой
-    window.addEventListener('keydown', (e) => {
-        if (e.key === 'ArrowLeft') { e.preventDefault(); navigatePrev(); }
-        if (e.key === 'ArrowRight') { e.preventDefault(); navigateNext(); }
-    });
-});
-
-// --- ЛОГИКА ДОСКИ ---
+// --- ЛОГИКА ДОСКИ (Остается прежней, но убедись, что она внутри этого файла) ---
 function renderBoard(rebuild = false) {
     const boardEl = document.getElementById('board');
     if (!boardEl) return;
@@ -199,22 +199,26 @@ function updateMoveLog() {
     for (let i = 0; i < path.length; i += 2) {
         const row = document.createElement('div'); row.className = 'move-row';
         const w = path[i], b = path[i+1], num = Math.floor(i/2)+1;
-        row.innerHTML = `<span style="color:#666;width:25px;display:inline-block;">${num}.</span>
-        <span class="move-text ${w.id===activeNode.id?'active-move':''}" style="cursor:pointer;padding:0 5px;" onclick="jumpToNodeByID(${w.id})">${w.move.san}</span>
-        ${b ? `<span class="move-text ${b.id===activeNode.id?'active-move':''}" style="cursor:pointer;padding:0 5px;" onclick="jumpToNodeByID(${b.id})">${b.move.san}</span>` : ''}`;
+        
+        const wSpan = document.createElement('span');
+        wSpan.className = `move-text ${w.id === activeNode.id ? 'active-move' : ''}`;
+        wSpan.textContent = w.move.san;
+        wSpan.onclick = () => jumpToMoveNode(w);
+
+        row.innerHTML = `<span style="color:#666;">${num}.</span>`;
+        row.appendChild(wSpan);
+
+        if (b) {
+            const bSpan = document.createElement('span');
+            bSpan.className = `move-text ${b.id === activeNode.id ? 'active-move' : ''}`;
+            bSpan.textContent = b.move.san;
+            bSpan.onclick = () => jumpToMoveNode(b);
+            row.appendChild(bSpan);
+        }
         log.appendChild(row);
     }
     updateBranchSelector();
 }
-
-window.jumpToNodeByID = (id) => {
-    const find = (root, targetId) => {
-        if (root.id === targetId) return root;
-        for (let c of root.children) { let res = find(c, targetId); if (res) return res; }
-        return null;
-    };
-    jumpToMoveNode(find(moveHistoryTree, id));
-};
 
 function updateBranchSelector() {
     const panel = document.getElementById('branch-panel'), container = document.getElementById('branch-choices');
@@ -232,12 +236,15 @@ function updateBranchSelector() {
 }
 
 function renderPromotionChoices() {
-    const container = document.querySelector('.promotion-choices'), turn = game.turn();
-    container.innerHTML = '';
+    const container = document.querySelector('.promotion-choices');
+    const turn = game.turn(); container.innerHTML = '';
     ['q','r','b','n'].forEach(p => {
         const btn = document.createElement('button');
         btn.innerHTML = `<img src="${pieceImagePaths[turn+p.toUpperCase()]}" style="width:100%">`;
-        btn.onclick = () => { executeAnalysisMove(promotionFrom, promotionTo, p); document.getElementById('promotion-modal').classList.add('hidden'); };
+        btn.onclick = () => { 
+            executeAnalysisMove(promotionFrom, promotionTo, p); 
+            document.getElementById('promotion-modal').classList.add('hidden'); 
+        };
         container.appendChild(btn);
     });
 }
