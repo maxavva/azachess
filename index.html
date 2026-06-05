@@ -16,94 +16,55 @@
   </div>
 </div>
 
-<script type="module">
-  import { auth, db, onAuthStateChanged, signOut, doc, getDoc } from "./firebase-logic.js";
+<script>
+  // Простая проверка: есть ли ID пользователя в памяти
+  function checkAuth() {
+    const uid = localStorage.getItem('azachess-user-id');
+    // Если значения нет, или оно равно "null" (строкой), возвращаем false
+    return (uid && uid !== "null" && uid !== "undefined");
+  }
 
-  const userInfo = document.getElementById('user-info');
-  const loginLink = document.getElementById('login-link');
-  const logoutBtn = document.getElementById('logout-btn');
-
-  onAuthStateChanged(auth, async (user) => {
-    if (user) {
-      localStorage.setItem('azachess-user-id', user.uid);
-      const userSnap = await getDoc(doc(db, "users", user.uid));
-      const username = userSnap.exists() ? userSnap.data().username : "Игрок";
-      userInfo.innerText = "👋 Привет, " + username;
-      loginLink.style.display = 'none';
-      logoutBtn.style.display = 'block';
-    } else {
-      localStorage.removeItem('azachess-user-id');
-      userInfo.innerText = "Вы не вошли в систему";
-      loginLink.style.display = 'block';
-      logoutBtn.style.display = 'none';
+  // Функция для кнопки ИГРАТЬ
+  function startGame() {
+    if (!checkAuth()) {
+      window.location.href = 'auth.html'; // Отправляем на регистрацию
+      return;
     }
-  });
+    // Если авторизован — удаляем старую игру и идем играть
+    localStorage.removeItem('azachess-save-game');
+    window.location.href = 'play.html';
+  }
 
-  logoutBtn.onclick = () => {
-    if(confirm("Выйти из аккаунта?")) {
-        signOut(auth).then(() => {
-            localStorage.clear();
-            location.reload();
-        });
+  // Функция для кнопки АНАЛИЗ
+  function openAnalysis() {
+    if (!checkAuth()) {
+      window.location.href = 'auth.html'; // Отправляем на регистрацию
+      return;
     }
-  };
+    window.location.href = 'analysis.html';
+  }
+
+  // Инициализация сеток выбора (время, уровень, цвет)
+  function initGrid(selector, storageKey) {
+    document.querySelectorAll(selector).forEach(el => {
+      el.addEventListener('click', () => {
+        document.querySelectorAll(selector).forEach(c => c.classList.remove('active'));
+        el.classList.add('active');
+        localStorage.setItem(storageKey, el.dataset.time || el.dataset.lv || el.dataset.color);
+      });
+    });
+  }
+
+  // Запуск выбора при загрузке
+  initGrid('#time-grid .time-card', 'selected-time-control');
+  initGrid('#level-grid .level-btn', 'selected-ai-level');
+  initGrid('#color-grid .level-btn', 'selected-player-color');
+
+  // Установка значений по умолчанию, если их нет
+  if(!localStorage.getItem('selected-time-control')) localStorage.setItem('selected-time-control', '5+3');
+  if(!localStorage.getItem('selected-ai-level')) localStorage.setItem('selected-ai-level', '3');
+  if(!localStorage.getItem('selected-player-color')) localStorage.setItem('selected-player-color', 'w');
 </script>
-  
-  <div class="hub-container">
-    <header class="hub-header">
-      <h1 class="logo">AZA<span>CHESS</span></h1>
-      <p class="tagline">Начни свою партию</p>
-    </header>
-
-    <main class="hub-content">
-      <section class="mode-section">
-        <h2 class="section-title">1. Выберите время</h2>
-        <div class="time-grid" id="time-grid">
-          <div class="time-card" data-time="1+0"><span class="val">1+0</span><span class="lab">Пуля</span></div>
-          <div class="time-card" data-time="3+2"><span class="val">3+2</span><span class="lab">Блиц</span></div>
-          <div class="time-card active" data-time="5+3"><span class="val">5+3</span><span class="lab">Блиц</span></div>
-          <div class="time-card" data-time="10+5"><span class="val">10+5</span><span class="lab">Рапид</span></div>
-          <div class="time-card" data-time="30+0"><span class="val">30+0</span><span class="lab">Классика</span></div>
-          <div class="time-card special" data-time="none"><span class="val">∞</span><span class="lab">Без времени</span></div>
-        </div>
-      </section>
-
-      <section class="mode-section">
-        <h2 class="section-title">2. Выберите уровень ИИ</h2>
-        <div class="level-grid" id="level-grid">
-          <button class="level-btn" data-lv="1">1</button>
-          <button class="level-btn" data-lv="2">2</button>
-          <button class="level-btn active" data-lv="3">3</button>
-          <button class="level-btn" data-lv="4">4</button>
-          <button class="level-btn" data-lv="5">5</button>
-          <button class="level-btn" data-lv="6">6</button>
-          <button class="level-btn" data-lv="7">7</button>
-          <button class="level-btn" data-lv="8">8</button>
-        </div>
-      </section>
-
-      <section class="mode-section">
-        <h2 class="section-title">3. Выберите цвет</h2>
-        <div class="level-grid" id="color-grid" style="grid-template-columns: repeat(3, 1fr);">
-          <button class="level-btn active" data-color="w">Белые</button>
-          <button class="level-btn" data-color="random">?</button>
-          <button class="level-btn" data-color="b">Черные</button>
-        </div>
-      </section>
-     
-      <div class="main-actions">
-        <button class="start-btn" onclick="startGame()">ИГРАТЬ</button>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-            <button class="start-btn secondary" onclick="openAnalysis()">АНАЛИЗ</button>
-            <button class="start-btn secondary" onclick="location.href='archive.html'">АРХИВ</button>
-        </div>
-      </div>
-    </main>
-
-    <footer class="hub-footer">
-      <p>&copy; 2026 Azachess Project</p>
-    </footer>
-  </div>
 
   <script>
   function checkAuth() {
