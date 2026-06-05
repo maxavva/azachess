@@ -385,7 +385,7 @@ async function saveToPermanentArchive(reason) {
     // Проверка авторизации
     const userId = localStorage.getItem('azachess-user-id');
     if (!userId) {
-        console.log("Гостевой режим: сохранение пропущено.");
+        console.log("Гостевой режим, архив пропущен");
         return; 
     }
 
@@ -405,7 +405,7 @@ async function saveToPermanentArchive(reason) {
     };
 
     // 1. Сохраняем локально (для быстрого доступа)
-
+    const archive = JSON.parse(localStorage.getItem('azachess-archive') || '[]');
     archive.unshift(gameData);
     localStorage.setItem('azachess-archive', JSON.stringify(archive));
 

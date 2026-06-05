@@ -8,10 +8,35 @@
 </head>
 <body>
 
+<div id="user-bar" style="background: rgba(0,0,0,0.3); padding: 8px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #3c3934;">
+  <div id="user-info" style="color: white; font-size: 0.85rem;"></div>
+  <button id="logout-btn" style="display: none; background: none; border: 1px solid #666; color: #aaa; font-size: 0.8rem; padding: 4px 10px; border-radius: 4px; cursor: pointer;">Выйти</button>
+</div>
+
+<script>
+  (function() {
+    const userId = localStorage.getItem('azachess-user-id');
+    const userInfo = document.getElementById('user-info');
+    const logoutBtn = document.getElementById('logout-btn');
+    if (userId) {
+      userInfo.textContent = 'Вы вошли';
+      logoutBtn.style.display = 'block';
+    } else {
+      userInfo.textContent = 'Гостевой режим';
+    }
+    logoutBtn.addEventListener('click', function() {
+      localStorage.removeItem('azachess-user-id');
+      localStorage.removeItem('azachess-archive');
+      logoutBtn.style.display = 'none';
+      userInfo.textContent = 'Гостевой режим';
+    });
+  })();
+</script>
+
   <div class="hub-container">
     <header class="hub-header">
       <h1 class="logo">AZA<span>CHESS</span></h1>
-      <p class="tagline">Начни свою партию</p>
+
     </header>
 
     <main class="hub-content">
