@@ -115,50 +115,96 @@ function renderBoard(rebuild = false) {
 
 function handlePointerDown(e, sq) {
     if (typeof window.unlockAudio === 'function') window.unlockAudio();
+
+    // 1. ЕСЛИ УЖЕ ВЫБРАН КВАДРАТ И МЫ КЛИКАЕМ ПО ДОПУСТИМОМУ ХОДУ -> ХОД ЩЕЛЧКОМ
     if (selectedSquare && validMoves.includes(sq)) {
         const move = game.moves({ square: selectedSquare, verbose: true }).find(m => m.to === sq);
         if (move?.flags.includes('p')) {
             promotionFrom = selectedSquare; promotionTo = sq;
             document.getElementById('promotion-modal').classList.remove('hidden');
             renderPromotionChoices();
-        } else executeAnalysisMove(selectedSquare, sq);
+        } else {
+            executeAnalysisMove(selectedSquare, sq);
+        }
         return;
     }
+
+    // 2. ВЫБОР ФИГУРЫ И НАЧАЛО ПЕРЕТАСКИВАНИЯ
     const piece = game.get(sq);
     if (piece) {
-        isDragging = true; draggedSquare = sq; dragStartX = e.clientX; dragStartY = e.clientY;
+        selectedSquare = sq;
+        validMoves = game.moves({ square: sq, verbose: true }).map(m => m.to);
+        
+        isDragging = true;
+        draggedSquare = sq;
+        dragStartX = e.clientX;
+        dragStartY = e.clientY;
         draggedPieceImg = e.target.classList.contains('piece') ? e.target : e.target.querySelector('.piece');
-        if (piece.color === game.turn()) { selectedSquare = sq; validMoves = game.moves({ square: sq, verbose: true }).map(m => m.to); }
-        else { selectedSquare = null; validMoves = []; }
-        renderBoard(false);
-        window.onpointermove = handlePointerMove; window.onpointerup = handlePointerUp;
-    } else clearSelection();
+        
+        renderBoard(false); // Рисуем точки ходов сразу после нажатия
+        
+        window.onpointermove = handlePointerMove;
+        window.onpointerup = handlePointerUp;
+    } else {
+        clearSelection();
+    }
 }
 
 function handlePointerMove(e) {
     if (!isDragging || !draggedPieceImg) return;
+    
+    // Проверяем, сдвинулся ли палец/мышь достаточно далеко
     if (Math.hypot(e.clientX - dragStartX, e.clientY - dragStartY) > 5) {
         dragMovedEnough = true;
+        
         if (!dragClone) {
             dragClone = draggedPieceImg.cloneNode(true);
             dragClone.className = 'piece drag-clone';
+            
+            // Задаем размер клона точно такой же, как у оригинала
             const rect = draggedPieceImg.getBoundingClientRect();
-            dragClone.style.width = rect.width + 'px'; dragClone.style.height = rect.height + 'px';
+            dragClone.style.width = rect.width + "px";
+            dragClone.style.height = rect.height + "px";
+            
             document.body.appendChild(dragClone);
-            draggedPieceImg.style.visibility = 'hidden';
+            draggedPieceImg.style.visibility = 'hidden'; // Скрываем оригинал на доске
         }
+        
         dragClone.style.left = (e.clientX - dragClone.offsetWidth / 2) + 'px';
         dragClone.style.top = (e.clientY - dragClone.offsetHeight / 2) + 'px';
     }
 }
 
 function handlePointerUp(e) {
-    isDragging = false; window.onpointermove = null; window.onpointerup = null;
-    if (dragClone) { document.body.removeChild(dragClone); dragClone = null; }
+    isDragging = false;
+    window.onpointermove = null;
+    window.onpointerup = null;
+
+    if (dragClone) {
+        document.body.removeChild(dragClone);
+        dragClone = null;
+    }
     if (draggedPieceImg) draggedPieceImg.style.visibility = 'visible';
+
     const target = document.elementFromPoint(e.clientX, e.clientY)?.closest('.square')?.dataset.square;
-    if (dragMovedEnough && target && validMoves.includes(target)) executeAnalysisMove(draggedSquare, target);
-    else if (dragMovedEnough) renderBoard(false);
+
+    // Если мы реально тащили фигуру и бросили на валидный квадрат
+    if (dragMovedEnough && target && validMoves.includes(target)) {
+        const move = game.moves({ square: draggedSquare, verbose: true }).find(m => m.to === target);
+        if (move?.flags.includes('p')) {
+            promotionFrom = draggedSquare; promotionTo = target;
+            document.getElementById('promotion-modal').classList.remove('hidden');
+            renderPromotionChoices();
+        } else {
+            executeAnalysisMove(draggedSquare, target);
+        }
+    } else if (!dragMovedEnough) {
+        // Если это был просто короткий клик — ничего не сбрасываем, оставляем выбор
+    } else {
+        // Если тащили, но бросили мимо
+        renderBoard(false);
+    }
+    
     dragMovedEnough = false;
 }
 
