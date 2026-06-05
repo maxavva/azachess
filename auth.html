@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Azachess - Вход</title>
+  <link rel="stylesheet" href="home-style.css">
+  <style>
+    .auth-box { max-width: 400px; margin: 50px auto; padding: 30px; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 12px; }
+    input { width: 100%; padding: 12px; margin: 10px 0; background: #111; border: 1px solid var(--border); color: white; border-radius: 6px; }
+    .toggle-link { color: var(--accent); cursor: pointer; text-decoration: underline; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+  <div class="auth-box">
+    <h2 id="auth-title" style="color: white;">Вход в аккаунт</h2>
+    <input type="text" id="username" placeholder="Твой никнейм (только для регистрации)" style="display: none;">
+    <input type="email" id="email" placeholder="Email">
+    <input type="password" id="password" placeholder="Пароль">
+    <button class="start-btn" id="auth-btn" style="margin-top: 15px;">ВОЙТИ</button>
+    <p style="margin-top: 20px; font-size: 0.9rem;">
+      <span id="toggle-text">Нет аккаунта?</span> 
+      <span class="toggle-link" id="toggle-auth">Зарегистрироваться</span>
+    </p>
+    <a href="index.html" style="display: block; margin-top: 15px; color: #666; text-decoration: none;">← На главную</a>
+  </div>
+
+  <script type="module">
+    import { auth, db, createUserWithEmailAndPassword, signInWithEmailAndPassword, doc, setDoc } from "./firebase-logic.js";
+
+    let isLogin = true;
+    const authBtn = document.getElementById('auth-btn');
+    const toggleAuth = document.getElementById('toggle-auth');
+    const usernameInput = document.getElementById('username');
+
+    toggleAuth.onclick = () => {
+      isLogin = !isLogin;
+      document.getElementById('auth-title').innerText = isLogin ? 'Вход в аккаунт' : 'Регистрация';
+      authBtn.innerText = isLogin ? 'ВОЙТИ' : 'СОЗДАТЬ АККАУНТ';
+      usernameInput.style.display = isLogin ? 'none' : 'block';
+      document.getElementById('toggle-text').innerText = isLogin ? 'Нет аккаунта?' : 'Уже есть аккаунт?';
+      toggleAuth.innerText = isLogin ? 'Зарегистрироваться' : 'Войти';
+    };
+
+    authBtn.onclick = async () => {
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+      const username = usernameInput.value;
+
+      try {
+        if (isLogin) {
+          await signInWithEmailAndPassword(auth, email, password);
+          alert("С возвращением!");
+        } else {
+          const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+          // Сохраняем никнейм в базу данных
+          await setDoc(doc(db, "users", userCredential.user.uid), {
+            username: username,
+            createdAt: new Date().toISOString()
+          });
+          alert("Аккаунт создан!");
+        }
+        window.location.href = "index.html";
+      } catch (error) {
+        alert("Ошибка: " + error.message);
+      }
+    };
+  </script>
+</body>
+</html>
