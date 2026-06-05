@@ -3,63 +3,66 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Azachess - Анализ</title>
+  <title>Azachess - Анализ и Разбор</title>
   <link rel="stylesheet" href="analysis-style.css">
   <script src="https://cdn.jsdelivr.net/npm/chess.js@0.10.3/chess.min.js"></script>
 </head>
 <body>
 
   <div class="game-wrapper-root">
+    <!-- Навигация -->
     <div class="nav-bar">
       <a href="index.html" class="nav-link">← На главную</a>
-      <span class="nav-link active">Доска для анализа</span>
+      <span class="nav-link active">Режим песочницы</span>
     </div>
 
     <div class="game-container">
-      <div class="board-wrapper">
-        <div class="board-layout">
-          <div id="eval-bar-container" class="eval-bar-container">
-            <div id="eval-text" class="eval-text">0.0</div>
-            <div id="eval-fill" class="eval-fill"></div>
-          </div>
-          <div id="board" class="chessboard"></div>
-        </div>
-        <div class="navigation-controls">
-          <button id="btn-nav-first" class="btn btn-secondary nav-btn">|&lt;</button>
-          <button id="btn-nav-prev" class="btn btn-secondary nav-btn">&lt;</button>
-          <button id="btn-nav-next" class="btn btn-secondary nav-btn">&gt;</button>
-          <button id="btn-nav-last" class="btn btn-secondary nav-btn">&gt;|</button>
-        </div>
-      </div>
-
-<div id="multipv-container" class="multipv-container"></div>
       
-      <div class="control-panel">
-        <div class="status-display" id="status-text">Свободный анализ</div>
-
-        <!-- ВОТ ЭТОТ БЛОК МЫ ДОБАВИЛИ (Ветки вариантов) -->
-        <div id="branch-panel" class="hidden-panel" style="background: rgba(37, 128, 57, 0.1); border-left: 4px solid #258039; padding: 10px; margin-bottom: 15px; border-radius: 4px;">
-          <div style="font-size: 0.8rem; color: #258039; font-weight: bold; text-transform: uppercase; margin-bottom: 8px;">Варианты в этой позиции:</div>
-          <div id="branch-choices" style="display: flex; flex-wrap: wrap; gap: 8px;"></div>
-        </div>
-
-       
-
-          <div id="multipv-container" class="multipv-container"></div>
-        </div>
-
-        <div class="move-history">
-          <div id="move-log" class="move-log-content"></div>
-        </div>
-
-        <div class="actions">
-          <button id="btn-new-game" class="btn">Очистить доску</button>
-          <button id="btn-flip" class="btn btn-secondary">Повернуть доску</button>
+      <!-- ЛЕВАЯ ЧАСТЬ: ДОСКА -->
+      <div class="board-wrapper">
+        <div id="board" class="chessboard"></div>
+        
+        <!-- Кнопки под доской -->
+        <div class="navigation-controls">
+          <button id="btn-nav-first" class="btn-nav" title="В начало">|«</button>
+          <button id="btn-nav-prev" class="btn-nav" title="Назад (←)">«</button>
+          <button id="btn-nav-next" class="btn-nav" title="Вперед (→)">»</button>
+          <button id="btn-nav-last" class="btn-nav" title="В конец">»|</button>
         </div>
       </div>
+
+      <!-- ПРАВАЯ ЧАСТЬ: ПАНЕЛЬ УПРАВЛЕНИЯ -->
+      <div class="control-panel">
+        
+        <div class="status-card">
+          <div id="status-text">Свободный анализ</div>
+        </div>
+
+        <!-- Выбор вариантов (появляется только если есть ветки) -->
+        <div id="branch-panel" class="branch-panel" style="display: none;">
+          <div class="panel-label">Продолжения:</div>
+          <div id="branch-choices" class="branch-grid"></div>
+        </div>
+
+        <!-- Список ходов -->
+        <div class="history-container">
+          <div class="history-header">История ходов</div>
+          <div id="move-log" class="move-log-content">
+            <!-- Сюда JS вставляет ходы -->
+          </div>
+        </div>
+
+        <!-- Кнопки действий -->
+        <div class="action-footer">
+          <button id="btn-flip" class="btn btn-secondary">Повернуть доску</button>
+          <button id="btn-new-game" class="btn btn-danger">Очистить всё</button>
+        </div>
+      </div>
+
     </div>
   </div>
 
+  <!-- Модалка превращения пешки -->
   <div id="promotion-modal" class="modal hidden">
     <div class="modal-content">
       <h3>Выберите фигуру</h3>
@@ -68,6 +71,6 @@
   </div>
 
   <script src="sounds.js"></script>
-  <script src="analysis-app.js"></script>
+  <script type="module" src="analysis-app.js"></script>
 </body>
 </html>
