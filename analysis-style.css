@@ -87,10 +87,10 @@ body {
   z-index: 2;
 }
 
-/* Кнопки навигации под доской */
+/* КНОПКИ НАВИГАЦИИ (|<< << >> >>|) */
 .navigation-controls {
   display: flex;
-  gap: 5px;
+  gap: 4px;
   margin-top: 10px;
 }
 
@@ -99,85 +99,90 @@ body {
   background: var(--bg-panel);
   border: 1px solid var(--border);
   color: #fff;
-  padding: 15px;
+  padding: 12px;
   cursor: pointer;
+  font-size: 1.2rem;
   border-radius: 4px;
-  font-weight: bold;
+  transition: background 0.15s;
 }
 
-/* ПАНЕЛЬ УПРАВЛЕНИЯ */
-.control-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 15px;
-  background: var(--bg-panel);
-  padding: 20px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-}
+.btn-nav:hover { background: #32302d; }
+.btn-nav:active { background: #3c3a37; }
 
-.status-card {
-  padding: 15px;
-  background: rgba(0,0,0,0.2);
-  border-radius: 4px;
-  border-left: 4px solid var(--accent);
-  font-weight: bold;
-  color: #fff;
-}
-
-.history-container {
-  height: 350px;
-  background: rgba(0,0,0,0.3);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  display: flex;
-  flex-direction: column;
-}
-
-.history-header {
-  padding: 10px;
-  background: var(--border);
-  font-size: 0.8rem;
-  color: #aaa;
-}
-
-.move-log-content {
-  flex-grow: 1;
-  overflow-y: auto;
-  padding: 10px;
-}
-
-.move-row {
+/* ФУТЕР С КНОПКАМИ ДЕЙСТВИЯ (Повернуть и Очистить) */
+.action-footer {
   display: grid;
-  grid-template-columns: 40px 1fr 1fr;
-  padding: 5px 0;
-  border-bottom: 1px solid rgba(255,255,255,0.05);
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: auto; /* Прижимает кнопки к низу панели */
+  padding-top: 15px;
 }
 
-.move-text { cursor: pointer; padding: 2px 5px; border-radius: 3px; }
-.move-text:hover { background: rgba(255,255,255,0.1); }
-.active-move { background: var(--accent) !important; color: #fff; font-weight: bold; }
-
-/* Варианты ходов */
-.branch-panel { background: rgba(37, 128, 57, 0.1); padding: 10px; border-radius: 4px; }
-.branch-btn {
-  background: #333; color: #fff; border: 1px solid #444;
-  padding: 5px 10px; margin: 2px; border-radius: 3px; cursor: pointer;
+/* Базовый стиль для кнопок действий */
+.btn {
+  padding: 14px 10px;
+  border-radius: 4px;
+  font-weight: bold;
+  font-size: 0.9rem;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  transition: all 0.2s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
-.active-branch { background: var(--accent); border-color: var(--accent); }
 
-/* Модалка */
-.modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; display: flex; justify-content: center; align-items: center; }
+/* Кнопка "Повернуть" */
+.btn-secondary {
+  background: #33312e;
+  color: #bababa;
+}
+
+.btn-secondary:hover {
+  background: #3d3a37;
+  color: #fff;
+  border-color: #555;
+}
+
+/* Кнопка "Очистить" */
+.btn-danger {
+  background: rgba(217, 83, 79, 0.05); /* Тускло-красный фон */
+  color: #d9534f;
+  border-color: rgba(217, 83, 79, 0.2);
+}
+
+.btn-danger:hover {
+  background: #d9534f;
+  color: #fff;
+  border-color: #d9534f;
+  box-shadow: 0 4px 12px rgba(217, 83, 79, 0.2);
+}
+
+/* Эффект нажатия для всех кнопок */
+.btn:active, .btn-nav:active {
+  transform: translateY(1px);
+}
+
+/* МОДАЛКА ПРЕВРАЩЕНИЯ */
+.modal { 
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+  background: rgba(0,0,0,0.85); z-index: 1000; 
+  display: flex; justify-content: center; align-items: center; 
+  backdrop-filter: blur(4px);
+}
 .modal.hidden { display: none; }
-.modal-content { background: var(--bg-panel); padding: 20px; border-radius: 8px; text-align: center; }
-
-/* В файле analysis-style.css */
-.drag-clone {
-  position: fixed;
-  pointer-events: none;
-  z-index: 9999;
-  width: 60px; /* Размер подстроится скриптом, но это база */
-  height: 60px;
-  opacity: 1 !important; /* Убираем прозрачность полностью */
-  filter: drop-shadow(0 5px 15px rgba(0,0,0,0.5)); /* Добавляем тень для объема */
+.modal-content { 
+  background: var(--bg-panel); padding: 25px; border-radius: 12px; 
+  text-align: center; border: 1px solid var(--border);
+  box-shadow: 0 20px 40px rgba(0,0,0,0.5);
 }
+
+.promotion-choices {
+  display: flex; gap: 10px; margin-top: 20px;
+}
+
+.promotion-choices button {
+  width: 70px; height: 70px; background: #333; border: 1px solid #444;
+  border-radius: 8px; cursor: pointer; transition: 0.2s;
+}
+
+.promotion-choices button:hover { background: var(--accent); }
