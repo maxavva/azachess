@@ -16,6 +16,8 @@ const pieceImagePaths = {
 };
 
 var game = new Chess();
+window.game = game; // Синхронизируем со звуковым движком сразу при старте
+
 let moveHistoryTree = { id: 0, parent: null, move: null, children: [] };
 let activeNode = moveHistoryTree;
 
@@ -32,17 +34,22 @@ function initAnalysis() {
     }
 
     // Привязка кнопок
-    document.getElementById('btn-new-game').onclick = startNewGame;
-    document.getElementById('btn-flip').onclick = flipBoard;
-    document.getElementById('btn-nav-first').onclick = () => jumpToMoveNode(moveHistoryTree);
-    document.getElementById('btn-nav-prev').onclick = navigatePrev;
-    document.getElementById('btn-nav-next').onclick = navigateNext;
-    document.getElementById('btn-nav-last').onclick = navigateLast;
+    const setup = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = fn; };
+    setup('btn-new-game', startNewGame);
+    setup('btn-flip', flipBoard);
+    setup('btn-nav-first', () => jumpToMoveNode(moveHistoryTree));
+    setup('btn-nav-prev', navigatePrev);
+    setup('btn-nav-next', navigateNext);
+    setup('btn-nav-last', navigateLast);
 
-    window.addEventListener('keydown', (e) => {
-        if (e.key === 'ArrowLeft') { e.preventDefault(); navigatePrev(); }
-        if (e.key === 'ArrowRight') { e.preventDefault(); navigateNext(); }
-    });
+    // Защита от дублирования обработчиков клавиатуры
+    if (!window.azachessAnalysisKeydownAttached) {
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft') { e.preventDefault(); navigatePrev(); }
+            if (e.key === 'ArrowRight') { e.preventDefault(); navigateNext(); }
+        });
+        window.azachessAnalysisKeydownAttached = true;
+    }
 
     // ПРОВЕРКА ЗАГРУЗКИ ИЗ АРХИВА
     const loadData = sessionStorage.getItem('analysis-load-game');
@@ -58,7 +65,9 @@ function initAnalysis() {
                 }
             });
             sessionStorage.removeItem('analysis-load-game');
-        } catch (e) { console.error(e); }
+        } catch (e) { 
+            console.error("Ошибка парсинга загруженной партии:", e); 
+        }
     }
 
     renderBoard(true);
@@ -73,7 +82,7 @@ if (document.readyState === 'loading') {
     initAnalysis();
 }
 
-// --- ЛОГИКА ДОСКИ (Остается прежней, но убедись, что она внутри этого файла) ---
+// --- ЛОГИКА ДОСКИ ---
 function renderBoard(rebuild = false) {
     const boardEl = document.getElementById('board');
     if (!boardEl) return;
@@ -101,14 +110,24 @@ function renderBoard(rebuild = false) {
         
         let img = sq.querySelector('.piece');
         if (piece) {
-            if (!img) { img = document.createElement('img'); img.className = 'piece'; img.draggable = false; sq.appendChild(img); }
+            if (!img) { 
+                img = document.createElement('img'); 
+                img.className = 'piece'; 
+                img.draggable = false; 
+                sq.appendChild(img); 
+            }
             img.src = pieceImagePaths[`${piece.color}${piece.type.toUpperCase()}`];
         } else if (img) sq.removeChild(img);
         
         let m = sq.querySelector('.move-dest, .move-dest-capture');
         if (validMoves.includes(name)) {
             const cls = piece ? 'move-dest-capture' : 'move-dest';
-            if (!m || m.className !== cls) { if (m) sq.removeChild(m); m = document.createElement('div'); m.className = cls; sq.appendChild(m); }
+            if (!m || m.className !== cls) { 
+                if (m) sq.removeChild(m); 
+                m = document.createElement('div'); 
+                m.className = cls; 
+                sq.appendChild(m); 
+            }
         } else if (m) sq.removeChild(m);
     });
 }
@@ -150,8 +169,6 @@ function handlePointerDown(e, sq) {
     }
 }
 
-   
-
 function handlePointerMove(e) {
     if (!isDragging || !draggedPieceImg) return;
 
@@ -184,6 +201,9 @@ function handlePointerUp(e) {
     window.onpointermove = null;
     window.onpointerup = null;
 
+    // Безопасно освобождаем pointer capture на мобильных устройствах
+    try { e.target.releasePointerCapture(e.pointerId); } catch(err) {}
+
     if (dragClone) {
         document.body.removeChild(dragClone);
         dragClone = null;
@@ -202,8 +222,6 @@ function handlePointerUp(e) {
             // Если бросили мимо — просто перерисовываем (выбор останется)
             renderBoard(false);
         }
-    } else {
-        // Если это был просто короткий клик — renderBoard(false) уже сделан в Down
     }
     
     dragMovedEnough = false;
@@ -224,8 +242,11 @@ function executeAnalysisMove(f, t, p = 'q') {
 }
 
 function finalizeMove() {
-    selectedSquare = null; validMoves = [];
-    renderBoard(true); updateMoveLog(); updateStatus();
+    selectedSquare = null; 
+    validMoves = [];
+    renderBoard(true); 
+    updateMoveLog(); 
+    updateStatus();
 }
 
 function jumpToMoveNode(node) {
@@ -233,7 +254,10 @@ function jumpToMoveNode(node) {
     activeNode = node;
     const path = []; let temp = node;
     while (temp && temp.move) { path.push(temp.move); temp = temp.parent; }
+    
     game = new Chess();
+    window.game = game; // Поддерживаем связь с глобальной переменной для звукового движка
+    
     path.reverse().forEach(m => game.move(m));
     finalizeMove();
 }
@@ -311,7 +335,15 @@ function completeMove(from, to) {
 function navigatePrev() { if (activeNode.parent) jumpToMoveNode(activeNode.parent); }
 function navigateNext() { if (activeNode.children.length > 0) jumpToMoveNode(activeNode.children[0]); }
 function navigateLast() { let t = activeNode; while(t.children.length > 0) t = t.children[0]; jumpToMoveNode(t); }
-function startNewGame() { game = new Chess(); moveHistoryTree = { id:0, parent:null, move:null, children:[] }; activeNode = moveHistoryTree; finalizeMove(); }
+
+function startNewGame() { 
+    game = new Chess(); 
+    window.game = game; // Синхронизируем глобальную переменную
+    moveHistoryTree = { id: 0, parent: null, move: null, children: [] }; 
+    activeNode = moveHistoryTree; 
+    finalizeMove(); 
+}
+
 function flipBoard() { isFlipped = !isFlipped; renderBoard(true); }
 function clearSelection() { selectedSquare = null; validMoves = []; renderBoard(false); }
 function updateStatus() { document.getElementById('status-text').textContent = game.in_checkmate() ? "Мат!" : "Свободный анализ"; }
