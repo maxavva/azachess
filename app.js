@@ -56,10 +56,8 @@ function initApp() {
         return;
     }
 
-    // Вставьте вызов настроек сюда:
+    // Инициализация общих настроек
     initSettings(() => renderBoard(true));
-
-    
 
     // Привязка кнопок
     const setup = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = fn; };
@@ -108,7 +106,7 @@ function initStockfish(sessionId) {
         const blob = new Blob([`importScripts('https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js');`], { type: 'application/javascript' });
         stockfishWorker = new Worker(URL.createObjectURL(blob));
         stockfishWorker.onmessage = (e) => {
-            // Если пришел ответ от устаревшей сессии (например, после сброса), отсекаем его
+            // Если пришел ответ от устаревшей сессии, отсекаем его
             if (sessionId !== currentGameSessionId) return;
 
             if (e.data === 'readyok') isStockfishReady = true;
@@ -145,7 +143,7 @@ function renderBoard(rebuild = false) {
                 sq.dataset.square = name;
                 sq.onpointerdown = (e) => handlePointerDown(e, name);
 
-                // Отрисовываем разметку координат (буквы и цифры)
+                // Отрисовка координат (буквы и цифры)
                 if (r === 7) {
                     const fileLabel = document.createElement('span');
                     fileLabel.className = 'coordinate file';
@@ -184,7 +182,6 @@ function renderBoard(rebuild = false) {
         const m = sq.querySelector('.move-dest, .move-dest-capture');
         if (m) sq.removeChild(m);
 
-        // Показываем точки-подсказки только если они включены
         if (showHints && currentMoveIndex === fullMoveHistory.length && validMoves.includes(name)) {
             const dest = document.createElement('div');
             dest.className = piece ? 'move-dest-capture' : 'move-dest';
@@ -317,7 +314,6 @@ function startTimer() {
     }, 500);
 }
 
-// Изменено: Остановка таймера корректно сбрасывает интервал
 function stopTimer() { if (timerInterval) clearInterval(timerInterval); timerInterval = null; }
 
 function updateClockDisplay() {
@@ -341,9 +337,9 @@ function saveGameState() {
 
 function resetGameSettings() {
     stopTimer();
-    terminateStockfish(); // Уничтожаем старый воркер, чтобы освободить оперативную память
+    terminateStockfish(); 
 
-    currentGameSessionId++; // Начинаем новую игровую сессию
+    currentGameSessionId++; 
     const thisSessionId = currentGameSessionId;
 
     isGameOverSaved = false;
@@ -396,7 +392,6 @@ function resetGameSettings() {
     updateStatus(); 
     renderBoard(true);
 
-    // Переинициализация Stockfish под новую сессию
     initStockfish(thisSessionId);
 
     if (isGameStarted && !liveGame.game_over() && (whiteTime > 0 && blackTime > 0)) startTimer();
@@ -487,7 +482,4 @@ function renderPromotionChoices() {
         };
         container.appendChild(btn);
     });
-}
-
-nderBoard(true); // Перерисовываем доску с новой темой
 }
