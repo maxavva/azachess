@@ -1,5 +1,5 @@
 import { db, collection, addDoc } from "./firebase-logic.js";
-import { initSettings } from "./settings.js";
+
 
 const PIECE_IMAGES = {
     'wP': 'https://upload.wikimedia.org/wikipedia/commons/4/45/Chess_plt45.svg',
