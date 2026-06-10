@@ -77,14 +77,8 @@ function initApp() {
         window.azachessKeydownAttached = true;
     }
 
+    // Запускаем инициализацию доски, часов и ИИ
     resetGameSettings();
-}
-
-// Вызываем инициализацию сразу, так как модули загружаются асинхронно
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initApp);
-} else {
-    initApp();
 }
 
 function terminateStockfish() {
