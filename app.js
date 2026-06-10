@@ -481,5 +481,24 @@ function renderPromotionChoices() {
             document.getElementById('promotion-modal').classList.add('hidden'); 
         };
         container.appendChild(btn);
+
+        function applyGlobalSettings() {
+    const boardEl = document.getElementById('board');
+    if (!boardEl) return;
+
+    const theme = localStorage.getItem('azachess-setting-theme') || 'emerald';
+    const coords = localStorage.getItem('azachess-setting-coords') !== 'false';
+
+    // Применяем тему доски
+    boardEl.classList.remove('theme-emerald', 'theme-classic', 'theme-blue', 'theme-charcoal');
+    boardEl.classList.add(`theme-${theme}`);
+
+    // Скрываем или показываем координаты
+    if (coords) {
+        boardEl.classList.remove('hide-coordinates');
+    } else {
+        boardEl.classList.add('hide-coordinates');
+    }
+}
     });
 }
