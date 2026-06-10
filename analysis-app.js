@@ -28,12 +28,16 @@ let promotionFrom = null, promotionTo = null;
 
 // ФУНКЦИЯ ИНИЦИАЛИЗАЦИИ
 function initAnalysis() {
-    initSettings(() => renderBoard(true));
     const uid = localStorage.getItem('azachess-user-id');
     if (!uid || uid === "null") {
         window.location.href = 'auth.html';
         return;
     }
+
+    // Применяем настройки при загрузке страницы анализа
+    applyGlobalSettings();
+
+    // Привязка кнопок (дальше ваш код...)
 
     // Привязка кнопок
     const setup = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = fn; };
