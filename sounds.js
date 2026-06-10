@@ -14,7 +14,6 @@ function initSounds() {
     for (let key in soundUrls) {
         const audio = new Audio(soundUrls[key]);
         audio.preload = 'auto';
-        // Убираем crossOrigin, так как на GitHub/Raw он иногда мешает
         chessSounds[key] = audio;
     }
 }
@@ -41,7 +40,7 @@ window.addEventListener('touchstart', unlockAudio);
 function playMoveSound(result) {
     // Проверка пользовательской настройки звука перед проигрыванием
     if (localStorage.getItem('azachess-setting-sound') === 'false') return;
-    
+
     if (!result || !isAudioReady) return;
     try {
         let sound = chessSounds.move;
@@ -58,17 +57,6 @@ function playMoveSound(result) {
             sound.currentTime = 0;
             sound.play().catch(e => console.error("Ошибка воспроизведения:", e));
         }
-
-        if (isOver && chessSounds.gameEnd) {
-            setTimeout(() => {
-                chessSounds.gameEnd.currentTime = 0;
-                chessSounds.gameEnd.play().catch(() => {});
-            }, 450);
-        }
-    } catch (e) {
-        console.error("Ошибка звукового движка:", e);
-    }
-}
 
         if (isOver && chessSounds.gameEnd) {
             setTimeout(() => {
