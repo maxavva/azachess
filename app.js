@@ -26,7 +26,7 @@ const AI_LEVELS = {
     8: { skill: 20, depth: 20 } 
 };
 
-// СОСТОЯНИЕ (инициализируется отложенно)
+// СОСТОЯНИЕ
 let liveGame = null;
 let displayGame = null;
 
@@ -55,7 +55,7 @@ function initApp() {
             return;
         }
 
-        // Применяем общие настройки при загрузке страницы
+        // Применяем настройки
         applyGlobalSettings();
 
         // Привязка кнопок
@@ -78,11 +78,10 @@ function initApp() {
 
         resetGameSettings();
     } catch (e) {
-        console.error("Критическая ошибка при запуске приложения (initApp):", e);
+        console.error("Ошибка при запуске приложения (initApp):", e);
     }
 }
 
-// Запуск инициализации при готовности DOM
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initApp);
 } else {
@@ -145,7 +144,7 @@ function renderBoard(rebuild = false) {
                     sq.dataset.square = name;
                     sq.onpointerdown = (e) => handlePointerDown(e, name);
 
-                    // Отрисовка координат (буквы и цифры)
+                    // Отрисовка координат
                     if (r === 7) {
                         const fileLabel = document.createElement('span');
                         fileLabel.className = 'coordinate file';
@@ -248,7 +247,6 @@ function handlePointerUp(e) {
 function handleMoveAttempt(from, to) {
     const piece = liveGame.get(from);
     const isPawn = piece?.type === 'p';
-    // Проверяем: пешка ли это и дошла ли она до края доски
     const isPromotionRank = (piece?.color === 'w' && to[1] === '8') || (piece?.color === 'b' && to[1] === '1');
 
     if (isPawn && isPromotionRank) {
@@ -360,9 +358,8 @@ function resetGameSettings() {
         isGameOverSaved = false;
         const saved = localStorage.getItem('azachess-save-game');
         
-        // Безопасное создание объектов шахматной игры при запуске
         if (typeof Chess !== 'function') {
-            throw new Error("Библиотека chess.js не загружена. Проверьте подключение CDN скрипта.");
+            throw new Error("Библиотека chess.js не загружена.");
         }
 
         if (saved) {
@@ -388,7 +385,7 @@ function resetGameSettings() {
                     lastTick = Date.now();
                 }
             } catch(e) { 
-                console.warn("Ошибка восстановления сохраненной игры, сбрасываем:", e);
+                console.warn("Ошибка восстановления игры, сбрасываем:", e);
                 localStorage.removeItem('azachess-save-game'); 
                 return resetGameSettings(); 
             }
@@ -408,7 +405,6 @@ function resetGameSettings() {
             }
         }
         
-        // Синхронизируем шахматный движок с глобальной переменной для звукового модуля
         window.game = liveGame;
 
         const cw = document.getElementById('clocks-wrapper');
@@ -423,7 +419,7 @@ function resetGameSettings() {
         if (isGameStarted && !liveGame.game_over() && (whiteTime > 0 && blackTime > 0)) startTimer();
         checkAndTriggerAI();
     } catch (err) {
-        console.error("Ошибка при инициализации параметров игры (resetGameSettings):", err);
+        console.error("Ошибка resetGameSettings:", err);
     }
 }
 
@@ -521,17 +517,15 @@ function applyGlobalSettings() {
         const theme = localStorage.getItem('azachess-setting-theme') || 'emerald';
         const coords = localStorage.getItem('azachess-setting-coords') !== 'false';
 
-        // Применяем тему доски
         boardEl.classList.remove('theme-emerald', 'theme-classic', 'theme-blue', 'theme-charcoal');
         boardEl.classList.add(`theme-${theme}`);
 
-        // Скрываем или показываем координаты
         if (coords) {
             boardEl.classList.remove('hide-coordinates');
         } else {
             boardEl.classList.add('hide-coordinates');
         }
     } catch (e) {
-        console.error("Ошибка применения глобальных настроек (applyGlobalSettings):", e);
+        console.error("Ошибка applyGlobalSettings:", e);
     }
 }
