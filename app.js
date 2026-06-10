@@ -462,3 +462,56 @@ function renderPromotionChoices() {
         container.appendChild(btn);
     });
 }
+
+function initSettings() {
+    const openBtn = document.getElementById('btn-settings-open');
+    const closeBtn = document.getElementById('btn-settings-close');
+    const modal = document.getElementById('settings-modal');
+    if (!openBtn || !closeBtn || !modal) return;
+
+    const optSound = document.getElementById('opt-sound');
+    const optHints = document.getElementById('opt-hints');
+    const optCoords = document.getElementById('opt-coords');
+    const optTheme = document.getElementById('opt-theme');
+
+    // Загрузка настроек из памяти
+    optSound.checked = localStorage.getItem('azachess-setting-sound') !== 'false';
+    optHints.checked = localStorage.getItem('azachess-setting-hints') !== 'false';
+    optCoords.checked = localStorage.getItem('azachess-setting-coords') !== 'false';
+    optTheme.value = localStorage.getItem('azachess-setting-theme') || 'emerald';
+
+    openBtn.onclick = () => modal.classList.remove('hidden');
+
+    closeBtn.onclick = () => {
+        localStorage.setItem('azachess-setting-sound', optSound.checked);
+        localStorage.setItem('azachess-setting-hints', optHints.checked);
+        localStorage.setItem('azachess-setting-coords', optCoords.checked);
+        localStorage.setItem('azachess-setting-theme', optTheme.value);
+        
+        modal.classList.add('hidden');
+        applySettings();
+    };
+
+    applySettings();
+}
+
+function applySettings() {
+    const boardEl = document.getElementById('board');
+    if (!boardEl) return;
+
+    const theme = localStorage.getItem('azachess-setting-theme') || 'emerald';
+    const coords = localStorage.getItem('azachess-setting-coords') !== 'false';
+
+    // Сбрасываем старые классы тем и ставим выбранный
+    boardEl.classList.remove('theme-emerald', 'theme-classic', 'theme-blue', 'theme-charcoal');
+    boardEl.classList.add(`theme-${theme}`);
+
+    // Управляем видимостью разметки координат через CSS
+    if (coords) {
+        boardEl.classList.remove('hide-coordinates');
+    } else {
+        boardEl.classList.add('hide-coordinates');
+    }
+
+    renderBoard(true); // Перерисовываем доску с новой темой
+}
