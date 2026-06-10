@@ -368,3 +368,20 @@ function startNewGame() {
 function flipBoard() { isFlipped = !isFlipped; renderBoard(true); }
 function clearSelection() { selectedSquare = null; validMoves = []; renderBoard(false); }
 function updateStatus() { document.getElementById('status-text').textContent = game.in_checkmate() ? "Мат!" : "Свободный анализ"; }
+
+function applyGlobalSettings() {
+    const boardEl = document.getElementById('board');
+    if (!boardEl) return;
+
+    const theme = localStorage.getItem('azachess-setting-theme') || 'emerald';
+    const coords = localStorage.getItem('azachess-setting-coords') !== 'false';
+
+    boardEl.classList.remove('theme-emerald', 'theme-classic', 'theme-blue', 'theme-charcoal');
+    boardEl.classList.add(`theme-${theme}`);
+
+    if (coords) {
+        boardEl.classList.remove('hide-coordinates');
+    } else {
+        boardEl.classList.add('hide-coordinates');
+    }
+}
