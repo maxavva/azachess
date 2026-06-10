@@ -18,7 +18,7 @@
     <p class="tagline">игровая шахматная платформа</p>
 
     <main>
-      <!-- КОНТРОЛЬ ВРЕМЕНИ (ВСЕ ВАРИАНТЫ) -->
+      <!-- КОНТРОЛЬ ВРЕМЕНИ -->
       <section class="mode-section">
         <h2 class="section-title">Контроль времени</h2>
         <div class="selection-grid" id="time-grid">
@@ -31,7 +31,7 @@
         </div>
       </section>
 
-      <!-- УРОВНИ ИИ (ВСЕ 8) -->
+      <!-- УРОВНИ ИИ -->
       <section class="mode-section">
         <h2 class="section-title">Сложность ИИ</h2>
         <div class="selection-grid" id="level-grid" style="grid-template-columns: repeat(4, 1fr);">
@@ -56,8 +56,8 @@
         </div>
       </section>
      
-      <div class="main-actions">
-       <button class="start-btn" id="btn-play-main" onclick="startGame()">Играть</button>
+      <div class="main-actions" id="action-container">
+        <button class="start-btn" id="btn-play-main" onclick="startGame()">Играть</button>
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
             <button class="start-btn secondary" onclick="openAnalysis()">Доска для анализа</button>
             <button class="start-btn secondary" onclick="location.href='archive.html'">История игр</button>
@@ -69,6 +69,7 @@
   <script type="module">
     import { auth, db, onAuthStateChanged, signOut, doc, getDoc } from "./firebase-logic.js";
 
+    // Отслеживание авторизации
     onAuthStateChanged(auth, async (user) => {
       const info = document.getElementById('user-info');
       const ctrls = document.getElementById('auth-controls');
@@ -99,9 +100,8 @@
             }); 
         } 
     };
-  </script>
 
-  <script>
+    // Настройка кликов по кнопкам времени/уровня/цвета
     function setup(id, key) {
         document.querySelectorAll(`#${id} .grid-item`).forEach(el => {
             el.onclick = () => {
@@ -115,43 +115,42 @@
     setup('level-grid', 'selected-ai-level');
     setup('color-grid', 'selected-player-color');
 
-    function startGame() {
-       // Обновленная функция старта
- window.startGame = () => {
-     if (!localStorage.getItem('azachess-user-id')) { window.location.href = 'auth.html'; return; }
-     window.location.href = 'play.html';
- };
+    // Навигация
+    window.startGame = () => {
+        if (!localStorage.getItem('azachess-user-id')) { window.location.href = 'auth.html'; return; }
+        window.location.href = 'play.html';
+    };
 
- // Проверка сохраненной игры при загрузке главной страницы
- document.addEventListener('DOMContentLoaded', () => {
-     const playBtn = document.getElementById('btn-play-main');
-     if (playBtn) {
-         const hasSave = localStorage.getItem('azachess-save-game');
-         if (hasSave) {
-             // Превращаем кнопку "Играть" в "Продолжить партию"
-             playBtn.innerText = "Продолжить партию";
-             
-             // Создаем кнопку "Новая игра"
-             const newGameBtn = document.createElement('button');
-             newGameBtn.className = 'start-btn secondary';
-             newGameBtn.innerText = "Новая игра";
-             newGameBtn.style.marginTop = "10px";
-             newGameBtn.onclick = () => {
-                 if (confirm("Начать новую игру? Текущая незавершенная партия будет удалена.")) {
-                     localStorage.removeItem('azachess-save-game');
-                     window.location.href = 'play.html';
-                 }
-             };
-             // Вставляем ее сразу после кнопки продолжения
-             playBtn.parentNode.insertBefore(newGameBtn, playBtn.nextSibling);
-         }
-     }
- });
-      
-    function openAnalysis() {
+    window.openAnalysis = () => {
         if (!localStorage.getItem('azachess-user-id')) { window.location.href = 'auth.html'; return; }
         window.location.href = 'analysis.html';
-    }
+    };
+
+    // Динамическая кнопка "Продолжить партию"
+    document.addEventListener('DOMContentLoaded', () => {
+        const playBtn = document.getElementById('btn-play-main');
+        if (playBtn) {
+            const hasSave = localStorage.getItem('azachess-save-game');
+            if (hasSave) {
+                playBtn.innerText = "Продолжить партию";
+                
+                if (!document.getElementById('btn-new-game-main')) {
+                    const newGameBtn = document.createElement('button');
+                    newGameBtn.id = 'btn-new-game-main';
+                    newGameBtn.className = 'start-btn secondary';
+                    newGameBtn.innerText = "Новая игра";
+                    newGameBtn.style.marginTop = "10px";
+                    newGameBtn.onclick = () => {
+                        if (confirm("Начать новую игру? Текущая партия будет безвозвратно удалена.")) {
+                            localStorage.removeItem('azachess-save-game');
+                            window.location.href = 'play.html';
+                        }
+                    };
+                    playBtn.parentNode.insertBefore(newGameBtn, playBtn.nextSibling);
+                }
+            }
+        }
+    });
   </script>
 </body>
 </html>
