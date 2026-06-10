@@ -1,6 +1,5 @@
 import { db, collection, addDoc } from "./firebase-logic.js";
 
-
 const PIECE_IMAGES = {
     'wP': 'https://upload.wikimedia.org/wikipedia/commons/4/45/Chess_plt45.svg',
     'wR': 'https://upload.wikimedia.org/wikipedia/commons/7/72/Chess_rlt45.svg',
@@ -27,10 +26,9 @@ const AI_LEVELS = {
     8: { skill: 20, depth: 20 } 
 };
 
-// СОСТОЯНИЕ
-var liveGame = new Chess();
-var displayGame = new Chess();
-window.game = liveGame; 
+// СОСТОЯНИЕ (инициализируется отложенно)
+let liveGame = null;
+let displayGame = null;
 
 let fullMoveHistory = [], currentMoveIndex = 0;
 let whiteTime = 300, blackTime = 300, increment = 0, lastTick = null;
@@ -42,43 +40,53 @@ let isDragging = false, dragStartX = 0, dragStartY = 0, dragClone = null, dragge
 
 // ПЕРЕМЕННЫЕ ИИ С УПРАВЛЕНИЕМ СЕССИЯМИ
 let stockfishWorker = null, isStockfishReady = false, isWaitingForAIMove = false;
-let currentGameSessionId = 0; // Идентификатор сессии для устранения асинхронных гонок
+let currentGameSessionId = 0; 
 
 let promotionFrom = null, promotionTo = null;
 const DRAG_THRESHOLD = 10;
 
 // ЗАПУСК
 function initApp() {
-    console.log("Запуск Azachess...");
-    const uid = localStorage.getItem('azachess-user-id');
-    if (!uid || uid === "null") {
-        window.location.href = 'auth.html';
-        return;
+    try {
+        console.log("Запуск Azachess...");
+        const uid = localStorage.getItem('azachess-user-id');
+        if (!uid || uid === "null") {
+            window.location.href = 'auth.html';
+            return;
+        }
+
+        // Применяем общие настройки при загрузке страницы
+        applyGlobalSettings();
+
+        // Привязка кнопок
+        const setup = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = fn; };
+        setup('btn-new-game', startNewGame);
+        setup('btn-flip', flipBoard);
+        setup('btn-nav-first', () => jumpToMoveIndex(0));
+        setup('btn-nav-prev', () => jumpToMoveIndex(currentMoveIndex - 1));
+        setup('btn-nav-next', () => jumpToMoveIndex(currentMoveIndex + 1));
+        setup('btn-nav-last', () => jumpToMoveIndex(fullMoveHistory.length));
+
+        // Навешиваем клавиатуру один раз
+        if (!window.azachessKeydownAttached) {
+            window.addEventListener('keydown', (e) => {
+                if (e.key === 'ArrowLeft') { e.preventDefault(); jumpToMoveIndex(currentMoveIndex - 1); }
+                if (e.key === 'ArrowRight') { e.preventDefault(); jumpToMoveIndex(currentMoveIndex + 1); }
+            });
+            window.azachessKeydownAttached = true;
+        }
+
+        resetGameSettings();
+    } catch (e) {
+        console.error("Критическая ошибка при запуске приложения (initApp):", e);
     }
+}
 
-    // Применяем настройки при загрузке страницы
-    applyGlobalSettings();
-
-    // Привязка кнопок
-    const setup = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = fn; };
-    setup('btn-new-game', startNewGame);
-    setup('btn-flip', flipBoard);
-    setup('btn-nav-first', () => jumpToMoveIndex(0));
-    setup('btn-nav-prev', () => jumpToMoveIndex(currentMoveIndex - 1));
-    setup('btn-nav-next', () => jumpToMoveIndex(currentMoveIndex + 1));
-    setup('btn-nav-last', () => jumpToMoveIndex(fullMoveHistory.length));
-
-    // Навешиваем клавиатуру один раз
-    if (!window.azachessKeydownAttached) {
-        window.addEventListener('keydown', (e) => {
-            if (e.key === 'ArrowLeft') { e.preventDefault(); jumpToMoveIndex(currentMoveIndex - 1); }
-            if (e.key === 'ArrowRight') { e.preventDefault(); jumpToMoveIndex(currentMoveIndex + 1); }
-        });
-        window.azachessKeydownAttached = true;
-    }
-
-    // Запускаем инициализацию доски, часов и ИИ
-    resetGameSettings();
+// Запуск инициализации при готовности DOM
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initApp);
+} else {
+    initApp();
 }
 
 function terminateStockfish() {
@@ -100,7 +108,6 @@ function initStockfish(sessionId) {
         const blob = new Blob([`importScripts('https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js');`], { type: 'application/javascript' });
         stockfishWorker = new Worker(URL.createObjectURL(blob));
         stockfishWorker.onmessage = (e) => {
-            // Если пришел ответ от устаревшей сессии, отсекаем его
             if (sessionId !== currentGameSessionId) return;
 
             if (e.data === 'readyok') isStockfishReady = true;
@@ -120,68 +127,72 @@ function initStockfish(sessionId) {
 }
 
 function renderBoard(rebuild = false) {
-    const boardEl = document.getElementById('board');
-    if (!boardEl) return;
+    try {
+        const boardEl = document.getElementById('board');
+        if (!boardEl) return;
 
-    const showHints = localStorage.getItem('azachess-setting-hints') !== 'false';
+        const showHints = localStorage.getItem('azachess-setting-hints') !== 'false';
 
-    if (rebuild) {
-        boardEl.innerHTML = '';
-        for (let r = 0; r < 8; r++) {
-            const row = isFlipped ? r : (7 - r);
-            for (let c = 0; c < 8; c++) {
-                const col = isFlipped ? (7 - c) : c;
-                const name = String.fromCharCode(97 + col) + (row + 1);
-                const sq = document.createElement('div');
-                sq.className = `square ${(row + col) % 2 !== 0 ? 'light' : 'dark'}`;
-                sq.dataset.square = name;
-                sq.onpointerdown = (e) => handlePointerDown(e, name);
+        if (rebuild) {
+            boardEl.innerHTML = '';
+            for (let r = 0; r < 8; r++) {
+                const row = isFlipped ? r : (7 - r);
+                for (let c = 0; c < 8; c++) {
+                    const col = isFlipped ? (7 - c) : c;
+                    const name = String.fromCharCode(97 + col) + (row + 1);
+                    const sq = document.createElement('div');
+                    sq.className = `square ${(row + col) % 2 !== 0 ? 'light' : 'dark'}`;
+                    sq.dataset.square = name;
+                    sq.onpointerdown = (e) => handlePointerDown(e, name);
 
-                // Отрисовка координат (буквы и цифры)
-                if (r === 7) {
-                    const fileLabel = document.createElement('span');
-                    fileLabel.className = 'coordinate file';
-                    fileLabel.textContent = String.fromCharCode(97 + col);
-                    sq.appendChild(fileLabel);
+                    // Отрисовка координат (буквы и цифры)
+                    if (r === 7) {
+                        const fileLabel = document.createElement('span');
+                        fileLabel.className = 'coordinate file';
+                        fileLabel.textContent = String.fromCharCode(97 + col);
+                        sq.appendChild(fileLabel);
+                    }
+                    if (c === 0) {
+                        const rankLabel = document.createElement('span');
+                        rankLabel.className = 'coordinate rank';
+                        rankLabel.textContent = row + 1;
+                        sq.appendChild(rankLabel);
+                    }
+
+                    boardEl.appendChild(sq);
                 }
-                if (c === 0) {
-                    const rankLabel = document.createElement('span');
-                    rankLabel.className = 'coordinate rank';
-                    rankLabel.textContent = row + 1;
-                    sq.appendChild(rankLabel);
-                }
-
-                boardEl.appendChild(sq);
             }
         }
+        boardEl.querySelectorAll('.square').forEach(sq => {
+            const name = sq.dataset.square, piece = displayGame.get(name);
+            sq.classList.remove('last-move', 'selected', 'check');
+            const last = fullMoveHistory[currentMoveIndex - 1];
+            if (last && (name === last.from || name === last.to)) sq.classList.add('last-move');
+            if (selectedSquare === name) sq.classList.add('selected');
+            if (displayGame.in_check() && piece?.type === 'k' && piece.color === displayGame.turn()) sq.classList.add('check');
+            let img = sq.querySelector('.piece');
+            if (piece) {
+                if (!img) { 
+                    img = document.createElement('img'); 
+                    img.className = 'piece'; 
+                    img.draggable = false; 
+                    sq.appendChild(img); 
+                }
+                img.src = PIECE_IMAGES[`${piece.color}${piece.type.toUpperCase()}`];
+            } else if (img) sq.removeChild(img);
+            
+            const m = sq.querySelector('.move-dest, .move-dest-capture');
+            if (m) sq.removeChild(m);
+
+            if (showHints && currentMoveIndex === fullMoveHistory.length && validMoves.includes(name)) {
+                const dest = document.createElement('div');
+                dest.className = piece ? 'move-dest-capture' : 'move-dest';
+                sq.appendChild(dest);
+            }
+        });
+    } catch (e) {
+        console.error("Ошибка рендеринга доски (renderBoard):", e);
     }
-    boardEl.querySelectorAll('.square').forEach(sq => {
-        const name = sq.dataset.square, piece = displayGame.get(name);
-        sq.classList.remove('last-move', 'selected', 'check');
-        const last = fullMoveHistory[currentMoveIndex - 1];
-        if (last && (name === last.from || name === last.to)) sq.classList.add('last-move');
-        if (selectedSquare === name) sq.classList.add('selected');
-        if (displayGame.in_check() && piece?.type === 'k' && piece.color === displayGame.turn()) sq.classList.add('check');
-        let img = sq.querySelector('.piece');
-        if (piece) {
-            if (!img) { 
-                img = document.createElement('img'); 
-                img.className = 'piece'; 
-                img.draggable = false; 
-                sq.appendChild(img); 
-            }
-            img.src = PIECE_IMAGES[`${piece.color}${piece.type.toUpperCase()}`];
-        } else if (img) sq.removeChild(img);
-        
-        const m = sq.querySelector('.move-dest, .move-dest-capture');
-        if (m) sq.removeChild(m);
-
-        if (showHints && currentMoveIndex === fullMoveHistory.length && validMoves.includes(name)) {
-            const dest = document.createElement('div');
-            dest.className = piece ? 'move-dest-capture' : 'move-dest';
-            sq.appendChild(dest);
-        }
-    });
 }
 
 function handlePointerDown(e, sq) {
@@ -272,7 +283,10 @@ function onMoveExecution() {
     } else stopTimer();
 }
 
-function syncDisplayGame() { displayGame = new Chess(liveGame.fen()); renderBoard(false); }
+function syncDisplayGame() { 
+    displayGame = new Chess(liveGame.fen()); 
+    renderBoard(false); 
+}
 
 function jumpToMoveIndex(idx) {
     if (idx < 0 || idx > fullMoveHistory.length) return;
@@ -330,66 +344,81 @@ function saveGameState() {
 }
 
 function resetGameSettings() {
-    stopTimer();
-    terminateStockfish(); 
+    try {
+        stopTimer();
+        terminateStockfish(); 
 
-    currentGameSessionId++; 
-    const thisSessionId = currentGameSessionId;
+        currentGameSessionId++; 
+        const thisSessionId = currentGameSessionId;
 
-    isGameOverSaved = false;
-    const saved = localStorage.getItem('azachess-save-game');
-    if (saved) {
-        try {
-            const s = JSON.parse(saved);
-            liveGame = new Chess(s.fen); 
-            fullMoveHistory = s.history; 
-            currentMoveIndex = s.currentIdx;
-            whiteTime = s.whiteTime; 
-            blackTime = s.blackTime; 
-            lastTick = s.lastTick;
-            isGameStarted = s.isGameStarted; 
-            userColor = s.userColor; 
-            isFlipped = s.isFlipped;
-            isClockEnabled = s.isClockEnabled; 
-            increment = s.increment;
-            displayGame = new Chess();
-            for (let i = 0; i < currentMoveIndex; i++) displayGame.move(fullMoveHistory[i]);
-            if (isGameStarted && lastTick && !liveGame.game_over() && whiteTime > 0 && blackTime > 0) {
-                const elapsed = Math.floor((Date.now() - lastTick) / 1000);
-                if (liveGame.turn() === 'w') whiteTime = Math.max(0, whiteTime - elapsed);
-                else blackTime = Math.max(0, blackTime - elapsed);
-                lastTick = Date.now();
+        isGameOverSaved = false;
+        const saved = localStorage.getItem('azachess-save-game');
+        
+        // Безопасное создание объектов шахматной игры при запуске
+        if (typeof Chess !== 'function') {
+            throw new Error("Библиотека chess.js не загружена. Проверьте подключение CDN скрипта.");
+        }
+
+        if (saved) {
+            try {
+                const s = JSON.parse(saved);
+                liveGame = new Chess(s.fen); 
+                fullMoveHistory = s.history; 
+                currentMoveIndex = s.currentIdx;
+                whiteTime = s.whiteTime; 
+                blackTime = s.blackTime; 
+                lastTick = s.lastTick;
+                isGameStarted = s.isGameStarted; 
+                userColor = s.userColor; 
+                isFlipped = s.isFlipped;
+                isClockEnabled = s.isClockEnabled; 
+                increment = s.increment;
+                displayGame = new Chess();
+                for (let i = 0; i < currentMoveIndex; i++) displayGame.move(fullMoveHistory[i]);
+                if (isGameStarted && lastTick && !liveGame.game_over() && whiteTime > 0 && blackTime > 0) {
+                    const elapsed = Math.floor((Date.now() - lastTick) / 1000);
+                    if (liveGame.turn() === 'w') whiteTime = Math.max(0, whiteTime - elapsed);
+                    else blackTime = Math.max(0, blackTime - elapsed);
+                    lastTick = Date.now();
+                }
+            } catch(e) { 
+                console.warn("Ошибка восстановления сохраненной игры, сбрасываем:", e);
+                localStorage.removeItem('azachess-save-game'); 
+                return resetGameSettings(); 
             }
-        } catch(e) { 
-            localStorage.removeItem('azachess-save-game'); 
-            return resetGameSettings(); 
+        } else {
+            liveGame = new Chess(); 
+            displayGame = new Chess();
+            userColor = localStorage.getItem('selected-player-color') || 'w';
+            if (userColor === 'random') userColor = Math.random() > 0.5 ? 'w' : 'b';
+            isFlipped = (userColor === 'b');
+            const timeVal = localStorage.getItem('selected-time-control') || '5+3';
+            if (timeVal === 'none') isClockEnabled = false;
+            else { 
+                const p = timeVal.split('+'); 
+                whiteTime = parseInt(p[0]) * 60; 
+                blackTime = whiteTime; 
+                increment = parseInt(p[1]) || 0; 
+            }
         }
-    } else {
-        liveGame = new Chess(); 
-        displayGame = new Chess();
-        userColor = localStorage.getItem('selected-player-color') || 'w';
-        if (userColor === 'random') userColor = Math.random() > 0.5 ? 'w' : 'b';
-        isFlipped = (userColor === 'b');
-        const timeVal = localStorage.getItem('selected-time-control') || '5+3';
-        if (timeVal === 'none') isClockEnabled = false;
-        else { 
-            const p = timeVal.split('+'); 
-            whiteTime = parseInt(p[0]) * 60; 
-            blackTime = whiteTime; 
-            increment = parseInt(p[1]) || 0; 
-        }
+        
+        // Синхронизируем шахматный движок с глобальной переменной для звукового модуля
+        window.game = liveGame;
+
+        const cw = document.getElementById('clocks-wrapper');
+        if (cw) cw.style.display = isClockEnabled ? 'flex' : 'none';
+        updateClockDisplay(); 
+        updateMoveLog(); 
+        updateStatus(); 
+        renderBoard(true);
+
+        initStockfish(thisSessionId);
+
+        if (isGameStarted && !liveGame.game_over() && (whiteTime > 0 && blackTime > 0)) startTimer();
+        checkAndTriggerAI();
+    } catch (err) {
+        console.error("Ошибка при инициализации параметров игры (resetGameSettings):", err);
     }
-    const cw = document.getElementById('clocks-wrapper');
-    if (cw) cw.style.display = isClockEnabled ? 'flex' : 'none';
-    updateClockDisplay(); 
-    updateMoveLog(); 
-    updateStatus(); 
-    renderBoard(true);
-
-    initStockfish(thisSessionId);
-
-    if (isGameStarted && !liveGame.game_over() && (whiteTime > 0 && blackTime > 0)) startTimer();
-    checkAndTriggerAI();
 }
 
 function updateStatus() {
@@ -475,24 +504,28 @@ function renderPromotionChoices() {
             document.getElementById('promotion-modal').classList.add('hidden'); 
         };
         container.appendChild(btn);
-
-        function applyGlobalSettings() {
-    const boardEl = document.getElementById('board');
-    if (!boardEl) return;
-
-    const theme = localStorage.getItem('azachess-setting-theme') || 'emerald';
-    const coords = localStorage.getItem('azachess-setting-coords') !== 'false';
-
-    // Применяем тему доски
-    boardEl.classList.remove('theme-emerald', 'theme-classic', 'theme-blue', 'theme-charcoal');
-    boardEl.classList.add(`theme-${theme}`);
-
-    // Скрываем или показываем координаты
-    if (coords) {
-        boardEl.classList.remove('hide-coordinates');
-    } else {
-        boardEl.classList.add('hide-coordinates');
-    }
-}
     });
+}
+
+function applyGlobalSettings() {
+    try {
+        const boardEl = document.getElementById('board');
+        if (!boardEl) return;
+
+        const theme = localStorage.getItem('azachess-setting-theme') || 'emerald';
+        const coords = localStorage.getItem('azachess-setting-coords') !== 'false';
+
+        // Применяем тему доски
+        boardEl.classList.remove('theme-emerald', 'theme-classic', 'theme-blue', 'theme-charcoal');
+        boardEl.classList.add(`theme-${theme}`);
+
+        // Скрываем или показываем координаты
+        if (coords) {
+            boardEl.classList.remove('hide-coordinates');
+        } else {
+            boardEl.classList.add('hide-coordinates');
+        }
+    } catch (e) {
+        console.error("Ошибка применения глобальных настроек (applyGlobalSettings):", e);
+    }
 }
