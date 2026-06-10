@@ -56,8 +56,8 @@ function initApp() {
         return;
     }
 
-    // Инициализация общих настроек
-    initSettings(() => renderBoard(true));
+    // Применяем общие настройки при загрузке страницы
+    applyGlobalSettings();
 
     // Привязка кнопок
     const setup = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = fn; };
