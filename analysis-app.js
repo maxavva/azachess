@@ -1,4 +1,5 @@
 import { auth, onAuthStateChanged } from "./firebase-logic.js";
+import { initSettings } from "./settings.js";
 
 const pieceImagePaths = {
     'wP': 'https://upload.wikimedia.org/wikipedia/commons/4/45/Chess_plt45.svg',
@@ -27,6 +28,7 @@ let promotionFrom = null, promotionTo = null;
 
 // ФУНКЦИЯ ИНИЦИАЛИЗАЦИИ
 function initAnalysis() {
+    initSettings(() => renderBoard(true));
     const uid = localStorage.getItem('azachess-user-id');
     if (!uid || uid === "null") {
         window.location.href = 'auth.html';
@@ -86,6 +88,9 @@ if (document.readyState === 'loading') {
 function renderBoard(rebuild = false) {
     const boardEl = document.getElementById('board');
     if (!boardEl) return;
+
+    const showHints = localStorage.getItem('azachess-setting-hints') !== 'false';
+
     if (rebuild) {
         boardEl.innerHTML = '';
         for (let r = 0; r < 8; r++) {
@@ -97,6 +102,21 @@ function renderBoard(rebuild = false) {
                 sq.className = `square ${(row + col) % 2 !== 0 ? 'light' : 'dark'}`;
                 sq.dataset.square = name;
                 sq.onpointerdown = (e) => handlePointerDown(e, name);
+
+                // Отрисовка координат
+                if (r === 7) {
+                    const fileLabel = document.createElement('span');
+                    fileLabel.className = 'coordinate file';
+                    fileLabel.textContent = String.fromCharCode(97 + col);
+                    sq.appendChild(fileLabel);
+                }
+                if (c === 0) {
+                    const rankLabel = document.createElement('span');
+                    rankLabel.className = 'coordinate rank';
+                    rankLabel.textContent = row + 1;
+                    sq.appendChild(rankLabel);
+                }
+
                 boardEl.appendChild(sq);
             }
         }
@@ -120,7 +140,9 @@ function renderBoard(rebuild = false) {
         } else if (img) sq.removeChild(img);
         
         let m = sq.querySelector('.move-dest, .move-dest-capture');
-        if (validMoves.includes(name)) {
+        
+        // Показываем подсказки в зависимости от настроек
+        if (showHints && validMoves.includes(name)) {
             const cls = piece ? 'move-dest-capture' : 'move-dest';
             if (!m || m.className !== cls) { 
                 if (m) sq.removeChild(m); 
@@ -131,7 +153,6 @@ function renderBoard(rebuild = false) {
         } else if (m) sq.removeChild(m);
     });
 }
-
 function handlePointerDown(e, sq) {
     if (typeof window.unlockAudio === 'function') window.unlockAudio();
 
