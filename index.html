@@ -76,12 +76,18 @@
         localStorage.setItem('azachess-user-id', user.uid);
         const snap = await getDoc(doc(db, "users", user.uid));
         info.innerText = "👤 " + (snap.exists() ? snap.data().username : "Игрок");
-        ctrls.innerHTML = `<button id="l-btn" class="grid-item" style="padding: 5px 15px; font-size: 0.8rem; color: #d9534f; border-color: #d9534f; background: none;">Выйти</button>`;
+        ctrls.innerHTML = `
+          <a href="settings.html" class="grid-item" style="padding: 5px 15px; font-size: 0.8rem; text-decoration: none; margin-right: 8px;">⚙ Настройки</a>
+          <button id="l-btn" class="grid-item" style="padding: 5px 15px; font-size: 0.8rem; color: #d9534f; border-color: #d9534f; background: none;">Выйти</button>
+        `;
         document.getElementById('l-btn').onclick = window.logout;
       } else {
         localStorage.removeItem('azachess-user-id');
         info.innerText = "👣 Гость";
-        ctrls.innerHTML = `<a href="auth.html" class="grid-item" style="padding: 5px 15px; font-size: 0.8rem; text-decoration: none;">Войти</a>`;
+        ctrls.innerHTML = `
+          <a href="settings.html" class="grid-item" style="padding: 5px 15px; font-size: 0.8rem; text-decoration: none; margin-right: 8px;">⚙ Настройки</a>
+          <a href="auth.html" class="grid-item" style="padding: 5px 15px; font-size: 0.8rem; text-decoration: none;">Войти</a>
+        `;
       }
     });
 
