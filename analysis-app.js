@@ -336,6 +336,7 @@ function renderPromotionChoices() {
     const turn = game.turn(); container.innerHTML = '';
     ['q','r','b','n'].forEach(p => {
         const btn = document.createElement('button');
+        btn.className = 'promo-btn'; // Добавили класс стиля к кнопкам выбора в анализе
         btn.innerHTML = `<img src="${pieceImagePaths[turn+p.toUpperCase()]}" style="width:100%">`;
         btn.onclick = () => { 
             executeAnalysisMove(promotionFrom, promotionTo, p); 
@@ -346,8 +347,11 @@ function renderPromotionChoices() {
 }
 
 function completeMove(from, to) {
-    const move = game.moves({ square: from, verbose: true }).find(m => m.to === to);
-    if (move?.flags.includes('p')) {
+    const piece = game.get(from);
+    const isPawn = piece?.type === 'p';
+    const isPromotionRank = (piece?.color === 'w' && to[1] === '8') || (piece?.color === 'b' && to[1] === '1');
+
+    if (isPawn && isPromotionRank) {
         promotionFrom = from; 
         promotionTo = to;
         document.getElementById('promotion-modal').classList.remove('hidden');
@@ -389,3 +393,5 @@ function applyGlobalSettings() {
         boardEl.classList.add('hide-coordinates');
     }
 }
+
+
