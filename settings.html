@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Azachess - Настройки профиля</title>
+  <link rel="stylesheet" href="home-style.css">
+  <style>
+    .settings-card {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      padding: 25px;
+      border-radius: 12px;
+      margin-bottom: 20px;
+    }
+    .profile-header {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      margin-bottom: 10px;
+      padding-bottom: 15px;
+      border-bottom: 1px solid var(--border);
+    }
+    .avatar-placeholder {
+      width: 60px;
+      height: 60px;
+      background: var(--accent);
+      border-radius: 50%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 1.8rem;
+      color: white;
+    }
+    .setting-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    .setting-item label {
+      font-weight: 600;
+      color: #fff;
+    }
+    .setting-item select {
+      padding: 8px 16px;
+      background: var(--bg-dark);
+      color: #fff;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      outline: none;
+      cursor: pointer;
+    }
+    input[type="checkbox"] {
+      width: 20px;
+      height: 20px;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="top-profile-bar">
+    <a href="index.html" style="color: var(--accent); text-decoration: none; font-weight: bold;">← НА ГЛАВНУЮ</a>
+    <div style="font-weight: bold; color: #fff;">Профиль и Настройки</div>
+  </div>
+
+  <div class="hub-container" style="max-width: 500px;">
+    
+    <!-- БЛОК ПРОФИЛЯ -->
+    <div class="settings-card">
+      <div class="profile-header">
+        <div class="avatar-placeholder">👤</div>
+        <div>
+          <div id="prof-username" style="font-size: 1.2rem; font-weight: bold; color: #fff;">👣 Загрузка...</div>
+          <div id="prof-status" style="font-size: 0.85rem; color: #888;">Проверка статуса...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- БЛОК НАСТРОЕК -->
+    <div class="settings-card">
+      <h3 style="margin-top: 0; margin-bottom: 20px; color: #fff; font-size: 1.1rem; text-transform: uppercase; border-bottom: 1px solid var(--border); padding-bottom: 10px;">Настройки интерфейса</h3>
+      
+      <div class="setting-item">
+        <label for="set-sound">Звуковое сопровождение</label>
+        <input type="checkbox" id="set-sound" checked>
+      </div>
+
+      <div class="setting-item">
+        <label for="set-hints">Подсказки возможных ходов</label>
+        <input type="checkbox" id="set-hints" checked>
+      </div>
+
+      <div class="setting-item">
+        <label for="set-coords">Координаты на доске</label>
+        <input type="checkbox" id="set-coords" checked>
+      </div>
+
+      <div class="setting-item">
+        <label for="set-theme">Визуальная тема доски</label>
+        <select id="set-theme">
+          <option value="emerald">Изумрудная (Зеленая)</option>
+          <option value="classic">Классическая (Дерево)</option>
+          <option value="blue">Голубая</option>
+          <option value="charcoal">Графит (Темная)</option>
+        </select>
+      </div>
+    </div>
+
+    <button class="start-btn" id="btn-save-settings">Сохранить изменения</button>
+  </div>
+
+  <script type="module">
+    import { auth, db, onAuthStateChanged, doc, getDoc } from "./firebase-logic.js";
+
+    const profUsername = document.getElementById('prof-username');
+    const profStatus = document.getElementById('prof-status');
+
+    // Подгрузка профиля из БД Firebase
+    onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        const snap = await getDoc(doc(db, "users", user.uid));
+        if (snap.exists()) {
+          profUsername.innerText = snap.data().username;
+          profStatus.innerText = "Авторизован в системе";
+        } else {
+          profUsername.innerText = "Игрок";
+          profStatus.innerText = "Авторизован";
+        }
+      } else {
+        profUsername.innerText = "Гость";
+        profStatus.innerText = "История игр недоступна без авторизации";
+      }
+    });
+
+    // Загрузка текущих настроек из localStorage
+    const setSound = document.getElementById('set-sound');
+    const setHints = document.getElementById('set-hints');
+    const setCoords = document.getElementById('set-coords');
+    const setTheme = document.getElementById('set-theme');
+
+    setSound.checked = localStorage.getItem('azachess-setting-sound') !== 'false';
+    setHints.checked = localStorage.getItem('azachess-setting-hints') !== 'false';
+    setCoords.checked = localStorage.getItem('azachess-setting-coords') !== 'false';
+    setTheme.value = localStorage.getItem('azachess-setting-theme') || 'emerald';
+
+    // Сохранение изменений в память
+    document.getElementById('btn-save-settings').onclick = () => {
+      localStorage.setItem('azachess-setting-sound', setSound.checked);
+      localStorage.setItem('azachess-setting-hints', setHints.checked);
+      localStorage.setItem('azachess-setting-coords', setCoords.checked);
+      localStorage.setItem('azachess-setting-theme', setTheme.value);
+
+      alert("Настройки сохранены!");
+      window.location.href = "index.html";
+    };
+  </script>
+</body>
+</html>
