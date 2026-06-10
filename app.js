@@ -246,13 +246,19 @@ function handlePointerUp(e) {
 }
 
 function handleMoveAttempt(from, to) {
-    const move = liveGame.moves({ square: from, verbose: true }).find(m => m.to === to);
-    if (move?.flags.includes('p')) {
+    const piece = liveGame.get(from);
+    const isPawn = piece?.type === 'p';
+    // Проверяем: пешка ли это и дошла ли она до края доски
+    const isPromotionRank = (piece?.color === 'w' && to[1] === '8') || (piece?.color === 'b' && to[1] === '1');
+
+    if (isPawn && isPromotionRank) {
         promotionFrom = from; 
         promotionTo = to;
         document.getElementById('promotion-modal').classList.remove('hidden');
         renderPromotionChoices();
-    } else executeMove(from, to);
+    } else {
+        executeMove(from, to);
+    }
 }
 
 function executeMove(from, to, promo = 'q') {
