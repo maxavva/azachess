@@ -57,7 +57,7 @@
       </section>
      
       <div class="main-actions">
-        <button class="start-btn" onclick="startGame()">Играть</button>
+       <button class="start-btn" id="btn-play-main" onclick="startGame()">Играть</button>
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
             <button class="start-btn secondary" onclick="openAnalysis()">Доска для анализа</button>
             <button class="start-btn secondary" onclick="location.href='archive.html'">История игр</button>
@@ -116,10 +116,38 @@
     setup('color-grid', 'selected-player-color');
 
     function startGame() {
-        if (!localStorage.getItem('azachess-user-id')) { window.location.href = 'auth.html'; return; }
-        localStorage.removeItem('azachess-save-game');
-        window.location.href = 'play.html';
-    }
+       // Обновленная функция старта
+ window.startGame = () => {
+     if (!localStorage.getItem('azachess-user-id')) { window.location.href = 'auth.html'; return; }
+     window.location.href = 'play.html';
+ };
+
+ // Проверка сохраненной игры при загрузке главной страницы
+ document.addEventListener('DOMContentLoaded', () => {
+     const playBtn = document.getElementById('btn-play-main');
+     if (playBtn) {
+         const hasSave = localStorage.getItem('azachess-save-game');
+         if (hasSave) {
+             // Превращаем кнопку "Играть" в "Продолжить партию"
+             playBtn.innerText = "Продолжить партию";
+             
+             // Создаем кнопку "Новая игра"
+             const newGameBtn = document.createElement('button');
+             newGameBtn.className = 'start-btn secondary';
+             newGameBtn.innerText = "Новая игра";
+             newGameBtn.style.marginTop = "10px";
+             newGameBtn.onclick = () => {
+                 if (confirm("Начать новую игру? Текущая незавершенная партия будет удалена.")) {
+                     localStorage.removeItem('azachess-save-game');
+                     window.location.href = 'play.html';
+                 }
+             };
+             // Вставляем ее сразу после кнопки продолжения
+             playBtn.parentNode.insertBefore(newGameBtn, playBtn.nextSibling);
+         }
+     }
+ });
+      
     function openAnalysis() {
         if (!localStorage.getItem('azachess-user-id')) { window.location.href = 'auth.html'; return; }
         window.location.href = 'analysis.html';
