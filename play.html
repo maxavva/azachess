@@ -18,6 +18,7 @@
   <div class="game-wrapper-root">
     <div class="nav-bar">
       <a href="index.html" class="nav-link">← На главную</a>
+      <button id="btn-settings-open" class="nav-link" style="background: none; border: none; cursor: pointer; font-family: inherit;">⚙ Настройки</button>
     </div>
 
     <div class="game-container">
@@ -30,13 +31,39 @@
           <button id="btn-nav-last" class="btn btn-secondary nav-btn">&gt;|</button>
         </div>
         
-        <div id="promotion-modal" class="modal hidden">
-          <div class="modal-content">
-            <h3>Выберите фигуру</h3>
-            <div class="promotion-choices"></div>
+       <!-- Модалка настроек -->
+        <div id="settings-modal" class="modal hidden">
+          <div class="modal-content" style="text-align: left; max-width: 380px; width: 90%;">
+            <h3 style="text-align: center; margin-bottom: 20px; color: var(--text-bright);">Настройки</h3>
+            
+            <div class="setting-row">
+              <label for="opt-sound">Звуковое сопровождение</label>
+              <input type="checkbox" id="opt-sound" checked>
+            </div>
+            
+            <div class="setting-row">
+              <label for="opt-hints">Точки-подсказки ходов</label>
+              <input type="checkbox" id="opt-hints" checked>
+            </div>
+            
+            <div class="setting-row">
+              <label for="opt-coords">Координаты на доске</label>
+              <input type="checkbox" id="opt-coords" checked>
+            </div>
+            
+            <div class="setting-row">
+              <label for="opt-theme">Тема оформления</label>
+              <select id="opt-theme">
+                <option value="emerald">Изумрудная (Зеленая)</option>
+                <option value="classic">Классическая (Дерево)</option>
+                <option value="blue">Голубая</option>
+                <option value="charcoal">Графит (Темная)</option>
+              </select>
+            </div>
+            
+            <button id="btn-settings-close" class="btn" style="width: 100%; margin-top: 15px;">Сохранить и закрыть</button>
           </div>
         </div>
-      </div>
 
       <div class="control-panel">
         <!-- ТУТ БЫЛА ОШИБКА В ТЕКСТЕ -->
