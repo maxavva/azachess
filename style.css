@@ -584,3 +584,32 @@ body {
   border-radius: 4px;
   outline: none;
 }
+
+/* Темы оформления доски */
+.chessboard.theme-emerald { --square-light: #ececd7; --square-dark: #739552; }
+.chessboard.theme-classic { --square-light: #f0d9b5; --square-dark: #b58863; }
+.chessboard.theme-blue { --square-light: #dee3e6; --square-dark: #8ca2ad; }
+.chessboard.theme-charcoal { --square-light: #e1e1e1; --square-dark: #4d4d4d; }
+
+/* Отключение разметки координат */
+.chessboard.hide-coordinates .coordinate {
+  display: none !important;
+}
+
+/* Элементы формы внутри окна настроек */
+.setting-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 18px;
+  font-size: 0.95rem;
+  color: var(--text-bright);
+}
+.setting-row select {
+  padding: 6px 12px;
+  background: var(--bg-dark);
+  color: var(--text-bright);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  outline: none;
+}
