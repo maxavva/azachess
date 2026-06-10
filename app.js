@@ -55,6 +55,11 @@ function initApp() {
         return;
     }
 
+    // Вставьте вызов настроек сюда:
+    initSettings();
+
+    
+
     // Привязка кнопок
     const setup = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = fn; };
     setup('btn-new-game', startNewGame);
@@ -124,6 +129,9 @@ function initStockfish(sessionId) {
 function renderBoard(rebuild = false) {
     const boardEl = document.getElementById('board');
     if (!boardEl) return;
+
+    const showHints = localStorage.getItem('azachess-setting-hints') !== 'false';
+
     if (rebuild) {
         boardEl.innerHTML = '';
         for (let r = 0; r < 8; r++) {
@@ -135,6 +143,21 @@ function renderBoard(rebuild = false) {
                 sq.className = `square ${(row + col) % 2 !== 0 ? 'light' : 'dark'}`;
                 sq.dataset.square = name;
                 sq.onpointerdown = (e) => handlePointerDown(e, name);
+
+                // Отрисовываем разметку координат (буквы и цифры)
+                if (r === 7) {
+                    const fileLabel = document.createElement('span');
+                    fileLabel.className = 'coordinate file';
+                    fileLabel.textContent = String.fromCharCode(97 + col);
+                    sq.appendChild(fileLabel);
+                }
+                if (c === 0) {
+                    const rankLabel = document.createElement('span');
+                    rankLabel.className = 'coordinate rank';
+                    rankLabel.textContent = row + 1;
+                    sq.appendChild(rankLabel);
+                }
+
                 boardEl.appendChild(sq);
             }
         }
@@ -159,7 +182,9 @@ function renderBoard(rebuild = false) {
         
         const m = sq.querySelector('.move-dest, .move-dest-capture');
         if (m) sq.removeChild(m);
-        if (currentMoveIndex === fullMoveHistory.length && validMoves.includes(name)) {
+
+        // Показываем точки-подсказки только если они включены
+        if (showHints && currentMoveIndex === fullMoveHistory.length && validMoves.includes(name)) {
             const dest = document.createElement('div');
             dest.className = piece ? 'move-dest-capture' : 'move-dest';
             sq.appendChild(dest);
