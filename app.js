@@ -109,7 +109,14 @@ function initStockfish(sessionId) {
         stockfishWorker.onmessage = (e) => {
             if (sessionId !== currentGameSessionId) return;
 
-            if (e.data === 'readyok') isStockfishReady = true;
+            if (e.data === 'readyok') {
+                isStockfishReady = true;
+                console.log("Движок Stockfish готов к расчету.");
+                // ИСПРАВЛЕНИЕ: если ИИ только что загрузился, а сейчас его ход — принудительно запускаем расчет
+                if (liveGame && liveGame.turn() !== userColor && !liveGame.game_over()) {
+                    triggerEngineMove();
+                }
+            }
             if (e.data.startsWith('bestmove') && isWaitingForAIMove) {
                 isWaitingForAIMove = false;
                 const move = e.data.split(' ')[1];
