@@ -227,9 +227,8 @@ function handlePointerDown(e, sq) {
         draggedPieceImg = e.target.classList.contains('piece') ? e.target : e.target.querySelector('.piece');
         selectedSquare = sq; 
         
-        // ИСПРАВЛЕНИЕ ВАЛИДАЦИИ: Очищаем суффиксы превращения вроде "=Q" из координат ходов
+        // Валидация координат ходов
         validMoves = liveGame.moves({ square: sq, verbose: true }).map(m => {
-            // Если в координате есть '=', обрезаем все что после него, чтобы получить чистое имя клетки (например, "e8")
             return m.to.split('=')[0].trim();
         });
         
@@ -283,12 +282,20 @@ function handleMoveAttempt(from, to) {
         if (autoQueen) {
             console.log("Применено автоматическое превращение в ферзя (Auto-Queen):", from, "->", targetSquare);
             executeMove(from, targetSquare, 'q');
-        } else {
+            return;
+        }
+
+        // ОТКАТ ПРИ ОТСУТСТВИИ ОКНА: если разметка окна превращения удалена, превращаем в Ферзя автоматически
+        const promoModal = document.getElementById('promotion-modal');
+        if (promoModal) {
             promotionFrom = from; 
             promotionTo = targetSquare;
             console.log("Открытие модального окна превращения пешки:", from, "->", targetSquare);
-            document.getElementById('promotion-modal').classList.remove('hidden');
+            promoModal.classList.remove('hidden');
             renderPromotionChoices();
+        } else {
+            console.warn("Предупреждение: Окно превращения не найдено в HTML. Применен авто-ферзь.");
+            executeMove(from, targetSquare, 'q');
         }
     } else {
         executeMove(from, targetSquare);
