@@ -226,7 +226,14 @@ function handlePointerDown(e, sq) {
         dragStartY = e.clientY;
         draggedPieceImg = e.target.classList.contains('piece') ? e.target : e.target.querySelector('.piece');
         selectedSquare = sq; 
-        validMoves = liveGame.moves({ square: sq, verbose: true }).map(m => m.to);
+        
+        // ИСПРАВЛЕНИЕ ВАЛИДАЦИИ: Очищаем суффиксы превращения вроде "=Q" из координат ходов
+        validMoves = liveGame.moves({ square: sq, verbose: true }).map(m => {
+            // Если в координате есть '=', обрезаем все что после него, чтобы получить чистое имя клетки (например, "e8")
+            return m.to.split('=')[0].trim();
+        });
+        
+        console.log("Доступные ходы для выбранной фигуры:", validMoves);
         renderBoard(false);
         window.onpointermove = handlePointerMove; 
         window.onpointerup = handlePointerUp;
@@ -264,26 +271,27 @@ function handlePointerUp(e) {
 
 function handleMoveAttempt(from, to) {
     const piece = liveGame.get(from);
-    const isPawn = piece?.type === 'p';
-    const isPromotionRank = (piece?.color === 'w' && to[1] === '8') || (piece?.color === 'b' && to[1] === '1');
+    const isPawn = piece?.type?.toLowerCase() === 'p';
+    const targetSquare = String(to).trim();
+    const isPromotionRank = (piece?.color?.toLowerCase() === 'w' && targetSquare.endsWith('8')) || (piece?.color?.toLowerCase() === 'b' && targetSquare.endsWith('1'));
 
-    console.log("Попытка хода с:", from, "на:", to, "Фигура:", piece ? piece.type : "нет");
+    console.log("Попытка хода с:", from, "на:", targetSquare, "Фигура:", piece ? piece.type : "нет");
 
     if (isPawn && isPromotionRank) {
         // ПРОВЕРКА НАСТРОЙКИ АВТО-ФЕРЗЯ
         const autoQueen = localStorage.getItem('azachess-setting-autoqueen') === 'true';
         if (autoQueen) {
-            console.log("Применено автоматическое превращение в ферзя (Auto-Queen):", from, "->", to);
-            executeMove(from, to, 'q');
+            console.log("Применено автоматическое превращение в ферзя (Auto-Queen):", from, "->", targetSquare);
+            executeMove(from, targetSquare, 'q');
         } else {
             promotionFrom = from; 
-            promotionTo = to;
-            console.log("Открытие модального окна превращения пешки:", from, "->", to);
+            promotionTo = targetSquare;
+            console.log("Открытие модального окна превращения пешки:", from, "->", targetSquare);
             document.getElementById('promotion-modal').classList.remove('hidden');
             renderPromotionChoices();
         }
     } else {
-        executeMove(from, to);
+        executeMove(from, targetSquare);
     }
 }
 
@@ -544,7 +552,6 @@ function startNewGame() {
     } 
 }
 
-// Поворот доски
 function flipBoard() { isFlipped = !isFlipped; renderBoard(true); updateClockDisplay(); }
 function clearSelection() { selectedSquare = null; validMoves = []; renderBoard(false); }
 
