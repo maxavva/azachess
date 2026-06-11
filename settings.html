@@ -120,6 +120,14 @@
   <script type="module">
     import { auth, db, onAuthStateChanged, doc, getDoc } from "./firebase-logic.js";
 
+    // 1. Находим элемент в начале скрипта:
+    const setAutoQueen = document.getElementById('set-autoqueen');
+
+    // 2. Читаем значение из памяти (вставьте к остальным загрузкам):
+    setAutoQueen.checked = localStorage.getItem('azachess-setting-autoqueen') === 'true';
+
+    // 3. Сохраняем значение (вставьте внутрь обработчика onclick кнопки сохранения):
+    localStorage.setItem('azachess-setting-autoqueen', setAutoQueen.checked);
     const profUsername = document.getElementById('prof-username');
     const profStatus = document.getElementById('prof-status');
 
