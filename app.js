@@ -111,8 +111,7 @@ function initStockfish(sessionId) {
 
             if (e.data === 'readyok') {
                 isStockfishReady = true;
-                console.log("Движок Stockfish готов к расчету.");
-                // ИСПРАВЛЕНИЕ: если ИИ только что загрузился, а сейчас его ход — принудительно запускаем расчет
+                console.log("Движок Stockfish готов к работе.");
                 if (liveGame && liveGame.turn() !== userColor && !liveGame.game_over()) {
                     triggerEngineMove();
                 }
@@ -256,9 +255,12 @@ function handleMoveAttempt(from, to) {
     const isPawn = piece?.type === 'p';
     const isPromotionRank = (piece?.color === 'w' && to[1] === '8') || (piece?.color === 'b' && to[1] === '1');
 
+    console.log("Попытка хода с:", from, "на:", to, "Фигура:", piece ? piece.type : "нет");
+
     if (isPawn && isPromotionRank) {
         promotionFrom = from; 
         promotionTo = to;
+        console.log("Инициировано превращение пешки:", from, "->", to);
         document.getElementById('promotion-modal').classList.remove('hidden');
         renderPromotionChoices();
     } else {
@@ -268,6 +270,8 @@ function handleMoveAttempt(from, to) {
 
 function executeMove(from, to, promo = 'q') {
     if (isClockEnabled && (whiteTime <= 0 || blackTime <= 0)) { clearSelection(); return; }
+    
+    console.log("Выполнение хода:", from, "->", to, "Превращение в:", promo);
     const res = liveGame.move({ from, to, promotion: promo });
     if (res) {
         if (window.playMoveSound) window.playMoveSound(res);
@@ -277,7 +281,9 @@ function executeMove(from, to, promo = 'q') {
         currentMoveIndex = fullMoveHistory.length;
         syncDisplayGame(); 
         onMoveExecution();
-    } else clearSelection();
+    } else {
+        clearSelection();
+    }
 }
 
 function onMoveExecution() {
@@ -287,7 +293,7 @@ function onMoveExecution() {
     updateStatus(); 
     updateClockDisplay(); 
     renderBoard(false);
-    saveGameState();
+    saveGameState(); // Вызывается после обновления статуса и безопасно стирает/записывает лог
     if (!liveGame.game_over() && !(isClockEnabled && (whiteTime <= 0 || blackTime <= 0))) { 
         if (isClockEnabled) startTimer(); 
         checkAndTriggerAI(); 
@@ -347,6 +353,15 @@ function updateClockDisplay() {
 }
 
 function saveGameState() {
+    const isTimeout = isClockEnabled && (whiteTime <= 0 || blackTime <= 0);
+    
+    // ИСПРАВЛЕНИЕ: Если игра закончена или вышло время — прерываем запись сейва и очищаем localStorage
+    if ((liveGame && liveGame.game_over()) || isTimeout) {
+        console.log("Сохранение прервано: партия завершена. Файл сохранения удален.");
+        localStorage.removeItem('azachess-save-game');
+        return;
+    }
+
     const state = {
         fen: liveGame.fen(), history: fullMoveHistory, currentIdx: currentMoveIndex,
         whiteTime, blackTime, lastTick, isGameStarted, userColor, isFlipped, isClockEnabled, increment
@@ -452,10 +467,41 @@ function updateStatus() {
 
     s.textContent = statusText;
 
-    // ИСПРАВЛЕНИЕ: если игра завершилась, очищаем файл сохранения, чтобы убрать кнопку продолжения
     if (isOver) {
         localStorage.removeItem('azachess-save-game');
         if (!isGameOverSaved) saveToPermanentArchive(statusText);
+    }
+}
+
+async function saveToPermanentArchive(reason) {
+    const userId = localStorage.getItem('azachess-user-id');
+    if (!userId || userId === "null" || isGameOverSaved || fullMoveHistory.length < 2) return;
+    isGameOverSaved = true;
+    
+    console.log("Запись партии в архив Firestore...");
+    const gameData = { 
+        id: Date.now(), 
+        userId, 
+        date: new Date().toLocaleString(), 
+        result: reason, 
+        aiLevel: localStorage.getItem('selected-ai-level') || '3',
+        history: fullMoveHistory.map(m => ({from: m.from, to: m.to, san: m.san, promotion: m.promotion || null})), 
+        fen: liveGame.fen(), 
+        timeControl: localStorage.getItem('selected-time-control') || '5+3', 
+        userColor 
+    };
+
+    // Сохраняем локальный кэш
+    const archive = JSON.parse(localStorage.getItem('azachess-archive') || '[]');
+    archive.unshift(gameData);
+    localStorage.setItem('azachess-archive', JSON.stringify(archive));
+
+    try {
+        const userHistoryRef = collection(db, "users", userId, "history");
+        await addDoc(userHistoryRef, gameData);
+        console.log("Партия успешно записана в облачную историю Firestore!");
+    } catch (e) { 
+        console.error("Firebase Error при сохранении архива:", e); 
     }
 }
 
@@ -499,8 +545,10 @@ function renderPromotionChoices() {
     container.innerHTML = '';
     ['q','r','b','n'].forEach(p => {
         const btn = document.createElement('button'); btn.className = 'promo-btn';
-        btn.innerHTML = `<img src="${PIECE_IMAGES[turn+p.toUpperCase()]}" style="width:100%">`;
+        // Установили pointer-events: none на img для защиты от перехвата клика мышкой или тачем
+        btn.innerHTML = `<img src="${PIECE_IMAGES[turn+p.toUpperCase()]}" style="width:100%; height:100%; pointer-events: none;">`;
         btn.onclick = () => { 
+            console.log("Выбрана фигура для превращения:", p);
             executeMove(promotionFrom, promotionTo, p); 
             document.getElementById('promotion-modal').classList.add('hidden'); 
         };
