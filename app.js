@@ -76,11 +76,10 @@ function initApp() {
             window.azachessKeydownAttached = true;
         }
 
-        // Навешиваем аварийный клик на фон модального окна превращения
+        // Аварийный клик на фон модального окна превращения
         const promoModal = document.getElementById('promotion-modal');
         if (promoModal) {
             promoModal.addEventListener('click', (e) => {
-                // Если кликнули именно по темному фону, а не по контенту
                 if (e.target === promoModal) {
                     console.log("Аварийное превращение: выбран Ферзь (Q) по клику на фон.");
                     executeMove(promotionFrom, promotionTo, 'q');
@@ -271,11 +270,18 @@ function handleMoveAttempt(from, to) {
     console.log("Попытка хода с:", from, "на:", to, "Фигура:", piece ? piece.type : "нет");
 
     if (isPawn && isPromotionRank) {
-        promotionFrom = from; 
-        promotionTo = to;
-        console.log("Открытие модального окна превращения пешки:", from, "->", to);
-        document.getElementById('promotion-modal').classList.remove('hidden');
-        renderPromotionChoices();
+        // ПРОВЕРКА НАСТРОЙКИ АВТО-ФЕРЗЯ
+        const autoQueen = localStorage.getItem('azachess-setting-autoqueen') === 'true';
+        if (autoQueen) {
+            console.log("Применено автоматическое превращение в ферзя (Auto-Queen):", from, "->", to);
+            executeMove(from, to, 'q');
+        } else {
+            promotionFrom = from; 
+            promotionTo = to;
+            console.log("Открытие модального окна превращения пешки:", from, "->", to);
+            document.getElementById('promotion-modal').classList.remove('hidden');
+            renderPromotionChoices();
+        }
     } else {
         executeMove(from, to);
     }
@@ -368,7 +374,6 @@ function updateClockDisplay() {
 function saveGameState() {
     const isTimeout = isClockEnabled && (whiteTime <= 0 || blackTime <= 0);
     
-    // Очищаем сохранение при завершении игры
     if ((liveGame && liveGame.game_over()) || isTimeout) {
         console.log("Сохранение прервано: партия завершена. Файл сохранения удален.");
         localStorage.removeItem('azachess-save-game');
@@ -539,6 +544,7 @@ function startNewGame() {
     } 
 }
 
+// Поворот доски
 function flipBoard() { isFlipped = !isFlipped; renderBoard(true); updateClockDisplay(); }
 function clearSelection() { selectedSquare = null; validMoves = []; renderBoard(false); }
 
@@ -555,13 +561,12 @@ function updateMoveLog() {
 
 function renderPromotionChoices() {
     const container = document.querySelector('.promotion-choices'), turn = liveGame.turn();
+    if (!container) return;
     container.innerHTML = '';
     ['q','r','b','n'].forEach(p => {
         const btn = document.createElement('button'); btn.className = 'promo-btn';
-        // Установили pointer-events: none на img для защиты от перехвата клика
         btn.innerHTML = `<img src="${PIECE_IMAGES[turn+p.toUpperCase()]}" style="width:100%; height:100%; pointer-events: none;">`;
         
-        // Переписано на надежный addEventListener вместо .onclick
         btn.addEventListener('click', (e) => {
             e.preventDefault();
             console.log("Игрок выбрал фигуру для превращения:", p);
