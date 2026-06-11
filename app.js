@@ -433,37 +433,29 @@ function resetGameSettings() {
 function updateStatus() {
     const s = document.getElementById('status-text'); if (!s) return;
     let statusText = "";
-    if (isClockEnabled && whiteTime <= 0) statusText = 'Белые: время вышло!';
-    else if (isClockEnabled && blackTime <= 0) statusText = 'Черные: время вышло!';
-    else if (liveGame.in_checkmate()) statusText = 'Мат!';
-    else statusText = liveGame.turn()==='w' ? 'Ход белых' : 'Ход черных';
-    s.textContent = statusText;
-    if ((liveGame.game_over() || statusText.includes('вышло')) && !isGameOverSaved) saveToPermanentArchive(statusText);
-}
+    let isOver = false;
 
-async function saveToPermanentArchive(reason) {
-    const userId = localStorage.getItem('azachess-user-id');
-    if (!userId || userId === "null" || isGameOverSaved || fullMoveHistory.length < 2) return;
-    isGameOverSaved = true;
-    const gameData = { 
-        id: Date.now(), 
-        userId, 
-        date: new Date().toLocaleString(), 
-        result: reason, 
-        aiLevel: localStorage.getItem('selected-ai-level') || '3',
-        history: fullMoveHistory.map(m => ({from: m.from, to: m.to, san: m.san, promotion: m.promotion || null})), 
-        fen: liveGame.fen(), 
-        timeControl: localStorage.getItem('selected-time-control') || '5+3', 
-        userColor 
-    };
-    const archive = JSON.parse(localStorage.getItem('azachess-archive') || '[]');
-    archive.unshift(gameData);
-    localStorage.setItem('azachess-archive', JSON.stringify(archive));
-    try {
-        const userHistoryRef = collection(db, "users", userId, "history");
-        await addDoc(userHistoryRef, gameData);
-    } catch (e) { 
-        console.error("Firebase Error:", e); 
+    if (isClockEnabled && whiteTime <= 0) {
+        statusText = 'Белые: время вышло!';
+        isOver = true;
+    } else if (isClockEnabled && blackTime <= 0) {
+        statusText = 'Черные: время вышло!';
+        isOver = true;
+    } else if (liveGame.game_over()) {
+        isOver = true;
+        if (liveGame.in_checkmate()) statusText = 'Мат!';
+        else if (liveGame.in_draw()) statusText = 'Ничья!';
+        else statusText = 'Игра окончена';
+    } else {
+        statusText = liveGame.turn()==='w' ? 'Ход белых' : 'Ход черных';
+    }
+
+    s.textContent = statusText;
+
+    // ИСПРАВЛЕНИЕ: если игра завершилась, очищаем файл сохранения, чтобы убрать кнопку продолжения
+    if (isOver) {
+        localStorage.removeItem('azachess-save-game');
+        if (!isGameOverSaved) saveToPermanentArchive(statusText);
     }
 }
 
