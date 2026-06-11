@@ -135,6 +135,15 @@
       }
     });
 
+    // ОПРЕДЕЛЯЕМ СТРАНИЦУ ВОЗВРАТА (ИГРА, АНАЛИЗ ИЛИ ГЛАВНАЯ)
+    let returnUrl = sessionStorage.getItem('settings-return-url') || 'index.html';
+    const referrer = document.referrer;
+    if (referrer && !referrer.includes('settings.html') && 
+        (referrer.includes('play.html') || referrer.includes('analysis.html') || referrer.includes('index.html') || referrer.includes('archive.html'))) {
+      returnUrl = referrer;
+      sessionStorage.setItem('settings-return-url', returnUrl);
+    }
+
     // Загрузка текущих настроек из localStorage
     const setSound = document.getElementById('set-sound');
     const setHints = document.getElementById('set-hints');
@@ -146,7 +155,7 @@
     setCoords.checked = localStorage.getItem('azachess-setting-coords') !== 'false';
     setTheme.value = localStorage.getItem('azachess-setting-theme') || 'emerald';
 
-    // Сохранение изменений в память
+    // Сохранение изменений и возврат на исходный экран
     document.getElementById('btn-save-settings').onclick = () => {
       localStorage.setItem('azachess-setting-sound', setSound.checked);
       localStorage.setItem('azachess-setting-hints', setHints.checked);
@@ -154,7 +163,7 @@
       localStorage.setItem('azachess-setting-theme', setTheme.value);
 
       alert("Настройки сохранены!");
-      window.location.href = "index.html";
+      window.location.href = returnUrl; // Возвращает именно туда, откуда пришли!
     };
   </script>
 </body>
