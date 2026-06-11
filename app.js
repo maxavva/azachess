@@ -76,6 +76,19 @@ function initApp() {
             window.azachessKeydownAttached = true;
         }
 
+        // Навешиваем аварийный клик на фон модального окна превращения
+        const promoModal = document.getElementById('promotion-modal');
+        if (promoModal) {
+            promoModal.addEventListener('click', (e) => {
+                // Если кликнули именно по темному фону, а не по контенту
+                if (e.target === promoModal) {
+                    console.log("Аварийное превращение: выбран Ферзь (Q) по клику на фон.");
+                    executeMove(promotionFrom, promotionTo, 'q');
+                    promoModal.classList.add('hidden');
+                }
+            });
+        }
+
         resetGameSettings();
     } catch (e) {
         console.error("Ошибка при запуске приложения (initApp):", e);
@@ -260,7 +273,7 @@ function handleMoveAttempt(from, to) {
     if (isPawn && isPromotionRank) {
         promotionFrom = from; 
         promotionTo = to;
-        console.log("Инициировано превращение пешки:", from, "->", to);
+        console.log("Открытие модального окна превращения пешки:", from, "->", to);
         document.getElementById('promotion-modal').classList.remove('hidden');
         renderPromotionChoices();
     } else {
@@ -293,7 +306,7 @@ function onMoveExecution() {
     updateStatus(); 
     updateClockDisplay(); 
     renderBoard(false);
-    saveGameState(); // Вызывается после обновления статуса и безопасно стирает/записывает лог
+    saveGameState(); 
     if (!liveGame.game_over() && !(isClockEnabled && (whiteTime <= 0 || blackTime <= 0))) { 
         if (isClockEnabled) startTimer(); 
         checkAndTriggerAI(); 
@@ -355,7 +368,7 @@ function updateClockDisplay() {
 function saveGameState() {
     const isTimeout = isClockEnabled && (whiteTime <= 0 || blackTime <= 0);
     
-    // ИСПРАВЛЕНИЕ: Если игра закончена или вышло время — прерываем запись сейва и очищаем localStorage
+    // Очищаем сохранение при завершении игры
     if ((liveGame && liveGame.game_over()) || isTimeout) {
         console.log("Сохранение прервано: партия завершена. Файл сохранения удален.");
         localStorage.removeItem('azachess-save-game');
@@ -545,13 +558,17 @@ function renderPromotionChoices() {
     container.innerHTML = '';
     ['q','r','b','n'].forEach(p => {
         const btn = document.createElement('button'); btn.className = 'promo-btn';
-        // Установили pointer-events: none на img для защиты от перехвата клика мышкой или тачем
+        // Установили pointer-events: none на img для защиты от перехвата клика
         btn.innerHTML = `<img src="${PIECE_IMAGES[turn+p.toUpperCase()]}" style="width:100%; height:100%; pointer-events: none;">`;
-        btn.onclick = () => { 
-            console.log("Выбрана фигура для превращения:", p);
+        
+        // Переписано на надежный addEventListener вместо .onclick
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            console.log("Игрок выбрал фигуру для превращения:", p);
             executeMove(promotionFrom, promotionTo, p); 
             document.getElementById('promotion-modal').classList.add('hidden'); 
-        };
+        });
+        
         container.appendChild(btn);
     });
 }
