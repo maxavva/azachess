@@ -454,100 +454,6 @@ async function createInviteRoom() {
     }
 }
 
-// Сохранение PvP игры в личный архив и обновление простой статистики (без ELO)
-async function saveOnlineGameToArchive(data) {
-    const userId = localStorage.getItem('azachess-user-id');
-    if (!userId || data.history.length < 2) return;
-
-    const archiveKey = `pvp-archived-${data.id}`;
-    if (localStorage.getItem(archiveKey)) return;
-
-    localStorage.setItem(archiveKey, "true");
-
-    let statusReason = "Игра окончена";
-    let outcome = 0.5; // По умолчанию ничья
-
-    if (data.status === 'checkmate' || data.status === 'resign' || data.status === 'timeout') {
-        if (data.winner === currentRole) {
-            statusReason = `Победа (${data.winner === 'w' ? 'Белые' : 'Черные'})`;
-            outcome = 1;
-        } else {
-            statusReason = `Поражение (${data.winner === 'w' ? 'Белые' : 'Черные'})`;
-            outcome = 0;
-        }
-    } else if (data.status === 'draw') {
-        statusReason = "Ничья";
-        outcome = 0.5;
-    }
-
-    // 1. Считываем текущую простую статистику игрока
-    const stats = await getUserStats(userId);
-
-    // 2. Формируем новые накопительные показатели (простые инкременты без ELO)
-    const newWins = stats.wins + (outcome === 1 ? 1 : 0);
-    const newLosses = stats.losses + (outcome === 0 ? 1 : 0);
-    const newDraws = stats.draws + (outcome === 0.5 ? 1 : 0);
-    const newPlayed = stats.gamesPlayed + 1;
-
-    // 3. Записываем обновленные поля в Firestore профиля
-    try {
-        await setDoc(doc(db, "users", userId), {
-            wins: newWins,
-            losses: newLosses,
-            draws: newDraws,
-            gamesPlayed: newPlayed
-        }, { merge: true });
-        console.log(`[Profile] Статистика успешно сохранена. Сыграно: ${newPlayed}`);
-    } catch (err) {
-        console.error("Ошибка обновления статистики в профиле:", err);
-    }
-
-    // 4. Записываем игру в личную историю в кэш и облако
-    const gameData = {
-        id: data.id,
-        userId,
-        date: new Date(data.createdAt).toLocaleString(),
-        result: statusReason,
-        aiLevel: "PvP-Онлайн",
-        history: data.history,
-        fen: data.fen,
-        timeControl: data.timeControl,
-        userColor: userId === data.whiteId ? 'w' : 'b'
-    };
-
-    const archive = JSON.parse(localStorage.getItem('azachess-archive') || '[]');
-    archive.unshift(gameData);
-    localStorage.setItem('azachess-archive', JSON.stringify(archive));
-
-    try {
-        const userHistoryRef = doc(db, "users", userId, "history", data.id);
-        await setDoc(userHistoryRef, gameData);
-        console.log("[Room] Партия успешно заархивирована в Firestore.");
-    } catch(e) {
-        console.error("Ошибка синхронизации истории PvP:", e);
-    }
-}
-
-// Получить полную статистику игрока (с защитой от отсутствия полей)
-async function getUserStats(uid) {
-    try {
-        const snap = await getDoc(doc(db, "users", uid));
-        if (snap.exists()) {
-            const data = snap.data();
-            return {
-                username: data.username || "Игрок",
-                wins: data.wins || 0,
-                losses: data.losses || 0,
-                draws: data.draws || 0,
-                gamesPlayed: data.gamesPlayed || 0
-            };
-        }
-    } catch (e) {
-        console.error("Error loading user stats:", e);
-    }
-    return { username: "Игрок", wins: 0, losses: 0, draws: 0, gamesPlayed: 0 };
-}
-
 // Подключение к комнате
 function joinRoom(gameId) {
     currentGameId = gameId;
@@ -618,14 +524,421 @@ function joinRoom(gameId) {
     });
 }
 
-function updateClockDisplay() {
-    const format = (s) => `${Math.floor(s/60)}:${(s%60).toString().padStart(2, '0')}`;
+// Обновление игрового статуса
+function updateStatusMultiplayer(data) {
+    const s = document.getElementById('status-text');
+    if (!s) return;
+
+    let statusText = "";
+    let isOver = false;
+
+    if (data.status === 'active') {
+        if (currentRole === data.turn) {
+            statusText = "Ваш ход!";
+        } else {
+            statusText = `Ход соперника (${data.turn === 'w' ? 'Белые' : 'Черные'})`;
+        }
+    } else if (data.status === 'checkmate') {
+        const winnerName = data.winner === 'w' ? data.whiteName : data.blackName;
+        statusText = `Мат! Победитель: ${winnerName}`;
+        isOver = true;
+    } else if (data.status === 'draw') {
+        statusText = "Ничья!";
+        isOver = true;
+    } else if (data.status === 'resign') {
+        const winnerName = data.winner === 'w' ? data.whiteName : data.blackName;
+        statusText = `Сдача! Победитель: ${winnerName}`;
+        isOver = true;
+    } else if (data.status === 'timeout') {
+        const winnerName = data.winner === 'w' ? data.whiteName : data.blackName;
+        statusText = `Время истекло! Победитель: ${winnerName}`;
+        isOver = true;
+    }
+
+    s.textContent = statusText;
+
+    if (isOver) {
+        stopTimerMultiplayer();
+        saveOnlineGameToArchive(data);
+
+        const resignBtn = document.getElementById('btn-resign');
+        if (resignBtn) {
+            resignBtn.textContent = "Выйти в лобби";
+            resignBtn.className = "btn";
+            resignBtn.onclick = leaveRoom;
+        }
+    } else {
+        const resignBtn = document.getElementById('btn-resign');
+        if (resignBtn) {
+            resignBtn.textContent = "Сдаться";
+            resignBtn.className = "btn btn-danger";
+            resignBtn.onclick = resignGame;
+        }
+    }
+}
+
+// Локальный плавный таймер отсчета времени
+function startTimerMultiplayer() {
+    stopTimerMultiplayer();
+    if (!lastTick) return;
+
+    timerInterval = setInterval(() => {
+        const turn = liveGame.turn();
+        const elapsed = Math.floor((Date.now() - lastTick) / 1000);
+
+        let localWhite = whiteTime;
+        let localBlack = blackTime;
+
+        if (turn === 'w') {
+            localWhite = Math.max(0, whiteTime - elapsed);
+        } else {
+            localBlack = Math.max(0, blackTime - elapsed);
+        }
+
+        renderClockDisplayLocally(localWhite, localBlack, turn);
+
+        // Инициализация таймаута на стороне ходящего игрока
+        if (turn === currentRole) {
+            if ((turn === 'w' && localWhite <= 0) || (turn === 'b' && localBlack <= 0)) {
+                triggerTimeout();
+            }
+        }
+    }, 250);
+}
+
+function stopTimerMultiplayer() {
+    if (timerInterval) clearInterval(timerInterval);
+    timerInterval = null;
+}
+
+// Запись падения по времени
+async function triggerTimeout() {
+    stopTimerMultiplayer();
+    try {
+        const gameRef = doc(db, "pvp_games", currentGameId);
+        await updateDoc(gameRef, {
+            status: "timeout",
+            winner: currentRole === 'w' ? 'b' : 'w'
+        });
+    } catch(e) {
+        console.error("Timeout trigger failed:", e);
+    }
+}
+
+// Сдача
+async function resignGame() {
+    if (confirm("Вы уверены, что хотите сдаться?")) {
+        try {
+            const gameRef = doc(db, "pvp_games", currentGameId);
+            await updateDoc(gameRef, {
+                status: "resign",
+                winner: currentRole === 'w' ? 'b' : 'w'
+            });
+        } catch(e) {
+            console.error(e);
+        }
+    }
+}
+
+// Выход в лобби
+function leaveRoom() {
+    stopTimerMultiplayer();
+    if (gameListener) {
+        gameListener();
+        gameListener = null;
+    }
+    currentGameId = null;
+    currentRole = null;
+    showView('lobby');
+}
+
+// Сохранение PvP игры в личный архив и обновление простой статистики (без ELO)
+async function saveOnlineGameToArchive(data) {
+    const userId = localStorage.getItem('azachess-user-id');
+    if (!userId || data.history.length < 2) return;
+
+    const archiveKey = `pvp-archived-${data.id}`;
+    if (localStorage.getItem(archiveKey)) return;
+
+    localStorage.setItem(archiveKey, "true");
+
+    let statusReason = "Игра окончена";
+    let outcome = 0.5; // По умолчанию ничья
+
+    if (data.status === 'checkmate' || data.status === 'resign' || data.status === 'timeout') {
+        if (data.winner === currentRole) {
+            statusReason = `Победа (${data.winner === 'w' ? 'Белые' : 'Черные'})`;
+            outcome = 1;
+        } else {
+            statusReason = `Поражение (${data.winner === 'w' ? 'Белые' : 'Черные'})`;
+            outcome = 0;
+        }
+    } else if (data.status === 'draw') {
+        statusReason = "Ничья";
+        outcome = 0.5;
+    }
+
+    // 1. Считываем текущую простую статистику игрока
+    const stats = await getUserStats(userId);
+
+    // 2. Формируем новые показатели (простые инкременты)
+    const newWins = stats.wins + (outcome === 1 ? 1 : 0);
+    const newLosses = stats.losses + (outcome === 0 ? 1 : 0);
+    const newDraws = stats.draws + (outcome === 0.5 ? 1 : 0);
+    const newPlayed = stats.gamesPlayed + 1;
+
+    // 3. Записываем обновленные поля в Firestore профиля
+    try {
+        await setDoc(doc(db, "users", userId), {
+            wins: newWins,
+            losses: newLosses,
+            draws: newDraws,
+            gamesPlayed: newPlayed
+        }, { merge: true });
+        console.log(`[Profile] Статистика успешно сохранена. Сыграно: ${newPlayed}`);
+    } catch (err) {
+        console.error("Ошибка обновления статистики в профиле:", err);
+    }
+
+    // 4. Записываем игру в личную историю в кэш и облако
+    const gameData = {
+        id: data.id,
+        userId,
+        date: new Date(data.createdAt).toLocaleString(),
+        result: statusReason,
+        aiLevel: "PvP-Онлайн",
+        history: data.history,
+        fen: data.fen,
+        timeControl: data.timeControl,
+        userColor: userId === data.whiteId ? 'w' : 'b'
+    };
+
+    const archive = JSON.parse(localStorage.getItem('azachess-archive') || '[]');
+    archive.unshift(gameData);
+    localStorage.setItem('azachess-archive', JSON.stringify(archive));
+
+    try {
+        const userHistoryRef = doc(db, "users", userId, "history", data.id);
+        await setDoc(userHistoryRef, gameData);
+        console.log("[Room] Партия успешно заархивирована в Firestore.");
+    } catch(e) {
+        console.error("Ошибка синхронизации истории PvP:", e);
+    }
+}
+
+// Отрендерить часы локально
+function renderClockDisplayLocally(w, b, turn) {
     const clockTop = document.getElementById('clock-top');
     const clockBottom = document.getElementById('clock-bottom');
-    if (clockTop && clockBottom) {
-        (isFlipped ? clockTop : clockBottom).textContent = format(whiteTime);
-        (isFlipped ? clockBottom : clockTop).textContent = format(blackTime);
+    if (!clockTop || !clockBottom) return;
+
+    const format = (s) => `${Math.floor(s/60)}:${(s%60).toString().padStart(2, '0')}`;
+    
+    (isFlipped ? clockTop : clockBottom).textContent = format(w);
+    (isFlipped ? clockBottom : clockTop).textContent = format(b);
+
+    clockTop.classList.toggle('active', (isFlipped && turn === 'w') || (!isFlipped && turn === 'b'));
+    clockBottom.classList.toggle('active', (!isFlipped && turn === 'w') || (isFlipped && turn === 'b'));
+}
+
+// Получить статистику игрока
+async function getUserStats(uid) {
+    try {
+        const snap = await getDoc(doc(db, "users", uid));
+        if (snap.exists()) {
+            const data = snap.data();
+            return {
+                username: data.username || "Игрок",
+                wins: data.wins || 0,
+                losses: data.losses || 0,
+                draws: data.draws || 0,
+                gamesPlayed: data.gamesPlayed || 0
+            };
+        }
+    } catch (e) {
+        console.error("Error loading user stats:", e);
     }
+    return { username: "Игрок", wins: 0, losses: 0, draws: 0, gamesPlayed: 0 };
+}
+
+// Отрисовка шахматной доски
+function renderBoard(rebuild = false) {
+    const boardEl = document.getElementById('board');
+    if (!boardEl) return;
+
+    const showHints = localStorage.getItem('azachess-setting-hints') !== 'false';
+
+    if (rebuild) {
+        boardEl.innerHTML = '';
+        for (let r = 0; r < 8; r++) {
+            const row = isFlipped ? r : (7 - r);
+            for (let c = 0; c < 8; c++) {
+                const col = isFlipped ? (7 - c) : c;
+                const name = String.fromCharCode(97 + col) + (row + 1);
+                const sq = document.createElement('div');
+                sq.className = `square ${(row + col) % 2 !== 0 ? 'light' : 'dark'}`;
+                sq.dataset.square = name;
+                sq.onpointerdown = (e) => handlePointerDown(e, name);
+
+                if (r === 7) {
+                    const fileLabel = document.createElement('span');
+                    fileLabel.className = 'coordinate file';
+                    fileLabel.textContent = String.fromCharCode(97 + col);
+                    sq.appendChild(fileLabel);
+                }
+                if (c === 0) {
+                    const rankLabel = document.createElement('span');
+                    rankLabel.className = 'coordinate rank';
+                    rankLabel.textContent = row + 1;
+                    sq.appendChild(rankLabel);
+                }
+
+                boardEl.appendChild(sq);
+            }
+        }
+    }
+
+    boardEl.querySelectorAll('.square').forEach(sq => {
+        const name = sq.dataset.square, piece = displayGame.get(name);
+        sq.classList.remove('last-move', 'selected', 'check');
+        const last = fullMoveHistory[currentMoveIndex - 1];
+        if (last && (name === last.from || name === last.to)) sq.classList.add('last-move');
+        if (selectedSquare === name) sq.classList.add('selected');
+        if (displayGame.in_check() && piece?.type === 'k' && piece.color === displayGame.turn()) sq.classList.add('check');
+        
+        let img = sq.querySelector('.piece');
+        if (piece) {
+            if (!img) { 
+                img = document.createElement('img'); 
+                img.className = 'piece'; 
+                img.draggable = false; 
+                sq.appendChild(img); 
+            }
+            img.src = PIECE_IMAGES[`${piece.color}${piece.type.toUpperCase()}`];
+        } else if (img) sq.removeChild(img);
+        
+        const m = sq.querySelector('.move-dest, .move-dest-capture');
+        if (m) sq.removeChild(m);
+
+        if (showHints && currentMoveIndex === fullMoveHistory.length && validMoves.includes(name)) {
+            const dest = document.createElement('div');
+            dest.className = piece ? 'move-dest-capture' : 'move-dest';
+            sq.appendChild(dest);
+        }
+    });
+}
+
+// Клики и перетаскивание фигур (Pointer Events с захватом для тач-скринов)
+function handlePointerDown(e, sq) {
+    if (typeof window.unlockAudio === 'function') window.unlockAudio();
+    if (currentRole !== liveGame.turn() || currentMoveIndex < fullMoveHistory.length) return;
+
+    if (selectedSquare && validMoves.includes(sq)) { 
+        handleMoveAttempt(selectedSquare, sq); 
+        return; 
+    }
+
+    const piece = liveGame.get(sq);
+    if (piece && piece.color === currentRole) {
+        isDragging = true; 
+        dragMovedEnough = false; 
+        draggedSquare = sq;
+        dragStartX = e.clientX; 
+        dragStartY = e.clientY;
+        draggedPieceImg = e.target.classList.contains('piece') ? e.target : e.target.querySelector('.piece');
+        selectedSquare = sq; 
+        
+        validMoves = liveGame.moves({ square: sq, verbose: true }).map(m => m.to.split('=')[0].trim());
+        
+        renderBoard(false);
+        window.onpointermove = handlePointerMove; 
+        window.onpointerup = handlePointerUp;
+
+        // Позволяет захватить палец на тач-экранах смартфонов (предотвращает скролл и срыв фигуры)
+        try { e.target.setPointerCapture(e.pointerId); } catch(err) {}
+    } else {
+        clearSelection();
+    }
+}
+
+function handlePointerMove(e) {
+    if (!isDragging || !draggedPieceImg) return;
+    if (Math.hypot(e.clientX - dragStartX, e.clientY - dragStartY) > DRAG_THRESHOLD) {
+        dragMovedEnough = true;
+        if (!dragClone) {
+            dragClone = draggedPieceImg.cloneNode(true);
+            dragClone.className = 'piece drag-clone';
+            const rect = draggedPieceImg.getBoundingClientRect();
+            dragClone.style.width = rect.width + 'px'; 
+            dragClone.style.height = rect.height + 'px';
+            document.body.appendChild(dragClone);
+            draggedPieceImg.style.visibility = 'hidden';
+        }
+        dragClone.style.left = (e.clientX - dragClone.offsetWidth / 2) + 'px';
+        dragClone.style.top = (e.clientY - dragClone.offsetHeight / 2) + 'px';
+    }
+}
+
+function handlePointerUp(e) {
+    isDragging = false; 
+    window.onpointermove = null; 
+    window.onpointerup = null;
+
+    // Освобождаем захват указателя для тач-скринов
+    try { e.target.releasePointerCapture(e.pointerId); } catch(err) {}
+
+    if (dragClone) { document.body.removeChild(dragClone); dragClone = null; }
+    if (draggedPieceImg) draggedPieceImg.style.visibility = 'visible';
+    const target = document.elementFromPoint(e.clientX, e.clientY)?.closest('.square')?.dataset.square;
+    if (dragMovedEnough && target && validMoves.includes(target)) {
+        handleMoveAttempt(draggedSquare, target);
+    } else if (dragMovedEnough) {
+        renderBoard(false);
+    }
+}
+
+function handleMoveAttempt(from, to) {
+    const piece = liveGame.get(from);
+    const isPawn = piece?.type?.toLowerCase() === 'p';
+    const isPromotionRank = (piece?.color?.toLowerCase() === 'w' && to.endsWith('8')) || (piece?.color?.toLowerCase() === 'b' && to.endsWith('1'));
+
+    if (isPawn && isPromotionRank) {
+        const autoQueen = localStorage.getItem('azachess-setting-autoqueen') === 'true';
+        if (autoQueen) {
+            executeMoveMultiplayer(from, to, 'q');
+            return;
+        }
+
+        const promoModal = document.getElementById('promotion-modal');
+        if (promoModal) {
+            promotionFrom = from; 
+            promotionTo = to;
+            promoModal.classList.remove('hidden');
+            renderPromotionChoices();
+        } else {
+            executeMoveMultiplayer(from, to, 'q');
+        }
+    } else {
+        executeMoveMultiplayer(from, to);
+    }
+}
+
+function renderPromotionChoices() {
+    const container = document.querySelector('.promotion-choices'), turn = liveGame.turn();
+    if (!container) return;
+    container.innerHTML = '';
+    ['q','r','b','n'].forEach(p => {
+        const btn = document.createElement('button'); btn.className = 'promo-btn';
+        btn.innerHTML = `<img src="${PIECE_IMAGES[turn+p.toUpperCase()]}" style="width:100%; height:100%; pointer-events: none;">`;
+        
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            executeMoveMultiplayer(promotionFrom, promotionTo, p); 
+            document.getElementById('promotion-modal').classList.add('hidden'); 
+        });
+        
+        container.appendChild(btn);
+    });
 }
 
 function jumpToMoveIndex(idx) {
