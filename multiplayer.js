@@ -67,7 +67,6 @@ function initMultiplayer() {
             return;
         }
 
-        // Фиксируем ID сессии напрямую из ядра Firebase
         currentUserId = user.uid;
         localStorage.setItem('azachess-user-id', user.uid); // Обратная совместимость
 
@@ -118,14 +117,17 @@ function showView(view) {
         if (el) el.classList.add('hidden');
     });
 
-    const activeEl = document.getElementById(`${view}-view`);
-    if (activeEl) activeEl.classList.remove('hidden');
-
-    const header = document.getElementById('multiplayer-header');
-    if (header) {
-        if (view === 'lobby') header.textContent = "Онлайн PvP-Арена";
-        else if (view === 'searching') header.textContent = "Поиск игры";
-        else if (view === 'invite') header.textContent = "Вызов друга";
+    if (view === 'lobby') {
+        document.getElementById('lobby-view').classList.remove('hidden');
+        document.getElementById('multiplayer-header').textContent = "Онлайн PvP-Арена";
+    } else if (view === 'searching') {
+        document.getElementById('searching-view').classList.remove('hidden');
+        document.getElementById('multiplayer-header').textContent = "Поиск игры";
+    } else if (view === 'invite') {
+        document.getElementById('invite-view').classList.remove('hidden');
+        document.getElementById('multiplayer-header').textContent = "Вызов друга";
+    } else if (view === 'game') {
+        document.getElementById('game-view').classList.remove('hidden');
     }
 }
 
@@ -157,14 +159,12 @@ async function startMatchmaking() {
     startSearchTimer();
 
     try {
-        // 1. Ищем свободного игрока в очереди
         const qRef = collection(db, "queue");
         const q = query(qRef, where("timeControl", "==", timeControl), limit(10));
         const snap = await getDocs(q);
 
         console.log(`[Matchmaker] Найдено кандидатов в коллекции queue: ${snap.size}`);
 
-        // Фильтруем тех, кто еще не соединен, и сортируем по времени создания локально в памяти
         const sortedDocs = snap.docs
             .filter(d => d.id !== userId && !d.data().matchedGameId)
             .sort((a, b) => (a.data().createdAt || 0) - (b.data().createdAt || 0));
@@ -178,7 +178,6 @@ async function startMatchmaking() {
             const candidate = candidateDoc.data();
             console.log(`[Matchmaker] Пробуем соединиться с кандидатом: ${candidate.username}`);
 
-            // Запускаем транзакцию для предотвращения гонки за кандидата
             try {
                 await runTransaction(db, async (transaction) => {
                     const candidateRef = doc(db, "queue", candidate.userId);
@@ -187,7 +186,6 @@ async function startMatchmaking() {
                         throw "Кандидат уже взят другим игроком или вышел";
                     }
 
-                    // Генерируем уникальный ID игры
                     const gameId = doc(collection(db, "pvp_games")).id;
                     const gameRef = doc(db, "pvp_games", gameId);
 
@@ -216,10 +214,7 @@ async function startMatchmaking() {
                         createdAt: Date.now()
                     };
 
-                    // Вписываем ID игры в билет очереди кандидата (он мгновенно узнает об этом)
                     transaction.update(candidateRef, { matchedGameId: gameId });
-
-                    // Создаем игровую комнату
                     transaction.set(gameRef, gameData);
                     matchedGameId = gameId;
                     matchFound = true;
@@ -230,7 +225,7 @@ async function startMatchmaking() {
                     break;
                 }
             } catch (txErr) {
-                console.warn("[Matchmaker] Ошибка транзакции (возможно, конкурентный перехват):", txErr);
+                console.warn("[Matchmaker] Ошибка транзакции:", txErr);
             }
         }
 
@@ -239,7 +234,6 @@ async function startMatchmaking() {
             joinRoom(matchedGameId);
         } else {
             console.log("[Matchmaker] Подходящих оппонентов не найдено. Создаем свой билет в очереди...");
-            // 2. Если никого нет в очереди, добавляем себя и подписываемся на СВОЙ ДОКУМЕНТ ОЧЕРЕДИ
             const myQueueRef = doc(db, "queue", userId);
             await setDoc(myQueueRef, {
                 userId,
@@ -259,13 +253,15 @@ async function startMatchmaking() {
                         if (queueListener) queueListener();
                         queueListener = null;
 
-                        // Удаляем свой билет из очереди
                         deleteDoc(myQueueRef).catch(() => {});
 
                         stopSearchTimer();
                         joinRoom(queueData.matchedGameId);
                     }
                 }
+            }, (error) => {
+                console.error("[Matchmaker] Ошибка подписки на очередь:", error);
+                alert(`Сбой сетевой очереди:\n\n${error.message}`);
             });
         }
 
@@ -334,7 +330,6 @@ async function checkInviteQuery() {
             return;
         }
 
-        // Подключаемся к комнате ожидания (status === 'waiting')
         const userStats = await getUserStats(userId);
         const username = userStats.username;
 
@@ -413,7 +408,6 @@ async function createInviteRoom() {
 
         await setDoc(gameRef, gameData);
 
-        // Формируем ссылку и выводим её в Input
         const inviteUrl = `${window.location.origin}${window.location.pathname}?room=${gameId}`;
         const linkInput = document.getElementById('invite-link-input');
         if (linkInput) linkInput.value = inviteUrl;
@@ -447,6 +441,9 @@ async function createInviteRoom() {
                     joinRoom(gameId);
                 }
             }
+        }, (error) => {
+            console.error("[Invite] Ошибка прослушивания созданной комнаты:", error);
+            alert(`Ошибка сети при ожидании друга:\n\n${error.message}`);
         });
 
     } catch (err) {
@@ -465,7 +462,7 @@ function joinRoom(gameId) {
 
     const gameRef = doc(db, "pvp_games", gameId);
     
-    // Внедряем глобальный перехватчик ошибок для мгновенного нахождения сбоев
+    // Внедряем явный onError-обработчик для отлова Permission Denied на мобильных
     gameListener = onSnapshot(gameRef, (docSnap) => {
         try {
             if (!docSnap.exists()) {
@@ -534,8 +531,12 @@ function joinRoom(gameId) {
             }
         } catch (roomErr) {
             console.error("[Room] Ошибка внутри onSnapshot игрового цикла:", roomErr);
-            alert(`Ошибка синхронизации игрового цикла:\n\n${roomErr}`);
+            alert(`Ошибка отрисовки игры:\n\n${roomErr}`);
         }
+    }, (error) => {
+        // Ловим ошибку авторизации/доступа (Permission Denied) со стороны Firebase
+        console.error("[Room] Ошибка подписки на документ pvp_games:", error);
+        alert(`Ошибка доступа к серверу игры!\n\nСистемный код: ${error.code}\nТекст: ${error.message}\n\nВозможно, не обновились правила базы данных или сбилась сессия.`);
     });
 }
 
@@ -850,7 +851,14 @@ function renderBoard(rebuild = false) {
 function handlePointerDown(e, sq) {
     if (e.cancelable) e.preventDefault(); // ПРЕДОТВРАЩАЕТ СКРОЛЛ НА СМАРТФОНАХ (Фигуры теперь двигаются безотказно)
     if (typeof window.unlockAudio === 'function') window.unlockAudio();
-    if (currentRole !== liveGame.turn() || currentMoveIndex < fullMoveHistory.length) return;
+    
+    // Мгновенный лог в консоль для выяснения причин блокировки хода
+    console.log(`[Board] Нажата клетка: ${sq}. Роль: ${currentRole}, Очередь хода: ${liveGame.turn()}, Индекс: ${currentMoveIndex}, История: ${fullMoveHistory.length}`);
+
+    if (currentRole !== liveGame.turn() || currentMoveIndex < fullMoveHistory.length) {
+        console.warn("[Board] Движение заблокировано: не ваш ход или вы просматриваете историю.");
+        return;
+    }
 
     if (selectedSquare && validMoves.includes(sq)) { 
         handleMoveAttempt(selectedSquare, sq); 
@@ -1057,16 +1065,6 @@ function renderPromotionChoices() {
         
         container.appendChild(btn);
     });
-}
-
-function updateClockDisplay() {
-    const format = (s) => `${Math.floor(s/60)}:${(s%60).toString().padStart(2, '0')}`;
-    const clockTop = document.getElementById('clock-top');
-    const clockBottom = document.getElementById('clock-bottom');
-    if (clockTop && clockBottom) {
-        (isFlipped ? clockTop : clockBottom).textContent = format(whiteTime);
-        (isFlipped ? clockBottom : clockTop).textContent = format(blackTime);
-    }
 }
 
 function jumpToMoveIndex(idx) {
