@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Azachess - Поиск игроков</title>
+  <link rel="stylesheet" href="home-style.css">
+  <style>
+    .search-box {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 25px;
+    }
+    .search-input {
+      flex-grow: 1;
+      padding: 14px 18px;
+      background: #111;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: #fff;
+      font-size: 1rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .search-input:focus {
+      border-color: var(--accent);
+    }
+    .user-card {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      padding: 18px 20px;
+      border-radius: 12px;
+      margin-bottom: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      transition: border-color 0.2s;
+    }
+    .user-card:hover {
+      border-color: #555;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="top-profile-bar">
+    <a href="index.html" style="color: var(--accent); text-decoration: none; font-weight: bold;">← НА ГЛАВНУЮ</a>
+    <div style="font-weight: bold; color: #fff;">Поиск игроков</div>
+  </div>
+
+  <div class="hub-container" style="max-width: 600px;">
+    
+    <div class="search-box">
+      <input type="text" id="input-search" class="search-input" placeholder="Введите никнейм игрока...">
+      <button id="btn-search" class="start-btn" style="padding: 12px 25px; font-size: 1rem; margin: 0;">Найти</button>
+    </div>
+
+    <div id="loader" style="display: none; text-align: center; padding: 20px; font-weight: bold; color: var(--accent);">
+      Поиск в базе данных...
+    </div>
+
+    <main id="search-results"></main>
+  </div>
+
+  <script type="module">
+    import { db, collection, query, where, getDocs, limit } from "./firebase-logic.js";
+
+    const searchInput = document.getElementById('input-search');
+    const searchBtn = document.getElementById('btn-search');
+    const resultsEl = document.getElementById('search-results');
+    const loaderEl = document.getElementById('loader');
+
+    async function executeSearch() {
+        const text = searchInput.value.trim();
+        if (!text) {
+            resultsEl.innerHTML = '<div style="text-align:center; color:#666;">Введите имя для поиска.</div>';
+            return;
+        }
+
+        loaderEl.style.display = 'block';
+        resultsEl.innerHTML = '';
+
+        try {
+            const usersRef = collection(db, "users");
+            // Реализация бесшовного префиксного поиска в Firestore (без сложных индексов)
+            const q = query(
+                usersRef, 
+                where("username", ">=", text), 
+                where("username", "<=", text + "\uf8ff"), 
+                limit(15)
+            );
+            const snap = await getDocs(q);
+            loaderEl.style.display = 'none';
+
+            if (snap.empty) {
+                resultsEl.innerHTML = '<div style="text-align:center; color:#666; padding: 20px;">Пользователи с таким никнеймом не найдены.</div>';
+                return;
+            }
+
+            resultsEl.innerHTML = snap.docs.map(doc => {
+                const user = doc.data();
+                const played = user.gamesPlayed || 0;
+                const wins = user.wins || 0;
+
+                return `
+                    <div class="user-card">
+                        <div>
+                            <div style="font-weight: bold; color: #fff; font-size: 1.1rem;">${user.username}</div>
+                            <div style="font-size: 0.8rem; color: #888; margin-top: 4px;">Сыграно игр: ${played} • Побед: ${wins}</div>
+                        </div>
+                        <button class="grid-item" style="padding: 8px 16px; font-size: 0.85rem;" onclick="location.href='profile.html?uid=${doc.id}'">ПРОФИЛЬ</button>
+                    </div>
+                `;
+            }).join('');
+
+        } catch (e) {
+            console.error("Ошибка поиска:", e);
+            loaderEl.style.display = 'none';
+            resultsEl.innerHTML = '<div style="text-align:center; color:#d9534f; padding: 20px;">Ошибка выполнения запроса.</div>';
+        }
+    }
+
+    searchBtn.onclick = executeSearch;
+    searchInput.onkeydown = (e) => { if (e.key === 'Enter') executeSearch(); };
+  </script>
+</body>
+</html>
