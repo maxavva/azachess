@@ -15,6 +15,19 @@ const PIECE_IMAGES = {
     'bK': 'https://upload.wikimedia.org/wikipedia/commons/f/f0/Chess_kdt45.svg'
 };
 
+// БЕЗОПАСНЫЙ СКАРБ ПАМЯТИ (Исключает краши в WebViews/Инкогнито)
+const safeLocalStorage = {
+    getItem: (key) => {
+        try { return localStorage.getItem(key); } catch (e) { return null; }
+    },
+    setItem: (key, value) => {
+        try { localStorage.setItem(key, value); } catch (e) {}
+    },
+    removeItem: (key) => {
+        try { localStorage.removeItem(key); } catch (e) {}
+    }
+};
+
 // СОСТОЯНИЕ
 let liveGame = null;
 let displayGame = null;
@@ -90,14 +103,14 @@ function initMultiplayer() {
             const urlParams = new URLSearchParams(window.location.search);
             const roomId = urlParams.get('room');
             if (roomId) {
-                localStorage.setItem('azachess-join-room-after-auth', roomId);
+                safeLocalStorage.setItem('azachess-join-room-after-auth', roomId);
             }
             window.location.href = 'auth.html';
             return;
         }
 
         currentUserId = user.uid;
-        localStorage.setItem('azachess-user-id', user.uid); // Обратная совместимость
+        safeLocalStorage.setItem('azachess-user-id', user.uid); // Обратная совместимость
 
         console.log(`[Azachess-PvP] Успешно авторизован: ${currentUserId}`);
 
@@ -144,8 +157,8 @@ function applyGlobalSettings() {
         const boardEl = document.getElementById('board');
         if (!boardEl) return;
 
-        const theme = localStorage.getItem('azachess-setting-theme') || 'emerald';
-        const coords = localStorage.getItem('azachess-setting-coords') !== 'false';
+        const theme = safeLocalStorage.getItem('azachess-setting-theme') || 'emerald';
+        const coords = safeLocalStorage.getItem('azachess-setting-coords') !== 'false';
 
         boardEl.className = 'chessboard';
         boardEl.classList.add(`theme-${theme}`);
@@ -728,9 +741,9 @@ async function saveOnlineGameToArchive(data) {
     if (!userId || data.history.length < 2) return;
 
     const archiveKey = `pvp-archived-${data.id}`;
-    if (localStorage.getItem(archiveKey)) return;
+    if (safeLocalStorage.getItem(archiveKey)) return;
 
-    localStorage.setItem(archiveKey, "true");
+    safeLocalStorage.setItem(archiveKey, "true");
 
     let statusReason = "Игра окончена";
     let outcome = 0.5; // По умолчанию ничья
@@ -783,9 +796,15 @@ async function saveOnlineGameToArchive(data) {
         userColor: userId === data.whiteId ? 'w' : 'b'
     };
 
-    const archive = JSON.parse(localStorage.getItem('azachess-archive') || '[]');
+    // Безопасное кэширование истории локально
+    let archive = [];
+    try {
+        archive = JSON.parse(safeLocalStorage.getItem('azachess-archive') || '[]');
+    } catch(e) {
+        archive = [];
+    }
     archive.unshift(gameData);
-    localStorage.setItem('azachess-archive', JSON.stringify(archive));
+    safeLocalStorage.setItem('azachess-archive', JSON.stringify(archive));
 
     try {
         const userHistoryRef = doc(db, "users", userId, "history", data.id);
@@ -905,7 +924,11 @@ function renderBoard(rebuild = false) {
 
 // Клики и перетаскивание фигур (Pointer Events с захватом для тач-скринов)
 function handlePointerDown(e, sq) {
-    if (e.cancelable) e.preventDefault(); // ПРЕДОТВРАЩАЕТ СКРОЛЛ НА СМАРТФОНАХ
+    // Безопасная блокировка скролла для мобилок
+    try {
+        if (e && e.cancelable) e.preventDefault();
+    } catch(err) {}
+    
     if (typeof window.unlockAudio === 'function') window.unlockAudio();
     
     // Мгновенный лог в консоль для выяснения причин блокировки хода
