@@ -96,7 +96,7 @@ async function checkInviteQuery() {
 
     const userId = localStorage.getItem('azachess-user-id');
     if (!userId || userId === "null") {
-        // Отложенный вход: сохраняем комнату в кэш и уводим на авторизацию
+        console.log("[Invite] Отложенный вход: сохраняем комнату в кэш и уводим на авторизацию");
         localStorage.setItem('azachess-join-room-after-auth', roomId);
         window.location.href = 'auth.html';
         return;
@@ -165,8 +165,8 @@ async function checkInviteQuery() {
         joinRoom(roomId);
 
     } catch (err) {
-        console.error("Ошибка входа по ссылке вызова:", err);
-        alert("Не удалось войти в комнату. Место занято или комната закрыта.");
+        console.error("Ошибка при входе в вызов:", err);
+        alert(`Не удалось войти в игру. Код ошибки:\n${err}`);
         window.location.href = 'multiplayer.html';
     }
 }
@@ -920,73 +920,4 @@ function jumpToMoveIndex(idx) {
     updateMoveLog();
 }
 
-function updateMoveLog() {
-    const log = document.getElementById('move-log'); if(!log) return; log.innerHTML = '';
-    for (let i = 0; i < fullMoveHistory.length; i += 2) {
-        const row = document.createElement('div'); row.className = 'move-row';
-        row.innerHTML = `<span style="color:#666;width:25px;display:inline-block;">${(i/2)+1}.</span>
-        <span class="move-text ${i+1===currentMoveIndex?'active-move':''}" onclick="jumpToMoveIndex(${i+1})">${fullMoveHistory[i].san}</span>
-        ${fullMoveHistory[i+1] ? `<span class="move-text ${i+2===currentMoveIndex?'active-move':''}" onclick="jumpToMoveIndex(${i+2})">${fullMoveHistory[i+1].san}</span>` : ''}`;
-        log.appendChild(row);
-    }
-}
-
-function clearSelection() { selectedSquare = null; validMoves = []; renderBoard(false); }
-
-async function getUserName(uid) {
-    if (!uid) return "Игрок";
-    try {
-        const snap = await getDoc(doc(db, "users", uid));
-        return snap.exists() ? snap.data().username : "Игрок";
-    } catch (e) {
-        return "Игрок";
-    }
-}
-
-function parseTimeControl(tc) {
-    if (tc === 'none') return { time: 999999, inc: 0 };
-    const parts = tc.split('+');
-    return {
-        time: parseInt(parts[0]) * 60,
-        inc: parseInt(parts[1]) || 0
-    };
-}
-
-function startSearchTimer() {
-    searchSeconds = 0;
-    const el = document.getElementById('search-timer');
-    if (el) el.textContent = `Вы в очереди: 0 сек`;
-    
-    searchSeconds++;
-    searchTimerInterval = setInterval(() => {
-        if (el) el.textContent = `Вы в очереди: ${searchSeconds} сек`;
-        searchSeconds++;
-    }, 1000);
-}
-
-// Сброс и перезапуск
-function stopSearchTimer() {
-    if (searchTimerInterval) clearInterval(searchTimerInterval);
-    searchTimerInterval = null;
-}
-
-function applyGlobalSettings() {
-    try {
-        const boardEl = document.getElementById('board');
-        if (!boardEl) return;
-
-        const theme = localStorage.getItem('azachess-setting-theme') || 'emerald';
-        const coords = localStorage.getItem('azachess-setting-coords') !== 'false';
-
-        boardEl.className = 'chessboard';
-        boardEl.classList.add(`theme-${theme}`);
-
-        if (coords) {
-            boardEl.classList.remove('hide-coordinates');
-        } else {
-            boardEl.classList.add('hide-coordinates');
-        }
-    } catch (e) {
-        console.error("applyGlobalSettings error:", e);
-    }
-}
+function updateM
