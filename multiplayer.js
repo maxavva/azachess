@@ -15,7 +15,7 @@ const PIECE_IMAGES = {
     'bK': 'https://upload.wikimedia.org/wikipedia/commons/f/f0/Chess_kdt45.svg'
 };
 
-// СОСТОЯНИЕ
+// СОСТОЯНИЕ ИГРЫ
 let liveGame = null;
 let displayGame = null;
 
@@ -109,6 +109,28 @@ if (document.readyState === 'loading') {
     initMultiplayer();
 }
 
+// Применение глобальных настроек оформления
+function applyGlobalSettings() {
+    try {
+        const boardEl = document.getElementById('board');
+        if (!boardEl) return;
+
+        const theme = localStorage.getItem('azachess-setting-theme') || 'emerald';
+        const coords = localStorage.getItem('azachess-setting-coords') !== 'false';
+
+        boardEl.className = 'chessboard';
+        boardEl.classList.add(`theme-${theme}`);
+
+        if (coords) {
+            boardEl.classList.remove('hide-coordinates');
+        } else {
+            boardEl.classList.add('hide-coordinates');
+        }
+    } catch (e) {
+        console.error("applyGlobalSettings error:", e);
+    }
+}
+
 // Управление экранами с защитой от отсутствия элементов
 function showView(view) {
     const views = ['lobby-view', 'searching-view', 'invite-view', 'game-view'];
@@ -140,7 +162,7 @@ function setupTimeControlPvP() {
     }
     items.forEach(el => {
         el.onclick = () => {
-            items.forEach(i => i.classList.remove('active'));
+            document.querySelectorAll('#time-grid-pvp .grid-item').forEach(i => i.classList.remove('active'));
             el.classList.add('active');
             selectedTimeControl = el.dataset.time;
             console.log("[Lobby] Выбран контроль времени:", selectedTimeControl);
@@ -849,7 +871,7 @@ function renderBoard(rebuild = false) {
 
 // Клики и перетаскивание фигур (Pointer Events с захватом для тач-скринов)
 function handlePointerDown(e, sq) {
-    if (e.cancelable) e.preventDefault(); // ПРЕДОТВРАЩАЕТ СКРОЛЛ НА СМАРТФОНАХ (Фигуры теперь двигаются безотказно)
+    if (e.cancelable) e.preventDefault(); // ПРЕДОТВРАЩАЕТ СКРОЛЛ НА СМАРТФОНАХ
     if (typeof window.unlockAudio === 'function') window.unlockAudio();
     
     // Мгновенный лог в консоль для выяснения причин блокировки хода
@@ -1092,3 +1114,34 @@ function updateMoveLog() {
 }
 
 function clearSelection() { selectedSquare = null; validMoves = []; renderBoard(false); }
+
+function parseTimeControl(tc) {
+    if (!tc || tc === 'none') return { time: 999999, inc: 0 };
+    try {
+        const parts = tc.split('+');
+        const t = parseInt(parts[0]) * 60;
+        const i = parseInt(parts[1]) || 0;
+        if (isNaN(t)) return { time: 300, inc: 0 };
+        return { time: t, inc: i };
+    } catch(e) {
+        return { time: 300, inc: 0 };
+    }
+}
+
+function startSearchTimer() {
+    searchSeconds = 0;
+    const el = document.getElementById('search-timer');
+    if (el) el.textContent = `Вы в очереди: 0 сек`;
+    
+    searchSeconds++;
+    searchTimerInterval = setInterval(() => {
+        if (el) el.textContent = `Вы в очереди: ${searchSeconds} сек`;
+        searchSeconds++;
+    }, 1000);
+}
+
+// Сброс и перезапуск
+function stopSearchTimer() {
+    if (searchTimerInterval) clearInterval(searchTimerInterval);
+    searchTimerInterval = null;
+}
