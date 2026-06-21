@@ -2,6 +2,7 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Azachess - История игр</title>
   <link rel="stylesheet" href="home-style.css">
   <style>
@@ -9,6 +10,7 @@
     .game-info { flex-grow: 1; min-width: 0; }
     .game-moves { color: #666; font-size: 0.8rem; margin-top: 10px; font-family: monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .loader { text-align: center; padding: 40px; font-weight: bold; color: var(--accent); }
+    .error-container { text-align: center; padding: 30px; background: rgba(217, 83, 79, 0.1); border: 1px solid #d9534f; border-radius: 12px; margin-bottom: 20px; }
   </style>
 </head>
 <body>
@@ -19,66 +21,148 @@
 
   <div class="hub-container" style="max-width: 800px;">
     <div id="loader" class="loader">Получение партий из облака...</div>
+    <div id="error-box" style="display: none;"></div>
+    
     <main id="archive-list"></main>
+    
+    <button id="btn-load-more" class="start-btn secondary" style="display: none; width: 100%; margin-top: 15px;">Показать еще игры</button>
   </div>
 
  <script type="module">
-    import { db, collection, query, getDocs } from "./firebase-logic.js";
+    import { db, collection, query, getDocs, orderBy, limit, startAfter } from "./firebase-logic.js";
 
-    async function loadGames() {
+    const PAGE_SIZE = 5; // Количество партий на одной странице
+    let lastVisibleDoc = null; // Курсор для пагинации
+    let isLoading = false;
+
+    // Глобальный кэш для моментального открытия анализа
+    window.loadedGamesCache = {};
+
+    async function loadGames(loadMore = false) {
+        if (isLoading) return;
+        isLoading = true;
+
         const userId = localStorage.getItem('azachess-user-id');
         const list = document.getElementById('archive-list');
         const loader = document.getElementById('loader');
+        const errorBox = document.getElementById('error-box');
+        const btnMore = document.getElementById('btn-load-more');
 
         if (!userId) {
-            list.innerHTML = '<div style="text-align:center; padding: 20px;">Войдите в аккаунт.</div>';
+            list.innerHTML = '<div style="text-align:center; padding: 20px; color: var(--text-dim);">Пожалуйста, авторизуйтесь для просмотра истории.</div>';
             loader.style.display = 'none';
+            btnMore.style.display = 'none';
+            isLoading = false;
             return;
         }
 
         try {
-            // МЕНЯЕМ ПУТЬ ЗАПРОСА: заходим в личный контейнер
-            const userHistoryRef = collection(db, "users", userId, "history");
-            const querySnapshot = await getDocs(userHistoryRef);
+            errorBox.style.display = 'none';
             
+            if (!loadMore) {
+                loader.style.display = 'block';
+                loader.innerText = "Получение партий...";
+                list.innerHTML = '';
+                lastVisibleDoc = null;
+                btnMore.style.display = 'none';
+            } else {
+                btnMore.innerText = "Загрузка...";
+                btnMore.disabled = true;
+            }
+
+            const userHistoryRef = collection(db, "users", userId, "history");
+            
+            // Формируем оптимизированный постраничный запрос
+            let q;
+            if (loadMore && lastVisibleDoc) {
+                q = query(userHistoryRef, orderBy("id", "desc"), startAfter(lastVisibleDoc), limit(PAGE_SIZE));
+            } else {
+                q = query(userHistoryRef, orderBy("id", "desc"), limit(PAGE_SIZE));
+            }
+
+            const querySnapshot = await getDocs(q);
             loader.style.display = 'none';
 
             if (querySnapshot.empty) {
-                list.innerHTML = '<div style="text-align:center; padding: 20px;">Ваш контейнер пуст. Сыграйте партию!</div>';
+                if (!loadMore) {
+                    list.innerHTML = '<div style="text-align:center; padding: 20px; color: var(--text-dim);">Ваш контейнер пуст. Сыграйте первую партию!</div>';
+                } else {
+                    btnMore.style.display = 'none';
+                    alert("Больше игр в архиве не найдено.");
+                }
+                isLoading = false;
                 return;
             }
 
-            // Сортируем локально по дате (самые свежие сверху)
-            const sortedDocs = querySnapshot.docs.sort((a, b) => b.data().id - a.data().id);
+            // Фиксируем курсор последнего элемента для следующего запроса
+            lastVisibleDoc = querySnapshot.docs[querySnapshot.docs.length - 1];
 
-            list.innerHTML = sortedDocs.map(doc => {
+            const gamesHtml = querySnapshot.docs.map(doc => {
                 const game = doc.data();
+                const movesStr = (game.history && game.history.length > 0) 
+                    ? game.history.map(m => m.san).join(' ') 
+                    : "Ходы отсутствуют";
+                
+                // Сохраняем в кэш для мгновенного перехода
+                window.loadedGamesCache[doc.id] = game;
+
                 return `
-                    <div class="game-card">
+                    <div class="game-card" id="card-${doc.id}">
                         <div class="game-info">
-                            <div style="font-size: 0.75rem; color: #888;">${game.date}</div>
-                            <div style="font-size: 1.1rem; font-weight: bold; color: #fff; margin: 4px 0;">${game.result}</div>
-                            <div class="game-meta">Уровень ${game.aiLevel} • ${game.timeControl}</div>
-                            <div class="game-moves">${game.history.map(m => m.san).join(' ')}</div>
+                            <div style="font-size: 0.75rem; color: #888;">${game.date || 'Дата неизвестна'}</div>
+                            <div style="font-size: 1.1rem; font-weight: bold; color: #fff; margin: 4px 0;">${game.result || 'Игра завершена'}</div>
+                            <div style="font-size: 0.85rem; color: var(--accent); margin-bottom: 6px;">Уровень ${game.aiLevel || 3} • ${game.timeControl || 'Без времени'}</div>
+                            <div class="game-moves" title="${movesStr}">${movesStr}</div>
                         </div>
-                        <button class="grid-item" style="padding: 10px 15px;" onclick="viewGame('${doc.id}')">АНАЛИЗ</button>
+                        <button class="grid-item" style="padding: 10px 15px; font-size: 0.85rem; min-width: 110px; margin-left: 10px;" onclick="viewGame('${doc.id}')">АНАЛИЗ</button>
                     </div>
                 `;
             }).join('');
 
-            window.viewGame = (docId) => {
-                const found = sortedDocs.find(d => d.id === docId);
-                if (found) {
-                    sessionStorage.setItem('analysis-load-game', JSON.stringify(found.data().history));
-                    window.location.href = 'analysis.html';
-                }
-            };
+            if (loadMore) {
+                list.insertAdjacentHTML('beforeend', gamesHtml);
+            } else {
+                list.innerHTML = gamesHtml;
+            }
+
+            // Управляем видимостью кнопки "Показать еще"
+            if (querySnapshot.docs.length < PAGE_SIZE) {
+                btnMore.style.display = 'none';
+            } else {
+                btnMore.style.display = 'block';
+                btnMore.innerText = "Показать еще игры";
+                btnMore.disabled = false;
+            }
 
         } catch (e) {
-            console.error("Firebase Error:", e);
-            loader.innerText = "Ошибка доступа к контейнеру.";
+            console.error("Ошибка Firestore:", e);
+            loader.style.display = 'none';
+            btnMore.style.display = 'none';
+            errorBox.innerHTML = `
+                <div class="error-container">
+                    <p style="color: #d9534f; font-weight: bold; margin: 0 0 10px 0;">Ошибка подключения к серверу</p>
+                    <p style="font-size: 0.85rem; color: #aaa; margin: 0 0 15px 0;">Не удалось загрузить историю. Возможно, вы находитесь не в сети.</p>
+                    <button class="grid-item" style="padding: 8px 16px; font-size: 0.8rem; margin: 0 auto;" onclick="location.reload()">Повторить попытку</button>
+                </div>
+            `;
+            errorBox.style.display = 'block';
+        } finally {
+            isLoading = false;
         }
     }
+
+    // Роут для экспорта истории в режим анализа
+    window.viewGame = (docId) => {
+        const found = window.loadedGamesCache[docId];
+        if (found) {
+            sessionStorage.setItem('analysis-load-game', JSON.stringify(found.history));
+            window.location.href = 'analysis.html';
+        } else {
+            alert("Не удалось загрузить данные этой партии.");
+        }
+    };
+
+    // Первая загрузка
     loadGames();
 </script>
 </body>
