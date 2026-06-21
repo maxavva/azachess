@@ -40,43 +40,60 @@ let currentRole = null; // 'w', 'b' или 'spectator'
 let searchSeconds = 0;
 let searchTimerInterval = null;
 
-// Инициализация
+// Безопасный оборонительный биндинг кликов
+const bindClick = (id, fn) => {
+    const el = document.getElementById(id);
+    if (el) {
+        el.onclick = fn;
+        console.log(`[Azachess-PvP] Обработчик клика для '${id}' успешно привязан.`);
+    } else {
+        console.warn(`[Azachess-PvP] Предупреждение: Кнопка с ID '${id}' не найдена в разметке HTML.`);
+    }
+};
+
+// Инициализация PvP арены
 function initMultiplayer() {
-    console.log("[Lobby] Инициализация PvP арены...");
-    const uid = localStorage.getItem('azachess-user-id');
-    if (!uid || uid === "null") {
-        console.warn("[Lobby] Пользователь не авторизован, перенаправление...");
-        window.location.href = 'auth.html';
-        return;
+    console.log("[Azachess-PvP] Запуск инициализации скрипта...");
+    try {
+        const uid = localStorage.getItem('azachess-user-id');
+        if (!uid || uid === "null") {
+            console.warn("[Azachess-PvP] Пользователь не авторизован, перенаправление...");
+            window.location.href = 'auth.html';
+            return;
+        }
+
+        applyGlobalSettings();
+        setupTimeControlPvP();
+
+        // Безопасная привязка лобби-кнопок
+        bindClick('btn-start-search', startMatchmaking);
+        bindClick('btn-invite-friend', createInviteRoom);
+        bindClick('btn-cancel-search', cancelMatchmaking);
+
+        // Навигационные кнопки под доской
+        const setupNav = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = fn; };
+        setupNav('btn-nav-first', () => jumpToMoveIndex(0));
+        setupNav('btn-nav-prev', () => jumpToMoveIndex(currentMoveIndex - 1));
+        setupNav('btn-nav-next', () => jumpToMoveIndex(currentMoveIndex + 1));
+        setupNav('btn-nav-last', () => jumpToMoveIndex(fullMoveHistory.length));
+
+        // Аварийный клик на фон модального окна превращения
+        const promoModal = document.getElementById('promotion-modal');
+        if (promoModal) {
+            promoModal.addEventListener('click', (e) => {
+                if (e.target === promoModal) {
+                    executeMoveMultiplayer(promotionFrom, promotionTo, 'q');
+                    promoModal.classList.add('hidden');
+                }
+            });
+        }
+
+        // Проверка входящего вызова по ссылке (?room=ID)
+        checkInviteQuery();
+        console.log("[Azachess-PvP] Инициализация завершена без ошибок.");
+    } catch (e) {
+        console.error("[Azachess-PvP] Ошибка во время инициализации лобби:", e);
     }
-
-    applyGlobalSettings();
-    setupTimeControlPvP();
-
-    document.getElementById('btn-start-search').onclick = startMatchmaking;
-    document.getElementById('btn-invite-friend').onclick = createInviteRoom;
-    document.getElementById('btn-cancel-search').onclick = cancelMatchmaking;
-
-    // Навигационные кнопки под доской
-    const setup = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = fn; };
-    setup('btn-nav-first', () => jumpToMoveIndex(0));
-    setup('btn-nav-prev', () => jumpToMoveIndex(currentMoveIndex - 1));
-    setup('btn-nav-next', () => jumpToMoveIndex(currentMoveIndex + 1));
-    setup('btn-nav-last', () => jumpToMoveIndex(fullMoveHistory.length));
-
-    // Аварийный клик на фон модального окна превращения
-    const promoModal = document.getElementById('promotion-modal');
-    if (promoModal) {
-        promoModal.addEventListener('click', (e) => {
-            if (e.target === promoModal) {
-                executeMoveMultiplayer(promotionFrom, promotionTo, 'q');
-                promoModal.classList.add('hidden');
-            }
-        });
-    }
-
-    // Проверка входящего вызова по ссылке (?room=ID)
-    checkInviteQuery();
 }
 
 if (document.readyState === 'loading') {
@@ -85,200 +102,35 @@ if (document.readyState === 'loading') {
     initMultiplayer();
 }
 
-// Проверка входящего подключения по ссылке
-async function checkInviteQuery() {
-    const urlParams = new URLSearchParams(window.location.search);
-    const roomId = urlParams.get('room');
-    if (!roomId) {
-        showView('lobby');
-        return;
-    }
-
-    const userId = localStorage.getItem('azachess-user-id');
-    if (!userId || userId === "null") {
-        console.log("[Invite] Отложенный вход: сохраняем комнату в кэш и уводим на авторизацию");
-        localStorage.setItem('azachess-join-room-after-auth', roomId);
-        window.location.href = 'auth.html';
-        return;
-    }
-
-    console.log(`[Invite] Обнаружен переход по ссылке вызова. Комната: ${roomId}`);
-    const gameRef = doc(db, "pvp_games", roomId);
-
-    try {
-        const gameSnap = await getDoc(gameRef);
-        if (!gameSnap.exists()) {
-            alert("Данный вызов не существует или был отменен.");
-            window.location.href = 'multiplayer.html';
-            return;
-        }
-
-        const gameData = gameSnap.data();
-
-        // Если игра уже идет
-        if (gameData.status === 'active') {
-            if (userId === gameData.whiteId || userId === gameData.blackId) {
-                joinRoom(roomId);
-            } else {
-                alert("В этой комнате уже играют двое.");
-                window.location.href = 'multiplayer.html';
-            }
-            return;
-        }
-
-        if (gameData.status !== 'waiting') {
-            alert("Этот матч уже завершен.");
-            window.location.href = 'multiplayer.html';
-            return;
-        }
-
-        // Подключаемся к комнате ожидания (status === 'waiting')
-        const userStats = await getUserStats(userId);
-        const username = userStats.username;
-
-        await runTransaction(db, async (transaction) => {
-            const txSnap = await transaction.get(gameRef);
-            const data = txSnap.data();
-
-            if (data.status !== 'waiting') {
-                throw "Комната уже заполнена.";
-            }
-
-            const updates = {
-                status: "active",
-                lastMoveTime: Date.now()
-            };
-
-            // Занимаем свободное кресло
-            if (data.whiteId === null) {
-                updates.whiteId = userId;
-                updates.whiteName = username;
-            } else if (data.blackId === null) {
-                updates.blackId = userId;
-                updates.blackName = username;
-            }
-
-            transaction.update(gameRef, updates);
-        });
-
-        console.log("[Invite] Успешно подключились к вызову друга!");
-        joinRoom(roomId);
-
-    } catch (err) {
-        console.error("Ошибка при входе в вызов:", err);
-        alert(`Не удалось войти в игру. Код ошибки:\n${err}`);
-        window.location.href = 'multiplayer.html';
-    }
-}
-
-// Создание вызова по ссылке (Сыграть с другом)
-async function createInviteRoom() {
-    const userId = localStorage.getItem('azachess-user-id');
-    const userStats = await getUserStats(userId);
-    const username = userStats.username;
-    const timeControl = selectedTimeControl;
-
-    console.log(`[Invite] Создание комнаты вызова... Контроль: ${timeControl}`);
-
-    try {
-        const gameId = doc(collection(db, "pvp_games")).id;
-        const gameRef = doc(db, "pvp_games", gameId);
-
-        // Рандомизируем цвета для создателя
-        const creatorIsWhite = Math.random() > 0.5;
-
-        const baseTime = parseTimeControl(timeControl).time;
-        const increment = parseTimeControl(timeControl).inc;
-
-        const gameData = {
-            id: gameId,
-            whiteId: creatorIsWhite ? userId : null,
-            whiteName: creatorIsWhite ? username : "Ожидание соперника...",
-            blackId: creatorIsWhite ? null : userId,
-            blackName: creatorIsWhite ? "Ожидание соперника..." : username,
-            timeControl: timeControl,
-            fen: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
-            history: [],
-            turn: "w",
-            whiteTime: baseTime,
-            blackTime: baseTime,
-            increment: increment,
-            lastMoveTime: Date.now(),
-            status: "waiting", // Выставляем статус ожидания
-            winner: null,
-            createdAt: Date.now()
-        };
-
-        await setDoc(gameRef, gameData);
-
-        // Формируем ссылку и выводим её в Input
-        const inviteUrl = `${window.location.origin}${window.location.pathname}?room=${gameId}`;
-        const linkInput = document.getElementById('invite-link-input');
-        if (linkInput) linkInput.value = inviteUrl;
-
-        // Копирование в буфер
-        const copyBtn = document.getElementById('btn-copy-link');
-        if (copyBtn) {
-            copyBtn.onclick = () => {
-                navigator.clipboard.writeText(inviteUrl);
-                copyBtn.innerText = "Скопировано!";
-                setTimeout(() => { copyBtn.innerText = "Копировать"; }, 1500);
-            };
-        }
-
-        // Отмена вызова
-        document.getElementById('btn-cancel-invite').onclick = async () => {
-            if (gameListener) { gameListener(); gameListener = null; }
-            await deleteDoc(gameRef).catch(() => {});
-            showView('lobby');
-        };
-
-        showView('invite');
-
-        // Слушаем, когда друг зайдет в созданную комнату
-        gameListener = onSnapshot(gameRef, (docSnap) => {
-            if (docSnap.exists()) {
-                const data = docSnap.data();
-                if (data.status === 'active') {
-                    if (gameListener) gameListener();
-                    gameListener = null;
-                    joinRoom(gameId);
-                }
-            }
-        });
-
-    } catch (err) {
-        console.error("Ошибка вызова друга:", err);
-        alert("Не удалось сформировать ссылку вызова.");
-    }
-}
-
-// Управление экранами (переключение видов)
+// Управление экранами с защитой от отсутствия элементов
 function showView(view) {
-    document.getElementById('lobby-view').classList.add('hidden');
-    document.getElementById('searching-view').classList.add('hidden');
-    document.getElementById('invite-view').classList.add('hidden');
-    document.getElementById('game-view').classList.add('hidden');
+    const views = ['lobby-view', 'searching-view', 'invite-view', 'game-view'];
+    views.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.classList.add('hidden');
+    });
 
-    if (view === 'lobby') {
-        document.getElementById('lobby-view').classList.remove('hidden');
-        document.getElementById('multiplayer-header').textContent = "Онлайн PvP-Арена";
-    } else if (view === 'searching') {
-        document.getElementById('searching-view').classList.remove('hidden');
-        document.getElementById('multiplayer-header').textContent = "Поиск игры";
-    } else if (view === 'invite') {
-        document.getElementById('invite-view').classList.remove('hidden');
-        document.getElementById('multiplayer-header').textContent = "Вызов друга";
-    } else if (view === 'game') {
-        document.getElementById('game-view').classList.remove('hidden');
+    const activeEl = document.getElementById(`${view}-view`);
+    if (activeEl) activeEl.classList.remove('hidden');
+
+    const header = document.getElementById('multiplayer-header');
+    if (header) {
+        if (view === 'lobby') header.textContent = "Онлайн PvP-Арена";
+        else if (view === 'searching') header.textContent = "Поиск игры";
+        else if (view === 'invite') header.textContent = "Вызов друга";
     }
 }
 
 // Выбор времени в PvP
 function setupTimeControlPvP() {
-    document.querySelectorAll('#time-grid-pvp .grid-item').forEach(el => {
+    const items = document.querySelectorAll('#time-grid-pvp .grid-item');
+    if (items.length === 0) {
+        console.warn("[Azachess-PvP] Элементы сетки времени #time-grid-pvp не обнаружены.");
+        return;
+    }
+    items.forEach(el => {
         el.onclick = () => {
-            document.querySelectorAll('#time-grid-pvp .grid-item').forEach(i => i.classList.remove('active'));
+            items.forEach(i => i.classList.remove('active'));
             el.classList.add('active');
             selectedTimeControl = el.dataset.time;
             console.log("[Lobby] Выбран контроль времени:", selectedTimeControl);
@@ -434,6 +286,174 @@ async function cancelMatchmaking() {
     showView('lobby');
 }
 
+// Проверка входящего подключения по ссылке
+async function checkInviteQuery() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const roomId = urlParams.get('room');
+    if (!roomId) {
+        showView('lobby');
+        return;
+    }
+
+    const userId = localStorage.getItem('azachess-user-id');
+    if (!userId || userId === "null") {
+        console.log("[Invite] Отложенный вход: сохраняем комнату в кэш и уводим на авторизацию");
+        localStorage.setItem('azachess-join-room-after-auth', roomId);
+        window.location.href = 'auth.html';
+        return;
+    }
+
+    console.log(`[Invite] Обнаружен переход по ссылке вызова. Комната: ${roomId}`);
+    const gameRef = doc(db, "pvp_games", roomId);
+
+    try {
+        const gameSnap = await getDoc(gameRef);
+        if (!gameSnap.exists()) {
+            alert("Данный вызов не существует или был отменен.");
+            window.location.href = 'multiplayer.html';
+            return;
+        }
+
+        const gameData = gameSnap.data();
+
+        // Если игра уже идет
+        if (gameData.status === 'active') {
+            if (userId === gameData.whiteId || userId === gameData.blackId) {
+                joinRoom(roomId);
+            } else {
+                alert("В этой комнате уже играют двое.");
+                window.location.href = 'multiplayer.html';
+            }
+            return;
+        }
+
+        if (gameData.status !== 'waiting') {
+            alert("Этот матч уже завершен.");
+            window.location.href = 'multiplayer.html';
+            return;
+        }
+
+        // Подключаемся к комнате ожидания (status === 'waiting')
+        const userStats = await getUserStats(userId);
+        const username = userStats.username;
+
+        await runTransaction(db, async (transaction) => {
+            const txSnap = await transaction.get(gameRef);
+            const data = txSnap.data();
+
+            if (data.status !== 'waiting') {
+                throw "Комната уже заполнена.";
+            }
+
+            const updates = {
+                status: "active",
+                lastMoveTime: Date.now()
+            };
+
+            // Занимаем свободное кресло
+            if (data.whiteId === null) {
+                updates.whiteId = userId;
+                updates.whiteName = username;
+            } else if (data.blackId === null) {
+                updates.blackId = userId;
+                updates.blackName = username;
+            }
+
+            transaction.update(gameRef, updates);
+        });
+
+        console.log("[Invite] Успешно подключились к вызову друга!");
+        joinRoom(roomId);
+
+    } catch (err) {
+        console.error("Ошибка при входе в вызов:", err);
+        alert(`Не удалось войти в игру. Код ошибки:\n${err}`);
+        window.location.href = 'multiplayer.html';
+    }
+}
+
+// Создание вызова по ссылке (Сыграть с другом)
+async function createInviteRoom() {
+    const userId = localStorage.getItem('azachess-user-id');
+    const userStats = await getUserStats(userId);
+    const username = userStats.username;
+    const timeControl = selectedTimeControl;
+
+    console.log(`[Invite] Создание комнаты вызова... Контроль: ${timeControl}`);
+
+    try {
+        const gameId = doc(collection(db, "pvp_games")).id;
+        const gameRef = doc(db, "pvp_games", gameId);
+
+        // Рандомизируем цвета для создателя
+        const creatorIsWhite = Math.random() > 0.5;
+
+        const baseTime = parseTimeControl(timeControl).time;
+        const increment = parseTimeControl(timeControl).inc;
+
+        const gameData = {
+            id: gameId,
+            whiteId: creatorIsWhite ? userId : null,
+            whiteName: creatorIsWhite ? username : "Ожидание соперника...",
+            blackId: creatorIsWhite ? null : userId,
+            blackName: creatorIsWhite ? "Ожидание соперника..." : username,
+            timeControl: timeControl,
+            fen: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+            history: [],
+            turn: "w",
+            whiteTime: baseTime,
+            blackTime: baseTime,
+            increment: increment,
+            lastMoveTime: Date.now(),
+            status: "waiting", // Выставляем статус ожидания
+            winner: null,
+            createdAt: Date.now()
+        };
+
+        await setDoc(gameRef, gameData);
+
+        // Формируем ссылку и выводим её в Input
+        const inviteUrl = `${window.location.origin}${window.location.pathname}?room=${gameId}`;
+        const linkInput = document.getElementById('invite-link-input');
+        if (linkInput) linkInput.value = inviteUrl;
+
+        // Копирование в буфер
+        const copyBtn = document.getElementById('btn-copy-link');
+        if (copyBtn) {
+            copyBtn.onclick = () => {
+                navigator.clipboard.writeText(inviteUrl);
+                copyBtn.innerText = "Скопировано!";
+                setTimeout(() => { copyBtn.innerText = "Копировать"; }, 1500);
+            };
+        }
+
+        // Отмена вызова
+        bindClick('btn-cancel-invite', async () => {
+            if (gameListener) { gameListener(); gameListener = null; }
+            await deleteDoc(gameRef).catch(() => {});
+            showView('lobby');
+        });
+
+        showView('invite');
+
+        // Слушаем, когда друг зайдет в созданную комнату
+        gameListener = onSnapshot(gameRef, (docSnap) => {
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                if (data.status === 'active') {
+                    if (gameListener) gameListener();
+                    gameListener = null;
+                    joinRoom(gameId);
+                }
+            }
+        });
+
+    } catch (err) {
+        console.error("Ошибка вызова друга:", err);
+        alert("Не удалось сформировать ссылку вызова.");
+    }
+}
+
 // Сохранение PvP игры в личный архив и обновление простой статистики (без ELO)
 async function saveOnlineGameToArchive(data) {
     const userId = localStorage.getItem('azachess-user-id');
@@ -528,372 +548,73 @@ async function getUserStats(uid) {
     return { username: "Игрок", wins: 0, losses: 0, draws: 0, gamesPlayed: 0 };
 }
 
-// Таймер (Локальный плавный отсчет с компенсацией задержки)
-function startTimerMultiplayer() {
-    stopTimerMultiplayer();
-    if (!lastTick) return;
+// Подключение к комнате
+function joinRoom(gameId) {
+    currentGameId = gameId;
+    const userId = localStorage.getItem('azachess-user-id');
 
-    timerInterval = setInterval(() => {
-        const turn = liveGame.turn();
-        const elapsed = Math.floor((Date.now() - lastTick) / 1000);
+    console.log(`[Room] Подключение к игровой комнате: ${gameId}`);
+    showView('game');
 
-        let localWhite = whiteTime;
-        let localBlack = blackTime;
-
-        if (turn === 'w') {
-            localWhite = Math.max(0, whiteTime - elapsed);
-        } else {
-            localBlack = Math.max(0, blackTime - elapsed);
-        }
-
-        renderClockDisplayLocally(localWhite, localBlack, turn);
-
-        // Инициализация таймаута на стороне ходящего игрока
-        if (turn === currentRole) {
-            if ((turn === 'w' && localWhite <= 0) || (turn === 'b' && localBlack <= 0)) {
-                triggerTimeout();
-            }
-        }
-    }, 250);
-}
-
-function stopTimerMultiplayer() {
-    if (timerInterval) clearInterval(timerInterval);
-    timerInterval = null;
-}
-
-// Отрендерить часы локально
-function renderClockDisplayLocally(w, b, turn) {
-    const clockTop = document.getElementById('clock-top');
-    const clockBottom = document.getElementById('clock-bottom');
-    if (!clockTop || !clockBottom) return;
-
-    const format = (s) => `${Math.floor(s/60)}:${(s%60).toString().padStart(2, '0')}`;
-    
-    (isFlipped ? clockTop : clockBottom).textContent = format(w);
-    (isFlipped ? clockBottom : clockTop).textContent = format(b);
-
-    clockTop.classList.toggle('active', (isFlipped && turn === 'w') || (!isFlipped && turn === 'b'));
-    clockBottom.classList.toggle('active', (!isFlipped && turn === 'w') || (isFlipped && turn === 'b'));
-}
-
-// Запись падения по времени
-async function triggerTimeout() {
-    stopTimerMultiplayer();
-    try {
-        const gameRef = doc(db, "pvp_games", currentGameId);
-        await updateDoc(gameRef, {
-            status: "timeout",
-            winner: currentRole === 'w' ? 'b' : 'w'
-        });
-    } catch(e) {
-        console.error("Timeout trigger failed:", e);
-    }
-}
-
-// Сдача
-async function resignGame() {
-    if (confirm("Вы уверены, что хотите сдаться?")) {
-        try {
-            const gameRef = doc(db, "pvp_games", currentGameId);
-            await updateDoc(gameRef, {
-                status: "resign",
-                winner: currentRole === 'w' ? 'b' : 'w'
-            });
-        } catch(e) {
-            console.error(e);
-        }
-    }
-}
-
-// Выход в лобби
-function leaveRoom() {
-    stopTimerMultiplayer();
-    if (gameListener) {
-        gameListener();
-        gameListener = null;
-    }
-    currentGameId = null;
-    currentRole = null;
-    showView('lobby');
-}
-
-// Отрисовка шахматной доски
-function renderBoard(rebuild = false) {
-    const boardEl = document.getElementById('board');
-    if (!boardEl) return;
-
-    const showHints = localStorage.getItem('azachess-setting-hints') !== 'false';
-
-    if (rebuild) {
-        boardEl.innerHTML = '';
-        for (let r = 0; r < 8; r++) {
-            const row = isFlipped ? r : (7 - r);
-            for (let c = 0; c < 8; c++) {
-                const col = isFlipped ? (7 - c) : c;
-                const name = String.fromCharCode(97 + col) + (row + 1);
-                const sq = document.createElement('div');
-                sq.className = `square ${(row + col) % 2 !== 0 ? 'light' : 'dark'}`;
-                sq.dataset.square = name;
-                sq.onpointerdown = (e) => handlePointerDown(e, name);
-
-                if (r === 7) {
-                    const fileLabel = document.createElement('span');
-                    fileLabel.className = 'coordinate file';
-                    fileLabel.textContent = String.fromCharCode(97 + col);
-                    sq.appendChild(fileLabel);
-                }
-                if (c === 0) {
-                    const rankLabel = document.createElement('span');
-                    rankLabel.className = 'coordinate rank';
-                    rankLabel.textContent = row + 1;
-                    sq.appendChild(rankLabel);
-                }
-
-                boardEl.appendChild(sq);
-            }
-        }
-    }
-
-    boardEl.querySelectorAll('.square').forEach(sq => {
-        const name = sq.dataset.square, piece = displayGame.get(name);
-        sq.classList.remove('last-move', 'selected', 'check');
-        const last = fullMoveHistory[currentMoveIndex - 1];
-        if (last && (name === last.from || name === last.to)) sq.classList.add('last-move');
-        if (selectedSquare === name) sq.classList.add('selected');
-        if (displayGame.in_check() && piece?.type === 'k' && piece.color === displayGame.turn()) sq.classList.add('check');
-        
-        let img = sq.querySelector('.piece');
-        if (piece) {
-            if (!img) { 
-                img = document.createElement('img'); 
-                img.className = 'piece'; 
-                img.draggable = false; 
-                sq.appendChild(img); 
-            }
-            img.src = PIECE_IMAGES[`${piece.color}${piece.type.toUpperCase()}`];
-        } else if (img) sq.removeChild(img);
-        
-        const m = sq.querySelector('.move-dest, .move-dest-capture');
-        if (m) sq.removeChild(m);
-
-        if (showHints && currentMoveIndex === fullMoveHistory.length && validMoves.includes(name)) {
-            const dest = document.createElement('div');
-            dest.className = piece ? 'move-dest-capture' : 'move-dest';
-            sq.appendChild(dest);
-        }
-    });
-}
-
-// Клики и перетаскивание фигур (Pointer Events с захватом для тач-скринов)
-function handlePointerDown(e, sq) {
-    if (typeof window.unlockAudio === 'function') window.unlockAudio();
-    if (currentRole !== liveGame.turn() || currentMoveIndex < fullMoveHistory.length) return;
-
-    if (selectedSquare && validMoves.includes(sq)) { 
-        handleMoveAttempt(selectedSquare, sq); 
-        return; 
-    }
-
-    const piece = liveGame.get(sq);
-    if (piece && piece.color === currentRole) {
-        isDragging = true; 
-        dragMovedEnough = false; 
-        draggedSquare = sq;
-        dragStartX = e.clientX; 
-        dragStartY = e.clientY;
-        draggedPieceImg = e.target.classList.contains('piece') ? e.target : e.target.querySelector('.piece');
-        selectedSquare = sq; 
-        
-        validMoves = liveGame.moves({ square: sq, verbose: true }).map(m => m.to.split('=')[0].trim());
-        
-        renderBoard(false);
-        window.onpointermove = handlePointerMove; 
-        window.onpointerup = handlePointerUp;
-
-        // Позволяет захватить палец на тач-экранах смартфонов (предотвращает скролл и срыв фигуры)
-        try { e.target.setPointerCapture(e.pointerId); } catch(err) {}
-    } else {
-        clearSelection();
-    }
-}
-
-function handlePointerMove(e) {
-    if (!isDragging || !draggedPieceImg) return;
-    if (Math.hypot(e.clientX - dragStartX, e.clientY - dragStartY) > DRAG_THRESHOLD) {
-        dragMovedEnough = true;
-        if (!dragClone) {
-            dragClone = draggedPieceImg.cloneNode(true);
-            dragClone.className = 'piece drag-clone';
-            const rect = draggedPieceImg.getBoundingClientRect();
-            dragClone.style.width = rect.width + 'px'; 
-            dragClone.style.height = rect.height + 'px';
-            document.body.appendChild(dragClone);
-            draggedPieceImg.style.visibility = 'hidden';
-        }
-        dragClone.style.left = (e.clientX - dragClone.offsetWidth / 2) + 'px';
-        dragClone.style.top = (e.clientY - dragClone.offsetHeight / 2) + 'px';
-    }
-}
-
-function handlePointerUp(e) {
-    isDragging = false; 
-    window.onpointermove = null; 
-    window.onpointerup = null;
-
-    // Освобождаем захват указателя для тач-скринов
-    try { e.target.releasePointerCapture(e.pointerId); } catch(err) {}
-
-    if (dragClone) { document.body.removeChild(dragClone); dragClone = null; }
-    if (draggedPieceImg) draggedPieceImg.style.visibility = 'visible';
-    const target = document.elementFromPoint(e.clientX, e.clientY)?.closest('.square')?.dataset.square;
-    if (dragMovedEnough && target && validMoves.includes(target)) {
-        handleMoveAttempt(draggedSquare, target);
-    } else if (dragMovedEnough) {
-        renderBoard(false);
-    }
-}
-
-function handleMoveAttempt(from, to) {
-    const piece = liveGame.get(from);
-    const isPawn = piece?.type?.toLowerCase() === 'p';
-    const isPromotionRank = (piece?.color?.toLowerCase() === 'w' && to.endsWith('8')) || (piece?.color?.toLowerCase() === 'b' && to.endsWith('1'));
-
-    if (isPawn && isPromotionRank) {
-        const autoQueen = localStorage.getItem('azachess-setting-autoqueen') === 'true';
-        if (autoQueen) {
-            executeMoveMultiplayer(from, to, 'q');
+    const gameRef = doc(db, "pvp_games", gameId);
+    gameListener = onSnapshot(gameRef, (docSnap) => {
+        if (!docSnap.exists()) {
+            console.warn("[Room] Комната не найдена или удалена сервером.");
+            alert("Игра завершена или удалена.");
+            leaveRoom();
             return;
         }
 
-        const promoModal = document.getElementById('promotion-modal');
-        if (promoModal) {
-            promotionFrom = from; 
-            promotionTo = to;
-            promoModal.classList.remove('hidden');
-            renderPromotionChoices();
-        } else {
-            executeMoveMultiplayer(from, to, 'q');
-        }
-    } else {
-        executeMoveMultiplayer(from, to);
-    }
-}
-
-// Отправка хода на Firestore с мгновенной компенсацией задержки (Optimistic UI)
-async function executeMoveMultiplayer(from, to, promo = 'q') {
-    if (currentRole !== liveGame.turn()) return;
-
-    const gameClone = new Chess(liveGame.fen());
-    const res = gameClone.move({ from, to, promotion: promo });
-    if (!res) {
-        clearSelection();
-        return;
-    }
-
-    const now = Date.now();
-    let elapsed = 0;
-    if (fullMoveHistory.length > 0 && lastTick) {
-        elapsed = Math.floor((now - lastTick) / 1000);
-    }
-
-    let newWhiteTime = whiteTime;
-    let newBlackTime = blackTime;
-
-    if (currentRole === 'w') {
-        newWhiteTime = Math.max(0, whiteTime - elapsed) + increment;
-    } else {
-        newBlackTime = Math.max(0, blackTime - elapsed) + increment;
-    }
-
-    const newHistory = [...fullMoveHistory, {
-        from: res.from,
-        to: res.to,
-        san: res.san,
-        promotion: promo || null,
-        flags: res.flags
-    }];
-
-    let status = "active";
-    let winner = null;
-
-    if (gameClone.game_over()) {
-        if (gameClone.in_checkmate()) {
-            status = "checkmate";
-            winner = currentRole;
-        } else {
-            status = "draw";
-            winner = "draw";
-        }
-    }
-
-    // --- МГНОВЕННЫЙ OPTIMISTIC UI ---
-    liveGame = new Chess(gameClone.fen());
-    window.game = liveGame;
-    fullMoveHistory = newHistory;
-    currentMoveIndex = fullMoveHistory.length;
-    displayGame = new Chess(gameClone.fen());
-
-    if (currentRole === 'w') {
-        whiteTime = newWhiteTime;
-    } else {
-        blackTime = newBlackTime;
-    }
-    lastTick = now;
-
-    selectedSquare = null;
-    validMoves = [];
-
-    // Перерисовываем доску, логи и время моментально
-    renderBoard(false);
-    updateMoveLog();
-    updateClockDisplay();
-    
-    if (typeof window.playMoveSound === 'function') {
-        window.playMoveSound(res);
-    }
-
-    if (status === 'active') {
-        startTimerMultiplayer();
-    } else {
-        stopTimerMultiplayer();
-    }
-    // ---------------------------------
-
-    try {
-        const gameRef = doc(db, "pvp_games", currentGameId);
-        await updateDoc(gameRef, {
-            fen: gameClone.fen(),
-            history: newHistory,
-            turn: gameClone.turn(),
-            whiteTime: newWhiteTime,
-            blackTime: newBlackTime,
-            lastMoveTime: now,
-            status: status,
-            winner: winner
-        });
-    } catch (err) {
-        console.error("Firestore move update error:", err);
-        alert("Не удалось зафиксировать ход на сервере.");
-        renderBoard(false);
-    }
-}
-
-function renderPromotionChoices() {
-    const container = document.querySelector('.promotion-choices'), turn = liveGame.turn();
-    if (!container) return;
-    container.innerHTML = '';
-    ['q','r','b','n'].forEach(p => {
-        const btn = document.createElement('button'); btn.className = 'promo-btn';
-        btn.innerHTML = `<img src="${PIECE_IMAGES[turn+p.toUpperCase()]}" style="width:100%; height:100%; pointer-events: none;">`;
+        const data = docSnap.data();
         
-        btn.addEventListener('click', (e) => {
-            e.preventDefault();
-            executeMoveMultiplayer(promotionFrom, promotionTo, p); 
-            document.getElementById('promotion-modal').classList.add('hidden'); 
-        });
-        
-        container.appendChild(btn);
+        // Роль игрока
+        if (userId === data.whiteId) currentRole = 'w';
+        else if (userId === data.blackId) currentRole = 'b';
+        else currentRole = 'spectator';
+
+        console.log(`[Room] Синхронизация данных. Ваша роль: ${currentRole}`);
+
+        isFlipped = (currentRole === 'b');
+        document.getElementById('multiplayer-header').textContent = `Онлайн-Матч: ${data.whiteName} vs ${data.blackName}`;
+
+        liveGame = new Chess(data.fen);
+        window.game = liveGame; // Синхронизация с движком звуков
+
+        const previousLength = fullMoveHistory.length;
+        fullMoveHistory = data.history;
+
+        // Плавный переход при новом ходе
+        if (fullMoveHistory.length > previousLength || currentMoveIndex === previousLength) {
+            currentMoveIndex = fullMoveHistory.length;
+            displayGame = new Chess(data.fen);
+        } else {
+            displayGame = new Chess();
+            for (let i = 0; i < currentMoveIndex; i++) {
+                displayGame.move(fullMoveHistory[i]);
+            }
+        }
+
+        whiteTime = data.whiteTime;
+        blackTime = data.blackTime;
+        increment = data.increment;
+        lastTick = data.lastMoveTime;
+
+        // Воспроизводим звук последнего хода
+        const lastMove = fullMoveHistory[fullMoveHistory.length - 1];
+        if (lastMove && typeof window.playMoveSound === 'function') {
+            window.playMoveSound(lastMove);
+        }
+
+        renderBoard(true);
+        updateMoveLog();
+        updateClockDisplay();
+        updateStatusMultiplayer(data);
+
+        if (data.status === 'active' && fullMoveHistory.length > 0) {
+            startTimerMultiplayer();
+        } else {
+            stopTimerMultiplayer();
+        }
     });
 }
 
