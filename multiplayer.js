@@ -561,7 +561,7 @@ function renderBoard(rebuild = false) {
     });
 }
 
-// Клики и перетаскивание фигур (Pointer Events)
+// Клики и перетаскивание фигур (Pointer Events с захватом для тач-скринов)
 function handlePointerDown(e, sq) {
     if (typeof window.unlockAudio === 'function') window.unlockAudio();
     if (currentRole !== liveGame.turn() || currentMoveIndex < fullMoveHistory.length) return;
@@ -586,6 +586,9 @@ function handlePointerDown(e, sq) {
         renderBoard(false);
         window.onpointermove = handlePointerMove; 
         window.onpointerup = handlePointerUp;
+
+        // Позволяет захватить палец на тач-экранах смартфонов (предотвращает скролл и срыв фигуры)
+        try { e.target.setPointerCapture(e.pointerId); } catch(err) {}
     } else {
         clearSelection();
     }
@@ -613,6 +616,10 @@ function handlePointerUp(e) {
     isDragging = false; 
     window.onpointermove = null; 
     window.onpointerup = null;
+
+    // Освобождаем захват указателя для тач-скринов
+    try { e.target.releasePointerCapture(e.pointerId); } catch(err) {}
+
     if (dragClone) { document.body.removeChild(dragClone); dragClone = null; }
     if (draggedPieceImg) draggedPieceImg.style.visibility = 'visible';
     const target = document.elementFromPoint(e.clientX, e.clientY)?.closest('.square')?.dataset.square;
@@ -803,6 +810,7 @@ function startSearchTimer() {
     }, 1000);
 }
 
+// Сброс и перезапуск
 function stopSearchTimer() {
     if (searchTimerInterval) clearInterval(searchTimerInterval);
     searchTimerInterval = null;
