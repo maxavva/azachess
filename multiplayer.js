@@ -142,7 +142,7 @@ async function startMatchmaking() {
 
         for (let candidateDoc of sortedDocs) {
             const candidate = candidateDoc.data();
-            console.log(`[Matchmaker] Пробуем соединиться с кандидатом: ${candidate.username} (${candidate.userId})`);
+            console.log(`[Matchmaker] Пробуем соединиться с кандидатом: ${candidate.username}`);
 
             // Запускаем транзакцию для предотвращения гонки за кандидата
             try {
@@ -383,7 +383,7 @@ function updateStatusMultiplayer(data) {
     }
 }
 
-// Сохранение PvP игры в личный архив
+// Сохранение PvP игры в личный архив и обновление простой статистики (без ELO)
 async function saveOnlineGameToArchive(data) {
     const userId = localStorage.getItem('azachess-user-id');
     if (!userId || data.history.length < 2) return;
@@ -394,11 +394,44 @@ async function saveOnlineGameToArchive(data) {
     localStorage.setItem(archiveKey, "true");
 
     let statusReason = "Игра окончена";
-    if (data.status === 'checkmate') statusReason = `Мат (Победа ${data.winner === 'w' ? 'Белых' : 'Черных'})`;
-    else if (data.status === 'resign') statusReason = `Сдача (Победа ${data.winner === 'w' ? 'Белых' : 'Черных'})`;
-    else if (data.status === 'timeout') statusReason = `Время (Победа ${data.winner === 'w' ? 'Белых' : 'Черных'})`;
-    else if (data.status === 'draw') statusReason = "Ничья";
+    let outcome = 0.5; // По умолчанию ничья
 
+    if (data.status === 'checkmate' || data.status === 'resign' || data.status === 'timeout') {
+        if (data.winner === currentRole) {
+            statusReason = `Победа (${data.winner === 'w' ? 'Белые' : 'Черные'})`;
+            outcome = 1;
+        } else {
+            statusReason = `Поражение (${data.winner === 'w' ? 'Белые' : 'Черные'})`;
+            outcome = 0;
+        }
+    } else if (data.status === 'draw') {
+        statusReason = "Ничья";
+        outcome = 0.5;
+    }
+
+    // 1. Считываем текущую простую статистику игрока
+    const stats = await getUserStats(userId);
+
+    // 2. Формируем новые накопительные показатели (простые инкременты без ELO)
+    const newWins = stats.wins + (outcome === 1 ? 1 : 0);
+    const newLosses = stats.losses + (outcome === 0 ? 1 : 0);
+    const newDraws = stats.draws + (outcome === 0.5 ? 1 : 0);
+    const newPlayed = stats.gamesPlayed + 1;
+
+    // 3. Записываем обновленные поля в Firestore профиля
+    try {
+        await setDoc(doc(db, "users", userId), {
+            wins: newWins,
+            losses: newLosses,
+            draws: newDraws,
+            gamesPlayed: newPlayed
+        }, { merge: true });
+        console.log(`[Profile] Статистика успешно сохранена. Сыграно: ${newPlayed}`);
+    } catch (err) {
+        console.error("Ошибка обновления статистики в профиле:", err);
+    }
+
+    // 4. Записываем игру в личную историю в кэш и облако
     const gameData = {
         id: data.id,
         userId,
@@ -411,7 +444,6 @@ async function saveOnlineGameToArchive(data) {
         userColor: userId === data.whiteId ? 'w' : 'b'
     };
 
-    // Сохраняем в локальный кэш
     const archive = JSON.parse(localStorage.getItem('azachess-archive') || '[]');
     archive.unshift(gameData);
     localStorage.setItem('azachess-archive', JSON.stringify(archive));
@@ -423,6 +455,26 @@ async function saveOnlineGameToArchive(data) {
     } catch(e) {
         console.error("Ошибка синхронизации истории PvP:", e);
     }
+}
+
+// Получить полную статистику игрока (с защитой от отсутствия полей)
+async function getUserStats(uid) {
+    try {
+        const snap = await getDoc(doc(db, "users", uid));
+        if (snap.exists()) {
+            const data = snap.data();
+            return {
+                username: data.username || "Игрок",
+                wins: data.wins || 0,
+                losses: data.losses || 0,
+                draws: data.draws || 0,
+                gamesPlayed: data.gamesPlayed || 0
+            };
+        }
+    } catch (e) {
+        console.error("Error loading user stats:", e);
+    }
+    return { username: "Игрок", wins: 0, losses: 0, draws: 0, gamesPlayed: 0 };
 }
 
 // Таймер (Локальный плавный отсчет с компенсацией задержки)
@@ -677,7 +729,7 @@ function handleMoveAttempt(from, to) {
     }
 }
 
-// Отправка хода на Firestore
+// Отправка хода на Firestore с мгновенной компенсацией задержки (Optimistic UI)
 async function executeMoveMultiplayer(from, to, promo = 'q') {
     if (currentRole !== liveGame.turn()) return;
 
@@ -724,8 +776,38 @@ async function executeMoveMultiplayer(from, to, promo = 'q') {
         }
     }
 
+    // --- МГНОВЕННЫЙ OPTIMISTIC UI ---
+    liveGame = new Chess(gameClone.fen());
+    window.game = liveGame;
+    fullMoveHistory = newHistory;
+    currentMoveIndex = fullMoveHistory.length;
+    displayGame = new Chess(gameClone.fen());
+
+    if (currentRole === 'w') {
+        whiteTime = newWhiteTime;
+    } else {
+        blackTime = newBlackTime;
+    }
+    lastTick = now;
+
     selectedSquare = null;
     validMoves = [];
+
+    // Перерисовываем доску, логи и время моментально
+    renderBoard(false);
+    updateMoveLog();
+    updateClockDisplay();
+    
+    if (typeof window.playMoveSound === 'function') {
+        window.playMoveSound(res);
+    }
+
+    if (status === 'active') {
+        startTimerMultiplayer();
+    } else {
+        stopTimerMultiplayer();
+    }
+    // ---------------------------------
 
     try {
         const gameRef = doc(db, "pvp_games", currentGameId);
