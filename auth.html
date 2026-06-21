@@ -51,15 +51,32 @@
           await signInWithEmailAndPassword(auth, email, password);
           alert("С возвращением!");
         } else {
+          if (!username.trim()) {
+            alert("Пожалуйста, введите ваш никнейм!");
+            return;
+          }
           const userCredential = await createUserWithEmailAndPassword(auth, email, password);
           // Сохраняем никнейм в базу данных
           await setDoc(doc(db, "users", userCredential.user.uid), {
             username: username,
-            createdAt: new Date().toISOString()
+            createdAt: new Date().toISOString(),
+            rating: 1200,
+            wins: 0,
+            losses: 0,
+            draws: 0,
+            gamesPlayed: 0
           });
           alert("Аккаунт создан!");
         }
-        window.location.href = "index.html";
+
+        // ПЕРЕНАПРАВЛЕНИЕ: Если был переход по ссылке вызова, уводим друга туда
+        const joinAfter = localStorage.getItem('azachess-join-room-after-auth');
+        if (joinAfter) {
+            localStorage.removeItem('azachess-join-room-after-auth');
+            window.location.href = "multiplayer.html?room=" + joinAfter;
+        } else {
+            window.location.href = "index.html";
+        }
       } catch (error) {
         alert("Ошибка: " + error.message);
       }
