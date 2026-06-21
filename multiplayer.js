@@ -459,67 +459,75 @@ function joinRoom(gameId) {
     currentGameId = gameId;
     const userId = localStorage.getItem('azachess-user-id');
 
-    console.log(`[Room] Подключение к игровой комнате: ${gameId}`);
+    console.log(`[Room] Попытка входа в игровую сессию: ${gameId}`);
     showView('game');
 
     const gameRef = doc(db, "pvp_games", gameId);
+    
+    // Внедряем глобальный перехватчик ошибок для мгновенного нахождения сбоев
     gameListener = onSnapshot(gameRef, (docSnap) => {
-        if (!docSnap.exists()) {
-            console.warn("[Room] Комната не найдена или удалена сервером.");
-            alert("Игра завершена или удалена.");
-            leaveRoom();
-            return;
-        }
-
-        const data = docSnap.data();
-        
-        // Роль игрока
-        if (userId === data.whiteId) currentRole = 'w';
-        else if (userId === data.blackId) currentRole = 'b';
-        else currentRole = 'spectator';
-
-        console.log(`[Room] Синхронизация данных. Ваша роль: ${currentRole}`);
-
-        isFlipped = (currentRole === 'b');
-        document.getElementById('multiplayer-header').textContent = `Онлайн-Матч: ${data.whiteName} vs ${data.blackName}`;
-
-        liveGame = new Chess(data.fen);
-        window.game = liveGame; // Синхронизация с движком звуков
-
-        const previousLength = fullMoveHistory.length;
-        fullMoveHistory = data.history;
-
-        // Плавный переход при новом ходе
-        if (fullMoveHistory.length > previousLength || currentMoveIndex === previousLength) {
-            currentMoveIndex = fullMoveHistory.length;
-            displayGame = new Chess(data.fen);
-        } else {
-            displayGame = new Chess();
-            for (let i = 0; i < currentMoveIndex; i++) {
-                displayGame.move(fullMoveHistory[i]);
+        try {
+            if (!docSnap.exists()) {
+                console.warn("[Room] Комната не найдена или удалена сервером.");
+                alert("Игра завершена или удалена.");
+                leaveRoom();
+                return;
             }
-        }
 
-        whiteTime = data.whiteTime;
-        blackTime = data.blackTime;
-        increment = data.increment;
-        lastTick = data.lastMoveTime;
+            const data = docSnap.data();
+            
+            // Роль игрока
+            if (userId === data.whiteId) currentRole = 'w';
+            else if (userId === data.blackId) currentRole = 'b';
+            else currentRole = 'spectator';
 
-        // Воспроизводим звук последнего хода
-        const lastMove = fullMoveHistory[fullMoveHistory.length - 1];
-        if (lastMove && typeof window.playMoveSound === 'function') {
-            window.playMoveSound(lastMove);
-        }
+            console.log(`[Room] Синхронизация данных. Ваша роль: ${currentRole}`);
 
-        renderBoard(true);
-        updateMoveLog();
-        updateClockDisplay();
-        updateStatusMultiplayer(data);
+            isFlipped = (currentRole === 'b');
+            document.getElementById('multiplayer-header').textContent = `Онлайн-Матч: ${data.whiteName} vs ${data.blackName}`;
 
-        if (data.status === 'active' && fullMoveHistory.length > 0) {
-            startTimerMultiplayer();
-        } else {
-            stopTimerMultiplayer();
+            liveGame = new Chess(data.fen);
+            window.game = liveGame; // Синхронизация с движком звуков
+
+            const previousLength = fullMoveHistory.length;
+            fullMoveHistory = data.history || [];
+
+            // Плавный переход при новом ходе
+            if (fullMoveHistory.length > previousLength || currentMoveIndex === previousLength) {
+                currentMoveIndex = fullMoveHistory.length;
+                displayGame = new Chess(data.fen);
+            } else {
+                displayGame = new Chess();
+                for (let i = 0; i < currentMoveIndex; i++) {
+                    displayGame.move(fullMoveHistory[i]);
+                }
+            }
+
+            // Защищенное чтение таймеров (Safe Defaults для исключения NaN)
+            whiteTime = data.whiteTime !== undefined ? data.whiteTime : 300;
+            blackTime = data.blackTime !== undefined ? data.blackTime : 300;
+            increment = data.increment !== undefined ? data.increment : 0;
+            lastTick = data.lastMoveTime !== undefined ? data.lastMoveTime : Date.now();
+
+            // Воспроизводим звук последнего хода
+            const lastMove = fullMoveHistory[fullMoveHistory.length - 1];
+            if (lastMove && typeof window.playMoveSound === 'function') {
+                window.playMoveSound(lastMove);
+            }
+
+            renderBoard(true);
+            updateMoveLog();
+            updateClockDisplay();
+            updateStatusMultiplayer(data);
+
+            if (data.status === 'active' && fullMoveHistory.length > 0) {
+                startTimerMultiplayer();
+            } else {
+                stopTimerMultiplayer();
+            }
+        } catch (roomErr) {
+            console.error("[Room] Ошибка внутри onSnapshot игрового цикла:", roomErr);
+            alert(`Ошибка синхронизации игрового цикла:\n\n${roomErr}`);
         }
     });
 }
@@ -532,7 +540,10 @@ function updateStatusMultiplayer(data) {
     let statusText = "";
     let isOver = false;
 
-    if (data.status === 'active') {
+    // Внедряем Ролевой Инспектор
+    if (currentRole === 'spectator') {
+        statusText = "Режим зрителя (Наблюдение за игрой)";
+    } else if (data.status === 'active') {
         if (currentRole === data.turn) {
             statusText = "Ваш ход!";
         } else {
@@ -923,6 +934,105 @@ function handleMoveAttempt(from, to) {
     }
 }
 
+// Отправка хода на Firestore с мгновенной компенсацией задержки (Optimistic UI)
+async function executeMoveMultiplayer(from, to, promo = 'q') {
+    if (currentRole !== liveGame.turn()) return;
+
+    const gameClone = new Chess(liveGame.fen());
+    const res = gameClone.move({ from, to, promotion: promo });
+    if (!res) {
+        clearSelection();
+        return;
+    }
+
+    const now = Date.now();
+    let elapsed = 0;
+    if (fullMoveHistory.length > 0 && lastTick) {
+        elapsed = Math.floor((now - lastTick) / 1000);
+    }
+
+    let newWhiteTime = whiteTime;
+    let newBlackTime = blackTime;
+
+    if (currentRole === 'w') {
+        newWhiteTime = Math.max(0, whiteTime - elapsed) + increment;
+    } else {
+        newBlackTime = Math.max(0, blackTime - elapsed) + increment;
+    }
+
+    const newHistory = [...fullMoveHistory, {
+        from: res.from,
+        to: res.to,
+        san: res.san,
+        promotion: promo || null,
+        flags: res.flags
+    }];
+
+    let status = "active";
+    let winner = null;
+
+    if (gameClone.game_over()) {
+        if (gameClone.in_checkmate()) {
+            status = "checkmate";
+            winner = currentRole;
+        } else {
+            status = "draw";
+            winner = "draw";
+        }
+    }
+
+    // --- МГНОВЕННЫЙ OPTIMISTIC UI ---
+    liveGame = new Chess(gameClone.fen());
+    window.game = liveGame;
+    fullMoveHistory = newHistory;
+    currentMoveIndex = fullMoveHistory.length;
+    displayGame = new Chess(gameClone.fen());
+
+    if (currentRole === 'w') {
+        whiteTime = newWhiteTime;
+    } else {
+        blackTime = newBlackTime;
+    }
+    lastTick = now;
+
+    selectedSquare = null;
+    validMoves = [];
+
+    // Перерисовываем доску, логи и время моментально
+    renderBoard(false);
+    updateMoveLog();
+    updateClockDisplay();
+    
+    if (typeof window.playMoveSound === 'function') {
+        window.playMoveSound(res);
+    }
+
+    if (status === 'active') {
+        startTimerMultiplayer();
+    } else {
+        stopTimerMultiplayer();
+    }
+    // ---------------------------------
+
+    try {
+        const gameRef = doc(db, "pvp_games", currentGameId);
+        await updateDoc(gameRef, {
+            fen: gameClone.fen(),
+            history: newHistory,
+            turn: gameClone.turn(),
+            whiteTime: newWhiteTime,
+            blackTime: newBlackTime,
+            lastMoveTime: now,
+            status: status,
+            winner: winner
+        });
+    } catch (err) {
+        console.error("Firestore move update error:", err);
+        alert("Не удалось зафиксировать ход на сервере.");
+        renderBoard(false);
+    }
+}
+
 function renderPromotionChoices() {
     const container = document.querySelector('.promotion-choices'), turn = liveGame.turn();
     if (!container) return;
@@ -978,12 +1088,16 @@ async function getUserName(uid) {
 }
 
 function parseTimeControl(tc) {
-    if (tc === 'none') return { time: 999999, inc: 0 };
-    const parts = tc.split('+');
-    return {
-        time: parseInt(parts[0]) * 60,
-        inc: parseInt(parts[1]) || 0
-    };
+    if (!tc || tc === 'none') return { time: 999999, inc: 0 };
+    try {
+        const parts = tc.split('+');
+        const t = parseInt(parts[0]) * 60;
+        const i = parseInt(parts[1]) || 0;
+        if (isNaN(t)) return { time: 300, inc: 0 };
+        return { time: t, inc: i };
+    } catch(e) {
+        return { time: 300, inc: 0 };
+    }
 }
 
 function startSearchTimer() {
