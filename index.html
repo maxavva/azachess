@@ -69,14 +69,25 @@
   <script type="module">
     import { auth, db, onAuthStateChanged, signOut, doc, getDoc } from "./firebase-logic.js";
 
-    // Отслеживание авторизации
+    // Отслеживание авторизации с обработкой ошибок сети
     onAuthStateChanged(auth, async (user) => {
       const info = document.getElementById('user-info');
       const ctrls = document.getElementById('auth-controls');
       if (user) {
         localStorage.setItem('azachess-user-id', user.uid);
-        const snap = await getDoc(doc(db, "users", user.uid));
-        info.innerText = "👤 " + (snap.exists() ? snap.data().username : "Игрок");
+        
+        let username = "Игрок";
+        try {
+          const snap = await getDoc(doc(db, "users", user.uid));
+          if (snap.exists() && snap.data().username) {
+            username = snap.data().username;
+          }
+        } catch (err) {
+          console.warn("Сбой получения профиля, переход в локальный режим:", err);
+          username = "Игрок (офлайн)";
+        }
+
+        info.innerText = "👤 " + username;
         ctrls.innerHTML = `
           <a href="settings.html" class="grid-item" style="padding: 5px 15px; font-size: 0.8rem; text-decoration: none; margin-right: 8px;">⚙ Настройки</a>
           <button id="l-btn" class="grid-item" style="padding: 5px 15px; font-size: 0.8rem; color: #d9534f; border-color: #d9534f; background: none;">Выйти</button>
