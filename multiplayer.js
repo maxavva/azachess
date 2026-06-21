@@ -41,6 +41,28 @@ let searchSeconds = 0;
 let searchTimerInterval = null;
 let currentUserId = null; // Надежное ядро ID сессии
 
+// --- КРОСС-ВЕРСИОННЫЕ ШЛЮЗЫ ДЛЯ СОВМЕСТИМОСТИ С СЕКЦИЯМИ CHESS.JS ---
+function isGameInCheck(chessInstance) {
+    if (!chessInstance) return false;
+    if (typeof chessInstance.in_check === 'function') return chessInstance.in_check();
+    if (typeof chessInstance.inCheck === 'function') return chessInstance.inCheck();
+    return false;
+}
+
+function isGameFinished(chessInstance) {
+    if (!chessInstance) return false;
+    if (typeof chessInstance.game_over === 'function') return chessInstance.game_over();
+    if (typeof chessInstance.isGameOver === 'function') return chessInstance.isGameOver();
+    return false;
+}
+
+function isCheckmate(chessInstance) {
+    if (!chessInstance) return false;
+    if (typeof chessInstance.in_checkmate === 'function') return chessInstance.in_checkmate();
+    if (typeof chessInstance.isCheckmate === 'function') return chessInstance.isCheckmate();
+    return false;
+}
+
 // Безопасный оборонительный биндинг кликов
 const bindClick = (id, fn) => {
     const el = document.getElementById(id);
@@ -185,14 +207,12 @@ async function startMatchmaking() {
     startSearchTimer();
 
     try {
-        // 1. Ищем свободного игрока в очереди
         const qRef = collection(db, "queue");
         const q = query(qRef, where("timeControl", "==", timeControl), limit(10));
         const snap = await getDocs(q);
 
         console.log(`[Matchmaker] Найдено кандидатов в коллекции queue: ${snap.size}`);
 
-        // Фильтруем тех, кто еще не соединен, и сортируем по времени создания локально в памяти
         const sortedDocs = snap.docs
             .filter(d => d.id !== userId && !d.data().matchedGameId)
             .sort((a, b) => (a.data().createdAt || 0) - (b.data().createdAt || 0));
@@ -206,7 +226,6 @@ async function startMatchmaking() {
             const candidate = candidateDoc.data();
             console.log(`[Matchmaker] Пробуем соединиться с кандидатом: ${candidate.username}`);
 
-            // Запускаем транзакцию для предотвращения гонки за кандидата
             try {
                 await runTransaction(db, async (transaction) => {
                     const candidateRef = doc(db, "queue", candidate.userId);
@@ -215,7 +234,6 @@ async function startMatchmaking() {
                         throw "Кандидат уже взят другим игроком или вышел";
                     }
 
-                    // Генерируем уникальный ID игры
                     const gameId = doc(collection(db, "pvp_games")).id;
                     const gameRef = doc(db, "pvp_games", gameId);
 
@@ -244,10 +262,7 @@ async function startMatchmaking() {
                         createdAt: Date.now()
                     };
 
-                    // Вписываем ID игры в билет очереди кандидата (он мгновенно узнает об этом)
                     transaction.update(candidateRef, { matchedGameId: gameId });
-
-                    // Создаем игровую комнату
                     transaction.set(gameRef, gameData);
                     matchedGameId = gameId;
                     matchFound = true;
@@ -859,7 +874,12 @@ function renderBoard(rebuild = false) {
         const last = fullMoveHistory[currentMoveIndex - 1];
         if (last && (name === last.from || name === last.to)) sq.classList.add('last-move');
         if (selectedSquare === name) sq.classList.add('selected');
-        if (displayGame.in_check() && piece?.type === 'k' && piece.color === displayGame.turn()) sq.classList.add('check');
+        
+        // Кросс-версионная проверка шаха на доске
+        const checkActive = isGameInCheck(displayGame);
+        if (checkActive && piece?.type === 'k' && piece.color === displayGame.turn()) {
+            sq.classList.add('check');
+        }
         
         let img = sq.querySelector('.piece');
         if (piece) {
@@ -1023,8 +1043,8 @@ async function executeMoveMultiplayer(from, to, promo = 'q') {
     let status = "active";
     let winner = null;
 
-    if (gameClone.game_over()) {
-        if (gameClone.in_checkmate()) {
+    if (isGameFinished(gameClone)) {
+        if (isCheckmate(gameClone)) {
             status = "checkmate";
             winner = currentRole;
         } else {
