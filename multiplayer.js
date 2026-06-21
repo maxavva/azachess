@@ -237,11 +237,12 @@ async function startMatchmaking() {
 
         for (let candidateDoc of sortedDocs) {
             const candidate = candidateDoc.data();
-            console.log(`[Matchmaker] Пробуем соединиться с кандидатом: ${candidate.username}`);
+            console.log(`[Matchmaker] Пробуем соединиться с кандидатом: ${candidate.username} (ID: ${candidateDoc.id})`);
 
             try {
                 await runTransaction(db, async (transaction) => {
-                    const candidateRef = doc(db, "queue", candidate.userId);
+                    // Исправление: берем физический ID документа Firestore для исключения сбоев десериализации
+                    const candidateRef = doc(db, "queue", candidateDoc.id);
                     const candSnap = await transaction.get(candidateRef);
                     if (!candSnap.exists() || candSnap.data().matchedGameId) {
                         throw "Кандидат уже взят другим игроком или вышел";
@@ -1066,8 +1067,8 @@ async function executeMoveMultiplayer(from, to, promo = 'q') {
     let status = "active";
     let winner = null;
 
-    if (isGameFinished(gameClone)) {
-        if (isCheckmate(gameClone)) {
+    if (gameClone.game_over()) {
+        if (gameClone.in_checkmate()) {
             status = "checkmate";
             winner = currentRole;
         } else {
