@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Azachess - Профиль игрока</title>
+  <link rel="stylesheet" href="home-style.css">
+  <style>
+    .profile-card {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      padding: 25px;
+      border-radius: 12px;
+      margin-bottom: 20px;
+    }
+    .game-card { background: var(--bg-panel); border: 1px solid var(--border); padding: 20px; border-radius: 12px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; }
+    .game-info { flex-grow: 1; min-width: 0; }
+    .game-moves { color: #666; font-size: 0.8rem; margin-top: 10px; font-family: monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .loader { text-align: center; padding: 40px; font-weight: bold; color: var(--accent); }
+    .avatar-placeholder {
+      width: 60px;
+      height: 60px;
+      background: var(--accent);
+      border-radius: 50%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 1.8rem;
+      color: white;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="top-profile-bar">
+    <a href="index.html" style="color: var(--accent); text-decoration: none; font-weight: bold;">← НА ГЛАВНУЮ</a>
+    <div id="header-title" style="font-weight: bold; color: #fff;">Профиль шахматиста</div>
+  </div>
+
+  <div class="hub-container" style="max-width: 800px;">
+    
+    <!-- Карточка пользователя -->
+    <div class="profile-card">
+      <div style="display: flex; align-items: center; gap: 20px;">
+        <div class="avatar-placeholder">👤</div>
+        <div>
+          <div id="prof-username" style="font-size: 1.3rem; font-weight: bold; color: #fff;">👣 Загрузка...</div>
+          <div id="prof-status" style="font-size: 0.85rem; color: #888;">Загрузка данных профиля...</div>
+        </div>
+      </div>
+
+      <!-- Блок простой статистики -->
+      <div id="stats-container" style="margin-top: 20px; display: none; padding-top: 15px; border-top: 1px solid var(--border);">
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; text-align: center;">
+          <div style="background: rgba(0,0,0,0.2); padding: 8px; border-radius: 8px;">
+            <div id="stat-played" style="font-size: 1.2rem; font-weight: bold; color: #fff;">0</div>
+            <div style="font-size: 0.7rem; color: #888; margin-top: 2px;">Игры</div>
+          </div>
+          <div style="background: rgba(0,0,0,0.2); padding: 8px; border-radius: 8px;">
+            <div id="stat-wins" style="font-size: 1.2rem; font-weight: bold; color: #5cb365;">0</div>
+            <div style="font-size: 0.7rem; color: #888; margin-top: 2px;">Победы</div>
+          </div>
+          <div style="background: rgba(0,0,0,0.2); padding: 8px; border-radius: 8px;">
+            <div id="stat-losses" style="font-size: 1.2rem; font-weight: bold; color: #d9534f;">0</div>
+            <div style="font-size: 0.7rem; color: #888; margin-top: 2px;">Пораж.</div>
+          </div>
+          <div style="background: rgba(0,0,0,0.2); padding: 8px; border-radius: 8px;">
+            <div id="stat-draws" style="font-size: 1.2rem; font-weight: bold; color: #e0a800;">0</div>
+            <div style="font-size: 0.7rem; color: #888; margin-top: 2px;">Ничьи</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Список партий -->
+    <h3 style="color: #fff; font-size: 1.1rem; text-transform: uppercase; margin-bottom: 15px; border-bottom: 1px solid var(--border); padding-bottom: 8px;">Архив сыгранных партий</h3>
+    <div id="loader" class="loader">Получение истории игр...</div>
+    
+    <main id="archive-list"></main>
+    <button id="btn-load-more" class="start-btn secondary" style="display: none; width: 100%; margin-top: 15px;">Показать еще игры</button>
+
+  </div>
+
+ <script type="module">
+    import { db, collection, query, getDocs, getDoc, doc, orderBy, limit, startAfter } from "./firebase-logic.js";
+
+    const PAGE_SIZE = 5;
+    let lastVisibleDoc = null;
+    let isLoading = false;
+    let targetUid = null;
+
+    window.loadedGamesCache = {};
+
+    async function initProfile() {
+        const urlParams = new URLSearchParams(window.location.search);
+        // Если uid в строке нет — смотрим свой собственный профиль
+        targetUid = urlParams.get('uid') || localStorage.getItem('azachess-user-id');
+
+        if (!targetUid) {
+            document.getElementById('prof-username').innerText = "Гость";
+            document.getElementById('prof-status').innerText = "Статистика и архив недоступны в режиме гостя";
+            document.getElementById('loader').style.display = 'none';
+            return;
+        }
+
+        // Загружаем карточку профиля
+        try {
+            const userSnap = await getDoc(doc(db, "users", targetUid));
+            if (userSnap.exists()) {
+                const uData = userSnap.data();
+                document.getElementById('prof-username').innerText = uData.username || "Игрок";
+                document.getElementById('prof-status').innerText = `Зарегистрирован: ${new Date(uData.createdAt).toLocaleDateString()}`;
+                
+                // Наполнение простой статистики
+                document.getElementById('stat-played').innerText = uData.gamesPlayed || 0;
+                document.getElementById('stat-wins').innerText = uData.wins || 0;
+                document.getElementById('stat-losses').innerText = uData.losses || 0;
+                document.getElementById('stat-draws').innerText = uData.draws || 0;
+                
+                document.getElementById('stats-container').style.display = 'block';
+                if (urlParams.get('uid')) {
+                    document.getElementById('header-title').innerText = `Профиль: ${uData.username}`;
+                } else {
+                    document.getElementById('header-title').innerText = "Мой профиль";
+                }
+            }
+        } catch(e) {
+            console.error("Ошибка получения профиля:", e);
+        }
+
+        // Загружаем игры
+        loadProfileGames();
+    }
+
+    async function loadProfileGames(loadMore = false) {
+        if (isLoading) return;
+        isLoading = true;
+
+        const list = document.getElementById('archive-list');
+        const loader = document.getElementById('loader');
+        const btnMore = document.getElementById('btn-load-more');
+
+        try {
+            if (!loadMore) {
+                loader.style.display = 'block';
+                list.innerHTML = '';
+                lastVisibleDoc = null;
+                btnMore.style.display = 'none';
+            } else {
+                btnMore.innerText = "Загрузка...";
+                btnMore.disabled = true;
+            }
+
+            const userHistoryRef = collection(db, "users", targetUid, "history");
+            let q;
+            if (loadMore && lastVisibleDoc) {
+                q = query(userHistoryRef, orderBy("id", "desc"), startAfter(lastVisibleDoc), limit(PAGE_SIZE));
+            } else {
+                q = query(userHistoryRef, orderBy("id", "desc"), limit(PAGE_SIZE));
+            }
+
+            const querySnapshot = await getDocs(q);
+            loader.style.display = 'none';
+
+            if (querySnapshot.empty) {
+                if (!loadMore) {
+                    list.innerHTML = '<div style="text-align:center; padding: 20px; color:#666;">Архив пуст. Нет сыгранных партий.</div>';
+                } else {
+                    btnMore.style.display = 'none';
+                }
+                isLoading = false;
+                return;
+            }
+
+            lastVisibleDoc = querySnapshot.docs[querySnapshot.docs.length - 1];
+
+            const gamesHtml = querySnapshot.docs.map(doc => {
+                const game = doc.data();
+                const movesStr = (game.history && game.history.length > 0) 
+                    ? game.history.map(m => m.san).join(' ') 
+                    : "Ходы отсутствуют";
+                
+                window.loadedGamesCache[doc.id] = game;
+
+                return `
+                    <div class="game-card">
+                        <div class="game-info">
+                            <div style="font-size: 0.75rem; color: #888;">${game.date || 'Дата неизвестна'}</div>
+                            <div style="font-size: 1.1rem; font-weight: bold; color: #fff; margin: 4px 0;">${game.result || 'Матч завершен'}</div>
+                            <div style="font-size: 0.85rem; color: var(--accent); margin-bottom: 6px;">${game.aiLevel === "PvP-Онлайн" ? "Онлайн PvP" : "Игра против ИИ"} • Режим: ${game.timeControl || 'Без времени'}</div>
+                            <div class="game-moves" title="${movesStr}">${movesStr}</div>
+                        </div>
+                        <button class="grid-item" style="padding: 10px 15px; font-size: 0.85rem; min-width: 110px; margin-left: 10px;" onclick="viewGame('${doc.id}')">АНАЛИЗ</button>
+                    </div>
+                `;
+            }).join('');
+
+            if (loadMore) {
+                list.insertAdjacentHTML('beforeend', gamesHtml);
+            } else {
+                list.innerHTML = gamesHtml;
+            }
+
+            if (querySnapshot.docs.length < PAGE_SIZE) {
+                btnMore.style.display = 'none';
+            } else {
+                btnMore.style.display = 'block';
+                btnMore.innerText = "Показать еще игры";
+                btnMore.disabled = false;
+            }
+
+        } catch (e) {
+            console.error("Ошибка загрузки игр:", e);
+            loader.innerText = "Сбой загрузки истории.";
+        } finally {
+            isLoading = false;
+        }
+    }
+
+    window.viewGame = (docId) => {
+        const found = window.loadedGamesCache[docId];
+        if (found) {
+            sessionStorage.setItem('analysis-load-game', JSON.stringify(found.history));
+            window.location.href = 'analysis.html';
+        }
+    };
+
+    initProfile();
+</script>
+</body>
+</html>
