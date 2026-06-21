@@ -59,13 +59,12 @@
       <div class="main-actions" id="action-container">
         <button class="start-btn" id="btn-play-main" onclick="startGame()">Игра против ИИ</button>
         <button class="start-btn" style="background: #2b5c8f; box-shadow: 0 4px 0px #1a3a5e;" onclick="startMultiplayer()">Играть онлайн (PvP)</button>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 5px;">
-            <button class="start-btn secondary" onclick="openAnalysis()">Доска для анализа</button>
-            <button class="start-btn secondary" onclick="location.href='archive.html'">История игр</button>
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-top: 5px;">
+            <button class="start-btn secondary" style="padding: 12px 5px; font-size: 0.9rem;" onclick="openAnalysis()">Анализ</button>
+            <button class="start-btn secondary" style="padding: 12px 5px; font-size: 0.9rem;" onclick="location.href='profile.html'">Профиль</button>
+            <button class="start-btn secondary" style="padding: 12px 5px; font-size: 0.9rem; border-color: var(--accent); color: var(--accent);" onclick="location.href='search.html'">🔍 Поиск</button>
         </div>
       </div>
-    </main>
-  </div>
 
   <script type="module">
     import { auth, db, onAuthStateChanged, signOut, doc, getDoc } from "./firebase-logic.js";
