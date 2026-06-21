@@ -121,13 +121,21 @@ async function startMatchmaking() {
     try {
         // 1. Ищем свободного игрока в очереди
         const qRef = collection(db, "queue");
-        const q = query(qRef, where("timeControl", "==", timeControl), orderBy("createdAt", "asc"), limit(3));
+        
+        // Убрали orderBy на стороне сервера Firestore, чтобы не требовать создания составного индекса (Composite Index).
+        // Загружаем до 10 кандидатов по одному типу времени.
+        const q = query(qRef, where("timeControl", "==", timeControl), limit(10));
         const snap = await getDocs(q);
+
+        // Сортируем кандидатов по времени создания локально в памяти JS
+        const sortedDocs = snap.docs.sort((a, b) => {
+            return (a.data().createdAt || 0) - (b.data().createdAt || 0);
+        });
 
         let matchFound = false;
         let matchedGameId = null;
 
-        for (let candidateDoc of snap.docs) {
+        for (let candidateDoc of sortedDocs) {
             const candidate = candidateDoc.data();
             if (candidate.userId === userId) continue;
 
