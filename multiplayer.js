@@ -15,7 +15,7 @@ const PIECE_IMAGES = {
     'bK': 'https://upload.wikimedia.org/wikipedia/commons/f/f0/Chess_kdt45.svg'
 };
 
-// СОСТОЯНИЕ ИГРЫ
+// СОСТОЯНИЕ
 let liveGame = null;
 let displayGame = null;
 
@@ -55,6 +55,13 @@ const bindClick = (id, fn) => {
 // Реактивная инициализация через ядро сессий Firebase Auth
 function initMultiplayer() {
     console.log("[Azachess-PvP] Запуск инициализации скрипта...");
+    
+    // Проверка загрузки внешней библиотеки chess.js
+    if (typeof Chess !== 'function') {
+        alert("Критическая ошибка: Библиотека chess.js не загружена!\nПожалуйста, проверьте интернет-соединение или обновите страницу.");
+        return;
+    }
+
     onAuthStateChanged(auth, async (user) => {
         if (!user) {
             console.warn("[Azachess-PvP] Пользователь не авторизован. Сохраняем роут подключения...");
@@ -139,17 +146,14 @@ function showView(view) {
         if (el) el.classList.add('hidden');
     });
 
-    if (view === 'lobby') {
-        document.getElementById('lobby-view').classList.remove('hidden');
-        document.getElementById('multiplayer-header').textContent = "Онлайн PvP-Арена";
-    } else if (view === 'searching') {
-        document.getElementById('searching-view').classList.remove('hidden');
-        document.getElementById('multiplayer-header').textContent = "Поиск игры";
-    } else if (view === 'invite') {
-        document.getElementById('invite-view').classList.remove('hidden');
-        document.getElementById('multiplayer-header').textContent = "Вызов друга";
-    } else if (view === 'game') {
-        document.getElementById('game-view').classList.remove('hidden');
+    const activeEl = document.getElementById(`${view}-view`);
+    if (activeEl) activeEl.classList.remove('hidden');
+
+    const header = document.getElementById('multiplayer-header');
+    if (header) {
+        if (view === 'lobby') header.textContent = "Онлайн PvP-Арена";
+        else if (view === 'searching') header.textContent = "Поиск игры";
+        else if (view === 'invite') header.textContent = "Вызов друга";
     }
 }
 
@@ -162,7 +166,7 @@ function setupTimeControlPvP() {
     }
     items.forEach(el => {
         el.onclick = () => {
-            document.querySelectorAll('#time-grid-pvp .grid-item').forEach(i => i.classList.remove('active'));
+            items.forEach(i => i.classList.remove('active'));
             el.classList.add('active');
             selectedTimeControl = el.dataset.time;
             console.log("[Lobby] Выбран контроль времени:", selectedTimeControl);
@@ -181,12 +185,14 @@ async function startMatchmaking() {
     startSearchTimer();
 
     try {
+        // 1. Ищем свободного игрока в очереди
         const qRef = collection(db, "queue");
         const q = query(qRef, where("timeControl", "==", timeControl), limit(10));
         const snap = await getDocs(q);
 
         console.log(`[Matchmaker] Найдено кандидатов в коллекции queue: ${snap.size}`);
 
+        // Фильтруем тех, кто еще не соединен, и сортируем по времени создания локально в памяти
         const sortedDocs = snap.docs
             .filter(d => d.id !== userId && !d.data().matchedGameId)
             .sort((a, b) => (a.data().createdAt || 0) - (b.data().createdAt || 0));
@@ -200,6 +206,7 @@ async function startMatchmaking() {
             const candidate = candidateDoc.data();
             console.log(`[Matchmaker] Пробуем соединиться с кандидатом: ${candidate.username}`);
 
+            // Запускаем транзакцию для предотвращения гонки за кандидата
             try {
                 await runTransaction(db, async (transaction) => {
                     const candidateRef = doc(db, "queue", candidate.userId);
@@ -208,6 +215,7 @@ async function startMatchmaking() {
                         throw "Кандидат уже взят другим игроком или вышел";
                     }
 
+                    // Генерируем уникальный ID игры
                     const gameId = doc(collection(db, "pvp_games")).id;
                     const gameRef = doc(db, "pvp_games", gameId);
 
@@ -236,7 +244,10 @@ async function startMatchmaking() {
                         createdAt: Date.now()
                     };
 
+                    // Вписываем ID игры в билет очереди кандидата (он мгновенно узнает об этом)
                     transaction.update(candidateRef, { matchedGameId: gameId });
+
+                    // Создаем игровую комнату
                     transaction.set(gameRef, gameData);
                     matchedGameId = gameId;
                     matchFound = true;
@@ -506,7 +517,10 @@ function joinRoom(gameId) {
             isFlipped = (currentRole === 'b');
             document.getElementById('multiplayer-header').textContent = `Онлайн-Матч: ${data.whiteName} vs ${data.blackName}`;
 
-            liveGame = new Chess(data.fen);
+            // Отказоустойчивая загрузка FEN
+            const fenToLoad = (data.fen && typeof data.fen === 'string') ? data.fen : "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+
+            liveGame = new Chess(fenToLoad);
             window.game = liveGame; // Синхронизация с движком звуков
 
             const previousLength = fullMoveHistory.length;
@@ -515,19 +529,19 @@ function joinRoom(gameId) {
             // Плавный переход при новом ходе
             if (fullMoveHistory.length > previousLength || currentMoveIndex === previousLength) {
                 currentMoveIndex = fullMoveHistory.length;
-                displayGame = new Chess(data.fen);
+                displayGame = new Chess(fenToLoad);
             } else {
-                displayGame = new Chess();
+                displayGame = new Chess("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
                 for (let i = 0; i < currentMoveIndex; i++) {
                     displayGame.move(fullMoveHistory[i]);
                 }
             }
 
             // Защищенное чтение таймеров (Safe Defaults для исключения NaN)
-            whiteTime = data.whiteTime !== undefined ? data.whiteTime : 300;
-            blackTime = data.blackTime !== undefined ? data.blackTime : 300;
-            increment = data.increment !== undefined ? data.increment : 0;
-            lastTick = data.lastMoveTime !== undefined ? data.lastMoveTime : Date.now();
+            whiteTime = parseInt(data.whiteTime !== undefined ? data.whiteTime : 300);
+            blackTime = parseInt(data.blackTime !== undefined ? data.blackTime : 300);
+            increment = parseInt(data.increment !== undefined ? data.increment : 0);
+            lastTick = parseInt(data.lastMoveTime !== undefined ? data.lastMoveTime : Date.now());
 
             // Скрытие часов, если выбран режим "Без времени"
             const clocksWrapper = document.getElementById('clocks-wrapper');
@@ -553,7 +567,7 @@ function joinRoom(gameId) {
             }
         } catch (roomErr) {
             console.error("[Room] Ошибка внутри onSnapshot игрового цикла:", roomErr);
-            alert(`Ошибка отрисовки игры:\n\n${roomErr}`);
+            alert(`Ошибка отрисовки игры!\n\nСообщение: ${roomErr.message}\n\nСтек трейс:\n${roomErr.stack}`);
         }
     }, (error) => {
         // Ловим ошибку авторизации/доступа (Permission Denied) со стороны Firebase
@@ -1092,7 +1106,7 @@ function renderPromotionChoices() {
 function jumpToMoveIndex(idx) {
     if (idx < 0 || idx > fullMoveHistory.length) return;
     currentMoveIndex = idx;
-    displayGame = new Chess();
+    displayGame = new Chess("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
     for (let i = 0; i < currentMoveIndex; i++) {
         displayGame.move(fullMoveHistory[i]);
     }
