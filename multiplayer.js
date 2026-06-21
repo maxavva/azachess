@@ -1123,6 +1123,18 @@ function renderPromotionChoices() {
     });
 }
 
+// Отрисовка времени на часах
+function updateClockDisplay() {
+    const format = (s) => `${Math.floor(s/60)}:${(s%60).toString().padStart(2, '0')}`;
+    const clockTop = document.getElementById('clock-top');
+    const clockBottom = document.getElementById('clock-bottom');
+    if (clockTop && clockBottom) {
+        (isFlipped ? clockTop : clockBottom).textContent = format(whiteTime);
+        (isFlipped ? clockBottom : clockTop).textContent = format(blackTime);
+    }
+}
+
+// Переход по истории ходов
 function jumpToMoveIndex(idx) {
     if (idx < 0 || idx > fullMoveHistory.length) return;
     currentMoveIndex = idx;
@@ -1136,6 +1148,7 @@ function jumpToMoveIndex(idx) {
     updateMoveLog();
 }
 
+// Обновление лога ходов
 function updateMoveLog() {
     const log = document.getElementById('move-log'); if(!log) return; log.innerHTML = '';
     for (let i = 0; i < fullMoveHistory.length; i += 2) {
@@ -1147,6 +1160,7 @@ function updateMoveLog() {
     }
 }
 
+// Сброс выделения
 function clearSelection() { selectedSquare = null; validMoves = []; renderBoard(false); }
 
 function parseTimeControl(tc) {
