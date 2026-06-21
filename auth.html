@@ -47,16 +47,19 @@
       const username = usernameInput.value;
 
       try {
+        let userCredential;
         if (isLogin) {
-          await signInWithEmailAndPassword(auth, email, password);
+          userCredential = await signInWithEmailAndPassword(auth, email, password);
+          localStorage.setItem('azachess-user-id', userCredential.user.uid); // Моментальная запись сессии
           alert("С возвращением!");
         } else {
           if (!username.trim()) {
             alert("Пожалуйста, введите ваш никнейм!");
             return;
           }
-          const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-          // Сохраняем никнейм в базу данных
+          userCredential = await createUserWithEmailAndPassword(auth, email, password);
+          localStorage.setItem('azachess-user-id', userCredential.user.uid); // Моментальная запись сессии
+          
           await setDoc(doc(db, "users", userCredential.user.uid), {
             username: username,
             createdAt: new Date().toISOString(),
@@ -69,7 +72,7 @@
           alert("Аккаунт создан!");
         }
 
-        // ПЕРЕНАПРАВЛЕНИЕ: Если был переход по ссылке вызова, уводим друга туда
+        // Перенаправление: если был переход по ссылке вызова, уводим друга туда
         const joinAfter = localStorage.getItem('azachess-join-room-after-auth');
         if (joinAfter) {
             localStorage.removeItem('azachess-join-room-after-auth');
