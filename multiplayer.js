@@ -1,4 +1,4 @@
-import { auth, db, doc, setDoc, getDoc, collection, query, where, getDocs, orderBy, limit, onSnapshot, runTransaction, deleteDoc, updateDoc } from "./firebase-logic.js";
+import { auth, db, doc, setDoc, getDoc, collection, query, where, getDocs, orderBy, limit, onSnapshot, runTransaction, deleteDoc, updateDoc, onAuthStateChanged } from "./firebase-logic.js";
 
 const PIECE_IMAGES = {
     'wP': 'https://upload.wikimedia.org/wikipedia/commons/4/45/Chess_plt45.svg',
@@ -39,6 +39,7 @@ let currentGameId = null;
 let currentRole = null; // 'w', 'b' или 'spectator'
 let searchSeconds = 0;
 let searchTimerInterval = null;
+let currentUserId = null; // Надежное ядро ID сессии
 
 // Безопасный оборонительный биндинг кликов
 const bindClick = (id, fn) => {
@@ -51,16 +52,26 @@ const bindClick = (id, fn) => {
     }
 };
 
-// Инициализация PvP арены
+// Реактивная инициализация через ядро сессий Firebase Auth
 function initMultiplayer() {
     console.log("[Azachess-PvP] Запуск инициализации скрипта...");
-    try {
-        const uid = localStorage.getItem('azachess-user-id');
-        if (!uid || uid === "null") {
-            console.warn("[Azachess-PvP] Пользователь не авторизован, перенаправление...");
+    onAuthStateChanged(auth, async (user) => {
+        if (!user) {
+            console.warn("[Azachess-PvP] Пользователь не авторизован. Сохраняем роут подключения...");
+            const urlParams = new URLSearchParams(window.location.search);
+            const roomId = urlParams.get('room');
+            if (roomId) {
+                localStorage.setItem('azachess-join-room-after-auth', roomId);
+            }
             window.location.href = 'auth.html';
             return;
         }
+
+        // Фиксируем ID сессии напрямую из ядра Firebase
+        currentUserId = user.uid;
+        localStorage.setItem('azachess-user-id', user.uid); // Обратная совместимость
+
+        console.log(`[Azachess-PvP] Успешно авторизован: ${currentUserId}`);
 
         applyGlobalSettings();
         setupTimeControlPvP();
@@ -90,10 +101,7 @@ function initMultiplayer() {
 
         // Проверка входящего вызова по ссылке (?room=ID)
         checkInviteQuery();
-        console.log("[Azachess-PvP] Инициализация завершена без ошибок.");
-    } catch (e) {
-        console.error("[Azachess-PvP] Ошибка во время инициализации лобби:", e);
-    }
+    });
 }
 
 if (document.readyState === 'loading') {
@@ -140,7 +148,7 @@ function setupTimeControlPvP() {
 
 // Запуск подбора (Матчмейкинг v2 - Точечный)
 async function startMatchmaking() {
-    const userId = localStorage.getItem('azachess-user-id');
+    const userId = currentUserId;
     const username = await getUserName(userId);
     const timeControl = selectedTimeControl;
 
@@ -272,7 +280,7 @@ async function startMatchmaking() {
 async function cancelMatchmaking() {
     console.log("[Matchmaker] Поиск отменен пользователем.");
     stopSearchTimer();
-    const userId = localStorage.getItem('azachess-user-id');
+    const userId = currentUserId;
     
     if (queueListener) {
         queueListener();
@@ -295,14 +303,7 @@ async function checkInviteQuery() {
         return;
     }
 
-    const userId = localStorage.getItem('azachess-user-id');
-    if (!userId || userId === "null") {
-        console.log("[Invite] Отложенный вход: сохраняем комнату в кэш и уводим на авторизацию");
-        localStorage.setItem('azachess-join-room-after-auth', roomId);
-        window.location.href = 'auth.html';
-        return;
-    }
-
+    const userId = currentUserId;
     console.log(`[Invite] Обнаружен переход по ссылке вызова. Комната: ${roomId}`);
     const gameRef = doc(db, "pvp_games", roomId);
 
@@ -374,7 +375,7 @@ async function checkInviteQuery() {
 
 // Создание вызова по ссылке (Сыграть с другом)
 async function createInviteRoom() {
-    const userId = localStorage.getItem('azachess-user-id');
+    const userId = currentUserId;
     const userStats = await getUserStats(userId);
     const username = userStats.username;
     const timeControl = selectedTimeControl;
@@ -457,7 +458,7 @@ async function createInviteRoom() {
 // Подключение к комнате
 function joinRoom(gameId) {
     currentGameId = gameId;
-    const userId = localStorage.getItem('azachess-user-id');
+    const userId = currentUserId;
 
     console.log(`[Room] Попытка входа в игровую сессию: ${gameId}`);
     showView('game');
@@ -508,6 +509,12 @@ function joinRoom(gameId) {
             blackTime = data.blackTime !== undefined ? data.blackTime : 300;
             increment = data.increment !== undefined ? data.increment : 0;
             lastTick = data.lastMoveTime !== undefined ? data.lastMoveTime : Date.now();
+
+            // Скрытие часов, если выбран режим "Без времени"
+            const clocksWrapper = document.getElementById('clocks-wrapper');
+            if (clocksWrapper) {
+                clocksWrapper.style.display = (data.timeControl === 'none') ? 'none' : 'flex';
+            }
 
             // Воспроизводим звук последнего хода
             const lastMove = fullMoveHistory[fullMoveHistory.length - 1];
@@ -665,7 +672,7 @@ function leaveRoom() {
 
 // Сохранение PvP игры в личный архив и обновление простой статистики (без ELO)
 async function saveOnlineGameToArchive(data) {
-    const userId = localStorage.getItem('azachess-user-id');
+    const userId = currentUserId;
     if (!userId || data.history.length < 2) return;
 
     const archiveKey = `pvp-archived-${data.id}`;
@@ -841,6 +848,7 @@ function renderBoard(rebuild = false) {
 
 // Клики и перетаскивание фигур (Pointer Events с захватом для тач-скринов)
 function handlePointerDown(e, sq) {
+    if (e.cancelable) e.preventDefault(); // ПРЕДОТВРАЩАЕТ СКРОЛЛ НА СМАРТФОНАХ (Фигуры теперь двигаются безотказно)
     if (typeof window.unlockAudio === 'function') window.unlockAudio();
     if (currentRole !== liveGame.turn() || currentMoveIndex < fullMoveHistory.length) return;
 
@@ -865,7 +873,7 @@ function handlePointerDown(e, sq) {
         window.onpointermove = handlePointerMove; 
         window.onpointerup = handlePointerUp;
 
-        // Позволяет захватить палец на тач-экранах смартфонов (предотвращает скролл и срыв фигуры)
+        // Позволяет зафиксировать жест на телефонах
         try { e.target.setPointerCapture(e.pointerId); } catch(err) {}
     } else {
         clearSelection();
@@ -1051,6 +1059,16 @@ function renderPromotionChoices() {
     });
 }
 
+function updateClockDisplay() {
+    const format = (s) => `${Math.floor(s/60)}:${(s%60).toString().padStart(2, '0')}`;
+    const clockTop = document.getElementById('clock-top');
+    const clockBottom = document.getElementById('clock-bottom');
+    if (clockTop && clockBottom) {
+        (isFlipped ? clockTop : clockBottom).textContent = format(whiteTime);
+        (isFlipped ? clockBottom : clockTop).textContent = format(blackTime);
+    }
+}
+
 function jumpToMoveIndex(idx) {
     if (idx < 0 || idx > fullMoveHistory.length) return;
     currentMoveIndex = idx;
@@ -1076,65 +1094,3 @@ function updateMoveLog() {
 }
 
 function clearSelection() { selectedSquare = null; validMoves = []; renderBoard(false); }
-
-async function getUserName(uid) {
-    if (!uid) return "Игрок";
-    try {
-        const snap = await getDoc(doc(db, "users", uid));
-        return snap.exists() ? snap.data().username : "Игрок";
-    } catch (e) {
-        return "Игрок";
-    }
-}
-
-function parseTimeControl(tc) {
-    if (!tc || tc === 'none') return { time: 999999, inc: 0 };
-    try {
-        const parts = tc.split('+');
-        const t = parseInt(parts[0]) * 60;
-        const i = parseInt(parts[1]) || 0;
-        if (isNaN(t)) return { time: 300, inc: 0 };
-        return { time: t, inc: i };
-    } catch(e) {
-        return { time: 300, inc: 0 };
-    }
-}
-
-function startSearchTimer() {
-    searchSeconds = 0;
-    const el = document.getElementById('search-timer');
-    if (el) el.textContent = `Вы в очереди: 0 сек`;
-    
-    searchSeconds++;
-    searchTimerInterval = setInterval(() => {
-        if (el) el.textContent = `Вы в очереди: ${searchSeconds} сек`;
-        searchSeconds++;
-    }, 1000);
-}
-
-// Сброс и перезапуск
-function stopSearchTimer() {
-    if (searchTimerInterval) clearInterval(searchTimerInterval);
-    searchTimerInterval = null;
-}
-
-function applyGlobalSettings() {
-    try {
-        const boardEl = document.getElementById('board');
-        if (!boardEl) return;
-
-        const theme = localStorage.getItem('azachess-setting-theme') || 'emerald';
-        const coords = localStorage.getItem('azachess-setting-coords') !== 'false';
-
-        boardEl.className = 'chessboard';
-        boardEl.classList.add(`theme-${theme}`);
-
-        if (coords) {
-            boardEl.classList.remove('hide-coordinates');
-        } else {
-            boardEl.classList.add('hide-coordinates');
-        }
-    } catch (e) {
-        console.error("applyGlobalSettings error:", e);
-    }
-}
