@@ -75,7 +75,10 @@
         </div>
       </section>
 
-      <button id="btn-start-search" class="start-btn" style="width: 100%; margin-top: 30px;">Искать соперника</button>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 30px;">
+        <button id="btn-start-search" class="start-btn" style="margin: 0;">Авто-подбор</button>
+        <button id="btn-invite-friend" class="start-btn" style="background: #2b5c8f; box-shadow: 0 4px 0px #1a3a5e; margin: 0;">Сыграть с другом</button>
+      </div>
     </div>
 
     <!-- ЭКРАН ПОДБОРА (ПОИСКА) -->
@@ -85,6 +88,22 @@
         <h3 style="color: #fff; margin: 10px 0 5px 0;">Поиск соперника...</h3>
         <p id="search-timer" style="color: var(--text-dim); font-size: 0.9rem; margin-bottom: 15px;">Вы в очереди: 0 сек</p>
         <button id="btn-cancel-search" class="start-btn secondary" style="width: 100%;">Отменить поиск</button>
+      </div>
+    </div>
+
+    <!-- ЭКРАН ОЖИДАНИЯ ПОДКЛЮЧЕНИЯ ДРУГА -->
+    <div id="invite-view" class="lobby-container hidden">
+      <div class="searching-loader">
+        <div class="spinner"></div>
+        <h3 style="color: #fff; margin: 10px 0 5px 0;">Вызов отправлен!</h3>
+        <p style="color: var(--text-dim); font-size: 0.85rem; margin-bottom: 15px;">Отправьте эту ссылку другу, чтобы он подключился:</p>
+        
+        <div style="display: flex; gap: 5px; width: 100%; margin-bottom: 15px;">
+          <input type="text" id="invite-link-input" readonly style="flex-grow: 1; padding: 12px; background: #111; border: 1px solid var(--border); color: #fff; border-radius: 6px; font-size: 0.85rem; outline: none;">
+          <button id="btn-copy-link" class="grid-item" style="padding: 10px 15px; font-size: 0.8rem; min-width: 110px; margin: 0;">Копировать</button>
+        </div>
+        
+        <button id="btn-cancel-invite" class="start-btn secondary" style="width: 100%;">Отменить вызов</button>
       </div>
     </div>
 
