@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-import { getFirestore, doc, setDoc, getDoc, collection, addDoc, query, where, getDocs, orderBy, limit, startAfter, enableIndexedDbPersistence, onSnapshot, runTransaction, deleteDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, setDoc, getDoc, collection, addDoc, query, where, getDocs, orderBy, limit, startAfter, onSnapshot, runTransaction, deleteDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 // КОНФИГ FIREBASE
 const firebaseConfig = {
@@ -15,15 +15,12 @@ const firebaseConfig = {
 // Инициализация
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
-const db = getFirestore(app);
 
-// Стабильное автономное кэширование (IndexedDB)
-enableIndexedDbPersistence(db).catch((err) => {
-  if (err.code === 'failed-precondition') {
-    console.warn("Обнаружено несколько открытых вкладок. Автономное кэширование активно только в одной вкладке.");
-  } else if (err.code === 'unimplemented') {
-    console.warn("Данный браузер не поддерживает автономное кэширование IndexedDB.");
-  }
+// Стабильный современный офлайн кэш без deprecation-предупреждений (SDK v10+)
+const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({
+    tabManager: persistentMultipleTabManager()
+  })
 });
 
 export { 
