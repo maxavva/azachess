@@ -57,8 +57,9 @@
       </section>
      
       <div class="main-actions" id="action-container">
-        <button class="start-btn" id="btn-play-main" onclick="startGame()">Играть</button>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+        <button class="start-btn" id="btn-play-main" onclick="startGame()">Игра против ИИ</button>
+        <button class="start-btn" style="background: #2b5c8f; box-shadow: 0 4px 0px #1a3a5e;" onclick="startMultiplayer()">Играть онлайн (PvP)</button>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 5px;">
             <button class="start-btn secondary" onclick="openAnalysis()">Доска для анализа</button>
             <button class="start-btn secondary" onclick="location.href='archive.html'">История игр</button>
         </div>
@@ -130,6 +131,11 @@
     window.startGame = () => {
         if (!localStorage.getItem('azachess-user-id')) { window.location.href = 'auth.html'; return; }
         window.location.href = 'play.html';
+    };
+
+    window.startMultiplayer = () => {
+        if (!localStorage.getItem('azachess-user-id')) { window.location.href = 'auth.html'; return; }
+        window.location.href = 'multiplayer.html';
     };
 
     window.openAnalysis = () => {
