@@ -109,7 +109,7 @@ function setupTimeControlPvP() {
     });
 }
 
-// Запуск подбора
+// Запуск подбора (Матчмейкинг v2 - Точечный)
 async function startMatchmaking() {
     const userId = localStorage.getItem('azachess-user-id');
     const username = await getUserName(userId);
@@ -121,37 +121,30 @@ async function startMatchmaking() {
     try {
         // 1. Ищем свободного игрока в очереди
         const qRef = collection(db, "queue");
-        
-        // Убрали orderBy на стороне сервера Firestore, чтобы не требовать создания составного индекса (Composite Index).
-        // Загружаем до 10 кандидатов по одному типу времени.
         const q = query(qRef, where("timeControl", "==", timeControl), limit(10));
         const snap = await getDocs(q);
 
-        // Сортируем кандидатов по времени создания локально в памяти JS
-        const sortedDocs = snap.docs.sort((a, b) => {
-            return (a.data().createdAt || 0) - (b.data().createdAt || 0);
-        });
+        // Фильтруем тех, кто еще не соединен, и сортируем по времени создания локально в памяти
+        const sortedDocs = snap.docs
+            .filter(d => d.id !== userId && !d.data().matchedGameId)
+            .sort((a, b) => (a.data().createdAt || 0) - (b.data().createdAt || 0));
 
         let matchFound = false;
         let matchedGameId = null;
 
         for (let candidateDoc of sortedDocs) {
             const candidate = candidateDoc.data();
-            if (candidate.userId === userId) continue;
 
             // Запускаем транзакцию для предотвращения гонки за кандидата
             try {
                 await runTransaction(db, async (transaction) => {
                     const candidateRef = doc(db, "queue", candidate.userId);
                     const candSnap = await transaction.get(candidateRef);
-                    if (!candSnap.exists()) {
-                        throw "Кандидат уже взят другим игроком";
+                    if (!candSnap.exists() || candSnap.data().matchedGameId) {
+                        throw "Кандидат уже взят другим игроком или вышел";
                     }
 
-                    // Удаляем кандидата из очереди
-                    transaction.delete(candidateRef);
-
-                    // Создаем комнату игры
+                    // Генерируем уникальный ID игры
                     const gameId = doc(collection(db, "pvp_games")).id;
                     const gameRef = doc(db, "pvp_games", gameId);
 
@@ -180,6 +173,10 @@ async function startMatchmaking() {
                         createdAt: Date.now()
                     };
 
+                    // Вписываем ID игры в билет очереди кандидата (он мгновенно узнает об этом)
+                    transaction.update(candidateRef, { matchedGameId: gameId });
+
+                    // Создаем игровую комнату
                     transaction.set(gameRef, gameData);
                     matchedGameId = gameId;
                     matchFound = true;
@@ -195,30 +192,31 @@ async function startMatchmaking() {
             stopSearchTimer();
             joinRoom(matchedGameId);
         } else {
-            // 2. Если никого нет в очереди, добавляем себя и ждем вызова
+            // 2. Если никого нет в очереди, добавляем себя и подписываемся на СВОЙ ДОКУМЕНТ ОЧЕРЕДИ
             const myQueueRef = doc(db, "queue", userId);
             await setDoc(myQueueRef, {
                 userId,
                 username,
                 timeControl,
+                matchedGameId: null,
                 createdAt: Date.now()
             });
 
-            const gamesRef = collection(db, "pvp_games");
-            const qGames = query(gamesRef, where("status", "==", "active"));
+            queueListener = onSnapshot(myQueueRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    const queueData = docSnap.data();
+                    if (queueData.matchedGameId) {
+                        // Соперник нашел нас, создал игру и вписал нам ее ID!
+                        if (queueListener) queueListener();
+                        queueListener = null;
 
-            queueListener = onSnapshot(qGames, (snapshot) => {
-                snapshot.docChanges().forEach((change) => {
-                    if (change.type === "added") {
-                        const game = change.doc.data();
-                        if (game.whiteId === userId || game.blackId === userId) {
-                            if (queueListener) queueListener();
-                            queueListener = null;
-                            stopSearchTimer();
-                            joinRoom(game.id);
-                        }
+                        // Удаляем свой билет из очереди
+                        deleteDoc(myQueueRef).catch(() => {});
+
+                        stopSearchTimer();
+                        joinRoom(queueData.matchedGameId);
                     }
-                });
+                }
             });
         }
 
