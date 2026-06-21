@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Azachess - Онлайн Мультиплеер (PvP)</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="home-style.css">
+  <style>
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding-top: 15px;
+    }
+    .lobby-container {
+      max-width: 500px;
+      width: 100%;
+      margin: 40px auto;
+      text-align: center;
+    }
+    .searching-loader {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 15px;
+      padding: 30px;
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+    }
+    .spinner {
+      width: 50px;
+      height: 50px;
+      border: 5px solid rgba(255, 255, 255, 0.1);
+      border-top: 5px solid var(--accent);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .hidden {
+      display: none !important;
+    }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/chess.js@0.10.3/chess.min.js"></script>
+  <script src="sounds.js"></script>
+</head>
+<body>
+
+  <div class="game-wrapper-root">
+    
+    <!-- Навигационная панель -->
+    <div class="nav-bar">
+      <a href="index.html" class="nav-link">← На главную</a>
+      <span class="nav-link active" id="multiplayer-header">Онлайн PvP-Арена</span>
+      <a href="settings.html" class="nav-link">⚙ Настройки</a>
+    </div>
+
+    <!-- ЛОББИ ПОДБОРА ИГРЫ -->
+    <div id="lobby-view" class="lobby-container">
+      <h2 style="color: #fff; margin-bottom: 25px;">Выбор контроля времени для PvP</h2>
+      
+      <section class="mode-section" style="text-align: left;">
+        <div class="selection-grid" id="time-grid-pvp" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;">
+          <div class="grid-item" data-time="1+0">1+0 <span class="label">Пуля</span></div>
+          <div class="grid-item" data-time="3+2">3+2 <span class="label">Блиц</span></div>
+          <div class="grid-item active" data-time="5+3">5+3 <span class="label">Блиц</span></div>
+          <div class="grid-item" data-time="10+5">10+5 <span class="label">Рапид</span></div>
+          <div class="grid-item" data-time="30+0">30+0 <span class="label">Классика</span></div>
+          <div class="grid-item" data-time="none">∞ <span class="label">Без времени</span></div>
+        </div>
+      </section>
+
+      <button id="btn-start-search" class="start-btn" style="width: 100%; margin-top: 30px;">Искать соперника</button>
+    </div>
+
+    <!-- ЭКРАН ПОДБОРА (ПОИСКА) -->
+    <div id="searching-view" class="lobby-container hidden">
+      <div class="searching-loader">
+        <div class="spinner"></div>
+        <h3 style="color: #fff; margin: 10px 0 5px 0;">Поиск соперника...</h3>
+        <p id="search-timer" style="color: var(--text-dim); font-size: 0.9rem; margin-bottom: 15px;">Вы в очереди: 0 сек</p>
+        <button id="btn-cancel-search" class="start-btn secondary" style="width: 100%;">Отменить поиск</button>
+      </div>
+    </div>
+
+    <!-- ИГРОВОЙ ИНТЕРФЕЙС -->
+    <div id="game-view" class="game-container hidden">
+      <div class="board-wrapper">
+        <div id="board" class="chessboard"></div>
+        <div class="navigation-controls">
+          <button id="btn-nav-first" class="btn btn-secondary nav-btn">|&lt;</button>
+          <button id="btn-nav-prev" class="btn btn-secondary nav-btn">&lt;</button>
+          <button id="btn-nav-next" class="btn btn-secondary nav-btn">&gt;</button>
+          <button id="btn-nav-last" class="btn btn-secondary nav-btn">&gt;|</button>
+        </div>
+      </div>
+
+      <div class="control-panel">
+        <div class="status-display" id="status-text">Ожидание первого хода...</div>
+
+        <div id="clocks-wrapper" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 15px;">
+          <div id="clock-top" class="clock">--:--</div>
+          <div id="clock-bottom" class="clock">--:--</div>
+        </div>
+
+        <div class="move-history">
+          <div class="history-title" id="history-title-pvp">История ходов (Онлайн)</div>
+          <div id="move-log" class="move-log-content"></div>
+        </div>
+
+        <div class="actions">
+          <button id="btn-resign" class="btn btn-danger" style="margin-bottom: 10px;">Сдаться</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Модалка превращения пешки -->
+  <div id="promotion-modal" class="modal hidden">
+    <div class="modal-content">
+      <h3>Выберите фигуру</h3>
+      <div class="promotion-choices"></div>
+    </div>
+  </div>
+
+  <script type="module" src="multiplayer.js"></script>
+</body>
+</html>
