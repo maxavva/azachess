@@ -38,8 +38,14 @@ window.addEventListener('mousedown', unlockAudio);
 window.addEventListener('touchstart', unlockAudio);
 
 function playMoveSound(result) {
-    // Проверка пользовательской настройки звука перед проигрыванием
-    if (localStorage.getItem('azachess-setting-sound') === 'false') return;
+    // Безопасное чтение настроек звука с защитой от блокировки localStorage в Safari/WebViews
+    let isSoundEnabled = true;
+    try {
+        isSoundEnabled = localStorage.getItem('azachess-setting-sound') !== 'false';
+    } catch(e) {
+        isSoundEnabled = true; // Офлайн-фоллбэк
+    }
+    if (!isSoundEnabled) return;
 
     if (!result || !isAudioReady) return;
     try {
@@ -55,7 +61,7 @@ function playMoveSound(result) {
 
         if (sound) {
             sound.currentTime = 0;
-            sound.play().catch(e => console.error("Ошибка воспроизведения:", e));
+            sound.play().catch(e => console.warn("Ошибка воспроизведения:", e));
         }
 
         if (isOver && chessSounds.gameEnd) {
