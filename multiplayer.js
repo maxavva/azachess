@@ -42,8 +42,10 @@ let searchTimerInterval = null;
 
 // Инициализация
 function initMultiplayer() {
+    console.log("[Lobby] Инициализация PvP арены...");
     const uid = localStorage.getItem('azachess-user-id');
     if (!uid || uid === "null") {
+        console.warn("[Lobby] Пользователь не авторизован, перенаправление...");
         window.location.href = 'auth.html';
         return;
     }
@@ -105,6 +107,7 @@ function setupTimeControlPvP() {
             document.querySelectorAll('#time-grid-pvp .grid-item').forEach(i => i.classList.remove('active'));
             el.classList.add('active');
             selectedTimeControl = el.dataset.time;
+            console.log("[Lobby] Выбран контроль времени:", selectedTimeControl);
         };
     });
 }
@@ -115,6 +118,7 @@ async function startMatchmaking() {
     const username = await getUserName(userId);
     const timeControl = selectedTimeControl;
 
+    console.log(`[Matchmaker] Поиск запущен. Игрок: ${username} (${userId}), контроль: ${timeControl}`);
     showView('searching');
     startSearchTimer();
 
@@ -124,16 +128,21 @@ async function startMatchmaking() {
         const q = query(qRef, where("timeControl", "==", timeControl), limit(10));
         const snap = await getDocs(q);
 
+        console.log(`[Matchmaker] Найдено кандидатов в коллекции queue: ${snap.size}`);
+
         // Фильтруем тех, кто еще не соединен, и сортируем по времени создания локально в памяти
         const sortedDocs = snap.docs
             .filter(d => d.id !== userId && !d.data().matchedGameId)
             .sort((a, b) => (a.data().createdAt || 0) - (b.data().createdAt || 0));
+
+        console.log(`[Matchmaker] Свободных оппонентов после фильтрации: ${sortedDocs.length}`);
 
         let matchFound = false;
         let matchedGameId = null;
 
         for (let candidateDoc of sortedDocs) {
             const candidate = candidateDoc.data();
+            console.log(`[Matchmaker] Пробуем соединиться с кандидатом: ${candidate.username} (${candidate.userId})`);
 
             // Запускаем транзакцию для предотвращения гонки за кандидата
             try {
@@ -182,9 +191,12 @@ async function startMatchmaking() {
                     matchFound = true;
                 });
 
-                if (matchFound) break;
+                if (matchFound) {
+                    console.log(`[Matchmaker] Успешное сопоставление! Создана комната: ${matchedGameId}`);
+                    break;
+                }
             } catch (txErr) {
-                console.warn("Транзакция отменена:", txErr);
+                console.warn("[Matchmaker] Ошибка транзакции (возможно, конкурентный перехват):", txErr);
             }
         }
 
@@ -192,6 +204,7 @@ async function startMatchmaking() {
             stopSearchTimer();
             joinRoom(matchedGameId);
         } else {
+            console.log("[Matchmaker] Подходящих оппонентов не найдено. Создаем свой билет в очереди...");
             // 2. Если никого нет в очереди, добавляем себя и подписываемся на СВОЙ ДОКУМЕНТ ОЧЕРЕДИ
             const myQueueRef = doc(db, "queue", userId);
             await setDoc(myQueueRef, {
@@ -202,11 +215,13 @@ async function startMatchmaking() {
                 createdAt: Date.now()
             });
 
+            console.log(`[Matchmaker] Билет создан. Подписываемся на обновление /queue/${userId}`);
+
             queueListener = onSnapshot(myQueueRef, (docSnap) => {
                 if (docSnap.exists()) {
                     const queueData = docSnap.data();
                     if (queueData.matchedGameId) {
-                        // Соперник нашел нас, создал игру и вписал нам ее ID!
+                        console.log(`[Matchmaker] Оппонент подключился к нам! ID комнаты: ${queueData.matchedGameId}`);
                         if (queueListener) queueListener();
                         queueListener = null;
 
@@ -221,7 +236,7 @@ async function startMatchmaking() {
         }
 
     } catch (err) {
-        console.error("Matchmaking error:", err);
+        console.error("[Matchmaker] Критическая ошибка при подборе:", err);
         alert("Произошла ошибка подбора.");
         cancelMatchmaking();
     }
@@ -229,6 +244,7 @@ async function startMatchmaking() {
 
 // Отмена поиска
 async function cancelMatchmaking() {
+    console.log("[Matchmaker] Поиск отменен пользователем.");
     stopSearchTimer();
     const userId = localStorage.getItem('azachess-user-id');
     
@@ -249,11 +265,13 @@ function joinRoom(gameId) {
     currentGameId = gameId;
     const userId = localStorage.getItem('azachess-user-id');
 
+    console.log(`[Room] Подключение к игровой комнате: ${gameId}`);
     showView('game');
 
     const gameRef = doc(db, "pvp_games", gameId);
     gameListener = onSnapshot(gameRef, (docSnap) => {
         if (!docSnap.exists()) {
+            console.warn("[Room] Комната не найдена или удалена сервером.");
             alert("Игра завершена или удалена.");
             leaveRoom();
             return;
@@ -265,6 +283,8 @@ function joinRoom(gameId) {
         if (userId === data.whiteId) currentRole = 'w';
         else if (userId === data.blackId) currentRole = 'b';
         else currentRole = 'spectator';
+
+        console.log(`[Room] Синхронизация данных. Ваша роль: ${currentRole}`);
 
         isFlipped = (currentRole === 'b');
         document.getElementById('multiplayer-header').textContent = `Онлайн-Матч: ${data.whiteName} vs ${data.blackName}`;
@@ -399,6 +419,7 @@ async function saveOnlineGameToArchive(data) {
     try {
         const userHistoryRef = doc(db, "users", userId, "history", data.id);
         await setDoc(userHistoryRef, gameData);
+        console.log("[Room] Партия успешно заархивирована в Firestore.");
     } catch(e) {
         console.error("Ошибка синхронизации истории PvP:", e);
     }
