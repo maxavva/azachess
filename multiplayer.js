@@ -28,7 +28,7 @@ const safeLocalStorage = {
     }
 };
 
-// СОСТОЯНИЕ
+// СОСТОЯНИЕ ИГРЫ
 let liveGame = null;
 let displayGame = null;
 
@@ -74,42 +74,6 @@ function isCheckmate(chessInstance) {
     if (typeof chessInstance.in_checkmate === 'function') return chessInstance.in_checkmate();
     if (typeof chessInstance.isCheckmate === 'function') return chessInstance.isCheckmate();
     return false;
-}
-
-// Парсинг времени с защитой от ошибок
-function parseTimeControl(tc) {
-    if (!tc || tc === 'none') return { time: 999999, inc: 0 };
-    try {
-        const parts = tc.split('+');
-        const t = parseInt(parts[0]) * 60;
-        const i = parseInt(parts[1]) || 0;
-        if (isNaN(t)) return { time: 300, inc: 0 };
-        return { time: t, inc: i };
-    } catch(e) {
-        return { time: 300, inc: 0 };
-    }
-}
-
-// Применение глобальных настроек оформления
-function applyGlobalSettings() {
-    try {
-        const boardEl = document.getElementById('board');
-        if (!boardEl) return;
-
-        const theme = safeLocalStorage.getItem('azachess-setting-theme') || 'emerald';
-        const coords = safeLocalStorage.getItem('azachess-setting-coords') !== 'false';
-
-        boardEl.className = 'chessboard';
-        boardEl.classList.add(`theme-${theme}`);
-
-        if (coords) {
-            boardEl.classList.remove('hide-coordinates');
-        } else {
-            boardEl.classList.add('hide-coordinates');
-        }
-    } catch (e) {
-        console.error("applyGlobalSettings error:", e);
-    }
 }
 
 // Безопасный оборонительный биндинг кликов
@@ -181,10 +145,26 @@ function initMultiplayer() {
     });
 }
 
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initMultiplayer);
-} else {
-    initMultiplayer();
+// Применение глобальных настроек оформления
+function applyGlobalSettings() {
+    try {
+        const boardEl = document.getElementById('board');
+        if (!boardEl) return;
+
+        const theme = safeLocalStorage.getItem('azachess-setting-theme') || 'emerald';
+        const coords = safeLocalStorage.getItem('azachess-setting-coords') !== 'false';
+
+        boardEl.className = 'chessboard';
+        boardEl.classList.add(`theme-${theme}`);
+
+        if (coords) {
+            boardEl.classList.remove('hide-coordinates');
+        } else {
+            boardEl.classList.add('hide-coordinates');
+        }
+    } catch (e) {
+        console.error("applyGlobalSettings error:", e);
+    }
 }
 
 // Управление экранами с защитой от отсутствия элементов
@@ -226,7 +206,7 @@ function setupTimeControlPvP() {
 // Запуск подбора (Матчмейкинг v2 - Точечный)
 async function startMatchmaking() {
     // ВСПЛЫВАЮЩИЙ ДЕБАГ: Проверяем, заходит ли клик внутрь функции вообще
-    alert("Кнопка 'Авто-подбор' успешно нажата! Запускаем алгоритм...");
+    alert("Поиск запущен! Ищем свободного оппонента...");
     
     const userId = currentUserId;
     const username = await getUserName(userId);
@@ -340,7 +320,7 @@ async function startMatchmaking() {
                     }
                 }
             }, (error) => {
-                console.error("[Matchmaker] Ошибка подписки на queue:", error);
+                console.error("[Matchmaker] Ошибка подписки на очередь:", error);
                 alert(`Сбой сетевой очереди:\n\n${error.message}`);
             });
         }
@@ -760,7 +740,7 @@ async function saveOnlineGameToArchive(data) {
     if (!userId || data.history.length < 2) return;
 
     const archiveKey = `pvp-archived-${data.id}`;
-    if (safeLocalStorage.getItem(archiveKey)) return;
+    if (localStorage.getItem(archiveKey)) return;
 
     safeLocalStorage.setItem(archiveKey, "true");
 
