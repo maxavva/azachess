@@ -76,6 +76,42 @@ function isCheckmate(chessInstance) {
     return false;
 }
 
+// Парсинг времени с защитой от ошибок
+function parseTimeControl(tc) {
+    if (!tc || tc === 'none') return { time: 999999, inc: 0 };
+    try {
+        const parts = tc.split('+');
+        const t = parseInt(parts[0]) * 60;
+        const i = parseInt(parts[1]) || 0;
+        if (isNaN(t)) return { time: 300, inc: 0 };
+        return { time: t, inc: i };
+    } catch(e) {
+        return { time: 300, inc: 0 };
+    }
+}
+
+// Применение глобальных настроек оформления
+function applyGlobalSettings() {
+    try {
+        const boardEl = document.getElementById('board');
+        if (!boardEl) return;
+
+        const theme = safeLocalStorage.getItem('azachess-setting-theme') || 'emerald';
+        const coords = safeLocalStorage.getItem('azachess-setting-coords') !== 'false';
+
+        boardEl.className = 'chessboard';
+        boardEl.classList.add(`theme-${theme}`);
+
+        if (coords) {
+            boardEl.classList.remove('hide-coordinates');
+        } else {
+            boardEl.classList.add('hide-coordinates');
+        }
+    } catch (e) {
+        console.error("applyGlobalSettings error:", e);
+    }
+}
+
 // Безопасный оборонительный биндинг кликов
 const bindClick = (id, fn) => {
     const el = document.getElementById(id);
@@ -151,28 +187,6 @@ if (document.readyState === 'loading') {
     initMultiplayer();
 }
 
-// Применение глобальных настроек оформления
-function applyGlobalSettings() {
-    try {
-        const boardEl = document.getElementById('board');
-        if (!boardEl) return;
-
-        const theme = safeLocalStorage.getItem('azachess-setting-theme') || 'emerald';
-        const coords = safeLocalStorage.getItem('azachess-setting-coords') !== 'false';
-
-        boardEl.className = 'chessboard';
-        boardEl.classList.add(`theme-${theme}`);
-
-        if (coords) {
-            boardEl.classList.remove('hide-coordinates');
-        } else {
-            boardEl.classList.add('hide-coordinates');
-        }
-    } catch (e) {
-        console.error("applyGlobalSettings error:", e);
-    }
-}
-
 // Управление экранами с защитой от отсутствия элементов
 function showView(view) {
     const views = ['lobby-view', 'searching-view', 'invite-view', 'game-view'];
@@ -211,6 +225,9 @@ function setupTimeControlPvP() {
 
 // Запуск подбора (Матчмейкинг v2 - Точечный)
 async function startMatchmaking() {
+    // ВСПЛЫВАЮЩИЙ ДЕБАГ: Проверяем, заходит ли клик внутрь функции вообще
+    alert("Кнопка 'Авто-подбор' успешно нажата! Запускаем алгоритм...");
+    
     const userId = currentUserId;
     const username = await getUserName(userId);
     const timeControl = selectedTimeControl;
@@ -323,7 +340,7 @@ async function startMatchmaking() {
                     }
                 }
             }, (error) => {
-                console.error("[Matchmaker] Ошибка подписки на очередь:", error);
+                console.error("[Matchmaker] Ошибка подписки на queue:", error);
                 alert(`Сбой сетевой очереди:\n\n${error.message}`);
             });
         }
