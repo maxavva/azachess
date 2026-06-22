@@ -76,6 +76,42 @@ function isCheckmate(chessInstance) {
     return false;
 }
 
+// Парсинг времени с защитой от ошибок
+function parseTimeControl(tc) {
+    if (!tc || tc === 'none') return { time: 999999, inc: 0 };
+    try {
+        const parts = tc.split('+');
+        const t = parseInt(parts[0]) * 60;
+        const i = parseInt(parts[1]) || 0;
+        if (isNaN(t)) return { time: 300, inc: 0 };
+        return { time: t, inc: i };
+    } catch(e) {
+        return { time: 300, inc: 0 };
+    }
+}
+
+// Применение глобальных настроек оформления
+function applyGlobalSettings() {
+    try {
+        const boardEl = document.getElementById('board');
+        if (!boardEl) return;
+
+        const theme = safeLocalStorage.getItem('azachess-setting-theme') || 'emerald';
+        const coords = safeLocalStorage.getItem('azachess-setting-coords') !== 'false';
+
+        boardEl.className = 'chessboard';
+        boardEl.classList.add(`theme-${theme}`);
+
+        if (coords) {
+            boardEl.classList.remove('hide-coordinates');
+        } else {
+            boardEl.classList.add('hide-coordinates');
+        }
+    } catch (e) {
+        console.error("applyGlobalSettings error:", e);
+    }
+}
+
 // Безопасный оборонительный биндинг кликов
 const bindClick = (id, fn) => {
     const el = document.getElementById(id);
@@ -143,28 +179,6 @@ function initMultiplayer() {
         // Проверка входящего вызова по ссылке (?room=ID)
         checkInviteQuery();
     });
-}
-
-// Применение глобальных настроек оформления
-function applyGlobalSettings() {
-    try {
-        const boardEl = document.getElementById('board');
-        if (!boardEl) return;
-
-        const theme = safeLocalStorage.getItem('azachess-setting-theme') || 'emerald';
-        const coords = safeLocalStorage.getItem('azachess-setting-coords') !== 'false';
-
-        boardEl.className = 'chessboard';
-        boardEl.classList.add(`theme-${theme}`);
-
-        if (coords) {
-            boardEl.classList.remove('hide-coordinates');
-        } else {
-            boardEl.classList.add('hide-coordinates');
-        }
-    } catch (e) {
-        console.error("applyGlobalSettings error:", e);
-    }
 }
 
 // Управление экранами с защитой от отсутствия элементов
@@ -320,7 +334,7 @@ async function startMatchmaking() {
                     }
                 }
             }, (error) => {
-                console.error("[Matchmaker] Ошибка подписки на очередь:", error);
+                console.error("[Matchmaker] Ошибка подписки на queue:", error);
                 alert(`Сбой сетевой очереди:\n\n${error.message}`);
             });
         }
@@ -740,7 +754,7 @@ async function saveOnlineGameToArchive(data) {
     if (!userId || data.history.length < 2) return;
 
     const archiveKey = `pvp-archived-${data.id}`;
-    if (localStorage.getItem(archiveKey)) return;
+    if (safeLocalStorage.getItem(archiveKey)) return;
 
     safeLocalStorage.setItem(archiveKey, "true");
 
@@ -847,6 +861,17 @@ async function getUserStats(uid) {
         console.error("Error loading user stats:", e);
     }
     return { username: "Игрок", wins: 0, losses: 0, draws: 0, gamesPlayed: 0 };
+}
+
+// Получить имя игрока по его UID
+async function getUserName(uid) {
+    if (!uid) return "Игрок";
+    try {
+        const snap = await getDoc(doc(db, "users", uid));
+        return snap.exists() ? snap.data().username : "Игрок";
+    } catch (e) {
+        return "Игрок";
+    }
 }
 
 // Отрисовка шахматной доски
@@ -1185,19 +1210,6 @@ function updateMoveLog() {
 // Сброс выделения
 function clearSelection() { selectedSquare = null; validMoves = []; renderBoard(false); }
 
-function parseTimeControl(tc) {
-    if (!tc || tc === 'none') return { time: 999999, inc: 0 };
-    try {
-        const parts = tc.split('+');
-        const t = parseInt(parts[0]) * 60;
-        const i = parseInt(parts[1]) || 0;
-        if (isNaN(t)) return { time: 300, inc: 0 };
-        return { time: t, inc: i };
-    } catch(e) {
-        return { time: 300, inc: 0 };
-    }
-}
-
 function startSearchTimer() {
     searchSeconds = 0;
     const el = document.getElementById('search-timer');
@@ -1214,4 +1226,11 @@ function startSearchTimer() {
 function stopSearchTimer() {
     if (searchTimerInterval) clearInterval(searchTimerInterval);
     searchTimerInterval = null;
+}
+
+// Инициализация при загрузке страницы
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initMultiplayer);
+} else {
+    initMultiplayer();
 }
