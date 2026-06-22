@@ -220,6 +220,7 @@ async function startMatchmaking() {
     startSearchTimer();
 
     try {
+        // 1. Ищем свободного игрока в очереди
         const qRef = collection(db, "queue");
         const q = query(qRef, where("timeControl", "==", timeControl), limit(10));
         const snap = await getDocs(q);
@@ -241,7 +242,7 @@ async function startMatchmaking() {
 
             try {
                 await runTransaction(db, async (transaction) => {
-                    // Исправление: берем физический ID документа Firestore для исключения сбоев десериализации
+                    // Берём физический ID документа Firestore для исключения сбоев
                     const candidateRef = doc(db, "queue", candidateDoc.id);
                     const candSnap = await transaction.get(candidateRef);
                     if (!candSnap.exists() || candSnap.data().matchedGameId) {
@@ -259,9 +260,9 @@ async function startMatchmaking() {
 
                     const gameData = {
                         id: gameId,
-                        whiteId: isWhite ? userId : candidate.userId,
+                        whiteId: isWhite ? userId : candidateDoc.id,
                         whiteName: isWhite ? username : candidate.username,
-                        blackId: isWhite ? candidate.userId : userId,
+                        blackId: isWhite ? candidateDoc.id : userId,
                         blackName: isWhite ? candidate.username : username,
                         timeControl: timeControl,
                         fen: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
@@ -287,7 +288,8 @@ async function startMatchmaking() {
                     break;
                 }
             } catch (txErr) {
-                console.warn("[Matchmaker] Ошибка транзакции:", txErr);
+                console.error("[Matchmaker] Ошибка транзакции подбора:", txErr);
+                alert(`Ошибка транзакции подбора. Проверьте правила БД или консоль.\nДетали: ${txErr}`);
             }
         }
 
@@ -329,7 +331,7 @@ async function startMatchmaking() {
 
     } catch (err) {
         console.error("[Matchmaker] Критическая ошибка при подборе:", err);
-        alert("Произошла ошибка подбора.");
+        alert(`Произошла ошибка подбора: ${err.message}`);
         cancelMatchmaking();
     }
 }
@@ -1067,8 +1069,8 @@ async function executeMoveMultiplayer(from, to, promo = 'q') {
     let status = "active";
     let winner = null;
 
-    if (gameClone.game_over()) {
-        if (gameClone.in_checkmate()) {
+    if (isGameFinished(gameClone)) {
+        if (isCheckmate(gameClone)) {
             status = "checkmate";
             winner = currentRole;
         } else {
