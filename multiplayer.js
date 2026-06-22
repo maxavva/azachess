@@ -28,7 +28,7 @@ const safeLocalStorage = {
     }
 };
 
-// СОСТОЯНИЕ
+// СОСТОЯНИЕ ИГРЫ
 let liveGame = null;
 let displayGame = null;
 
@@ -53,28 +53,6 @@ let currentRole = null; // 'w', 'b' или 'spectator'
 let searchSeconds = 0;
 let searchTimerInterval = null;
 let currentUserId = null; // Надежное ядро ID сессии
-
-// --- КРОСС-ВЕРСИОННЫЕ ШЛЮЗЫ ДЛЯ СОВМЕСТИМОСТИ С СЕКЦИЯМИ CHESS.JS ---
-function isGameInCheck(chessInstance) {
-    if (!chessInstance) return false;
-    if (typeof chessInstance.in_check === 'function') return chessInstance.in_check();
-    if (typeof chessInstance.inCheck === 'function') return chessInstance.inCheck();
-    return false;
-}
-
-function isGameFinished(chessInstance) {
-    if (!chessInstance) return false;
-    if (typeof chessInstance.game_over === 'function') return chessInstance.game_over();
-    if (typeof chessInstance.isGameOver === 'function') return chessInstance.isGameOver();
-    return false;
-}
-
-function isCheckmate(chessInstance) {
-    if (!chessInstance) return false;
-    if (typeof chessInstance.in_checkmate === 'function') return chessInstance.in_checkmate();
-    if (typeof chessInstance.isCheckmate === 'function') return chessInstance.isCheckmate();
-    return false;
-}
 
 // Безопасный оборонительный биндинг кликов
 const bindClick = (id, fn) => {
@@ -242,7 +220,6 @@ async function startMatchmaking() {
 
             try {
                 await runTransaction(db, async (transaction) => {
-                    // Берём физический ID документа Firestore для исключения сбоев
                     const candidateRef = doc(db, "queue", candidateDoc.id);
                     const candSnap = await transaction.get(candidateRef);
                     if (!candSnap.exists() || candSnap.data().matchedGameId) {
@@ -858,7 +835,7 @@ function renderBoard(rebuild = false) {
     const boardEl = document.getElementById('board');
     if (!boardEl) return;
 
-    const showHints = localStorage.getItem('azachess-setting-hints') !== 'false';
+    const showHints = safeLocalStorage.getItem('azachess-setting-hints') !== 'false';
 
     if (rebuild) {
         boardEl.innerHTML = '';
@@ -1012,7 +989,7 @@ function handleMoveAttempt(from, to) {
     const isPromotionRank = (piece?.color?.toLowerCase() === 'w' && to.endsWith('8')) || (piece?.color?.toLowerCase() === 'b' && to.endsWith('1'));
 
     if (isPawn && isPromotionRank) {
-        const autoQueen = localStorage.getItem('azachess-setting-autoqueen') === 'true';
+        const autoQueen = safeLocalStorage.getItem('azachess-setting-autoqueen') === 'true';
         if (autoQueen) {
             executeMoveMultiplayer(from, to, 'q');
             return;
