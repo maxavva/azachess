@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="home-style.css">
   <style>
+    /* Жесткая изоляция слоев для предотвращения перекрытий */
     body {
       display: flex;
       flex-direction: column;
@@ -19,6 +20,8 @@
       width: 100%;
       margin: 40px auto;
       text-align: center;
+      position: relative;
+      z-index: 5;
     }
     .searching-loader {
       display: flex;
@@ -42,8 +45,19 @@
       0% { transform: rotate(0deg); }
       100% { transform: rotate(360deg); }
     }
+    /* Абсолютный приоритет скрытия неактивных экранов */
     .hidden {
       display: none !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
+      visibility: hidden !important;
+    }
+    /* Кнопки лобби всегда поверх остальных */
+    .start-btn {
+      position: relative;
+      z-index: 100 !important;
+      pointer-events: auto !important;
+      cursor: pointer;
     }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/chess.js@0.10.3/chess.min.js"></script>
@@ -54,7 +68,7 @@
   <div class="game-wrapper-root">
     
     <!-- Навигационная панель -->
-    <div class="nav-bar">
+    <div class="nav-bar" style="position: relative; z-index: 110;">
       <a href="index.html" class="nav-link">← На главную</a>
       <span class="nav-link active" id="multiplayer-header">Онлайн PvP-Арена</span>
       <a href="settings.html" class="nav-link">⚙ Настройки</a>
@@ -108,7 +122,7 @@
     </div>
 
     <!-- ИГРОВОЙ ИНТЕРФЕЙС -->
-    <div id="game-view" class="game-container hidden">
+    <div id="game-view" class="game-container hidden" style="position: relative; z-index: 10;">
       <div class="board-wrapper">
         <div id="board" class="chessboard"></div>
         <div class="navigation-controls">
