@@ -45,7 +45,7 @@ body {
   background: #555;
 }
 
-/* ВЕРХНЯЯ ПАНЕЛЬ ПРОФИЛЯ */
+/* ВЕРХНЯЯ НАВИГАЦИОННАЯ ПАНЕЛЬ */
 .top-profile-bar {
   width: 100%;
   max-width: 1200px;
@@ -62,16 +62,38 @@ body {
   box-shadow: 0 8px 32px rgba(0,0,0,0.5);
 }
 
+/* Аккуратные кнопки в шапке (без плиточных рамок) */
+.top-profile-bar a, .top-profile-bar button {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+}
+
+.top-profile-bar a:hover, .top-profile-bar button:hover {
+  background: var(--glass-hover);
+  border-color: #555;
+  color: var(--text-bright);
+}
+
 /* КОНТЕЙНЕР ГЛАВНОГО ЭКРАНА */
 .hub-container {
   width: 100%;
-  max-width: 1200px; /* Расширяем для десктопного дашборда */
+  max-width: 1200px;
   padding: 40px 25px;
   display: flex;
   flex-direction: column;
 }
 
-/* ЛОГОТИП */
+/* ЛОГ ТАЙТЛЫ */
 .lobby-header {
   text-align: center;
   margin-bottom: 35px;
@@ -97,7 +119,7 @@ body {
   letter-spacing: 0.5px;
 }
 
-/* СЕТКА ДАШБОРДА (Responsive Layout) */
+/* СЕТКА ДАШБОРДА */
 .lobby-dashboard {
   display: grid;
   grid-template-columns: 1fr;
@@ -107,26 +129,18 @@ body {
 
 @media (min-width: 768px) {
   .lobby-dashboard {
-    grid-template-columns: 1.25fr 1fr; /* 2 колонки на компьютерах */
+    grid-template-columns: 1.25fr 1fr;
     align-items: start;
   }
 }
 
-/* ЛЕВАЯ КОЛОНКА */
-.lobby-setup {
+.lobby-setup, .lobby-panel {
   display: flex;
   flex-direction: column;
   gap: 20px;
 }
 
-/* ПРАВАЯ КОЛОНКА */
-.lobby-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
-/* СЕКЦИИ ВЫБОРА РЕЖИМА */
+/* СЕКЦИИ КАРТОЧЕК */
 .mode-section {
   background: var(--bg-panel);
   border: 1px solid var(--border);
@@ -157,7 +171,7 @@ body {
 #level-grid { grid-template-columns: repeat(4, 1fr); }
 #color-grid { grid-template-columns: repeat(3, 1fr); }
 
-/* ПЛИТКА (ЭЛЕМЕНТ СЕТКИ) */
+/* ПЛИТКА НАСТРОЕК */
 .grid-item {
   background: var(--glass);
   border: 1px solid var(--border);
@@ -255,4 +269,5 @@ body {
   #time-grid { grid-template-columns: repeat(2, 1fr); }
   .grid-item { padding: 12px 2px; font-size: 0.9rem; }
   .hub-container { padding: 20px 15px; }
+  .top-profile-bar { padding: 10px 15px; }
 }
