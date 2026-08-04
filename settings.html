@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Azachess - Настройки профиля</title>
-  <link rel="stylesheet" href="home-style.css">
+  <link rel="stylesheet" href="home-style.css?v=3.0">
   <style>
     .settings-card {
       background: var(--bg-panel);
@@ -12,25 +12,6 @@
       padding: 25px;
       border-radius: 12px;
       margin-bottom: 20px;
-    }
-    .profile-header {
-      display: flex;
-      align-items: center;
-      gap: 15px;
-      margin-bottom: 10px;
-      padding-bottom: 15px;
-      border-bottom: 1px solid var(--border);
-    }
-    .avatar-placeholder {
-      width: 60px;
-      height: 60px;
-      background: var(--accent);
-      border-radius: 50%;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      font-size: 1.8rem;
-      color: white;
     }
     .setting-item {
       display: flex;
@@ -61,27 +42,17 @@
 </head>
 <body>
 
+  <!-- ЛОГИЧНЫЙ ВОЗВРАТ В ЛИЧНЫЙ КАБИНЕТ -->
   <div class="top-profile-bar">
-    <a href="index.html" style="color: var(--accent); text-decoration: none; font-weight: bold;">← НА ГЛАВНУЮ</a>
-    <div style="font-weight: bold; color: #fff;">Профиль и Настройки</div>
+    <a href="profile.html" style="color: var(--accent); text-decoration: none; font-weight: bold;">← В ЛИЧНЫЙ КАБИНЕТ</a>
+    <div style="font-weight: bold; color: #fff;">Настройки интерфейса</div>
   </div>
 
   <div class="hub-container" style="max-width: 500px;">
     
-    <!-- БЛОК ПРОФИЛЯ -->
-    <div class="settings-card">
-      <div class="profile-header">
-        <div class="avatar-placeholder">👤</div>
-        <div>
-          <div id="prof-username" style="font-size: 1.2rem; font-weight: bold; color: #fff;">👣 Загрузка...</div>
-          <div id="prof-status" style="font-size: 0.85rem; color: #888;">Проверка статуса...</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- БЛОК НАСТРОЕК -->
-    <div class="settings-card">
-      <h3 style="margin-top: 0; margin-bottom: 20px; color: #fff; font-size: 1.1rem; text-transform: uppercase; border-bottom: 1px solid var(--border); padding-bottom: 10px;">Настройки интерфейса</h3>
+    <!-- БЛОК НАСТРОЕК (ТЕХНИЧЕСКИ ЧИСТЫЙ) -->
+    <div class="settings-card" style="margin-top: 20px;">
+      <h3 style="margin-top: 0; margin-bottom: 20px; color: #fff; font-size: 1.1rem; text-transform: uppercase; border-bottom: 1px solid var(--border); padding-bottom: 10px;">Параметры доски</h3>
       
       <div class="setting-item">
         <label for="set-sound">Звуковое сопровождение</label>
@@ -121,43 +92,9 @@
     import { auth, db, onAuthStateChanged, doc, getDoc } from "./firebase-logic.js";
 
     const setAutoQueen = document.getElementById('set-autoqueen');
-    const profUsername = document.getElementById('prof-username');
-    const profStatus = document.getElementById('prof-status');
 
-    // Безопасное чтение значения из localStorage
+    // Читаем значение из памяти
     setAutoQueen.checked = localStorage.getItem('azachess-setting-autoqueen') === 'true';
-
-    // Подгрузка профиля из БД Firebase с обработкой офлайна
-    onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        try {
-          const snap = await getDoc(doc(db, "users", user.uid));
-          if (snap.exists()) {
-            profUsername.innerText = snap.data().username;
-            profStatus.innerText = "Авторизован в системе";
-          } else {
-            profUsername.innerText = "Игрок";
-            profStatus.innerText = "Авторизован";
-          }
-        } catch (err) {
-          console.warn("Ошибка подгрузки настроек из Firestore (офлайн):", err);
-          profUsername.innerText = "Игрок (офлайн)";
-          profStatus.innerText = "Работа в автономном режиме";
-        }
-      } else {
-        profUsername.innerText = "Гость";
-        profStatus.innerText = "История игр недоступна без авторизации";
-      }
-    });
-
-    // ОПРЕДЕЛЯЕМ СТРАНИЦУ ВОЗВРАТА (ИГРА, АНАЛИЗ ИЛИ ГЛАВНАЯ)
-    let returnUrl = sessionStorage.getItem('settings-return-url') || 'index.html';
-    const referrer = document.referrer;
-    if (referrer && !referrer.includes('settings.html') && 
-        (referrer.includes('play.html') || referrer.includes('analysis.html') || referrer.includes('index.html') || referrer.includes('archive.html'))) {
-      returnUrl = referrer;
-      sessionStorage.setItem('settings-return-url', returnUrl);
-    }
 
     // Загрузка текущих настроек из localStorage
     const setSound = document.getElementById('set-sound');
@@ -170,16 +107,16 @@
     setCoords.checked = localStorage.getItem('azachess-setting-coords') !== 'false';
     setTheme.value = localStorage.getItem('azachess-setting-theme') || 'emerald';
 
-    // Сохранение изменений и возврат на исходный экран
+    // Сохранение изменений и возврат
     document.getElementById('btn-save-settings').onclick = () => {
       localStorage.setItem('azachess-setting-sound', setSound.checked);
       localStorage.setItem('azachess-setting-hints', setHints.checked);
       localStorage.setItem('azachess-setting-coords', setCoords.checked);
       localStorage.setItem('azachess-setting-theme', setTheme.value);
-      localStorage.setItem('azachess-setting-autoqueen', setAutoQueen.checked); // Исправлен баг моментальной перезаписи при загрузке
+      localStorage.setItem('azachess-setting-autoqueen', setAutoQueen.checked);
 
       alert("Настройки сохранены!");
-      window.location.href = returnUrl; // Возврат в исходное место
+      window.location.href = "profile.html"; // Возврат в Личный Кабинет
     };
   </script>
 </body>
