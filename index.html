@@ -14,57 +14,72 @@
   </div>
 
   <div class="hub-container">
-    <h1 class="logo">AZA<span>CHESS</span></h1>
-    <p class="tagline">игровая шахматная платформа</p>
+    <div class="lobby-header">
+      <h1 class="logo">AZA<span>CHESS</span></h1>
+      <p class="tagline">игровая шахматная платформа</p>
+    </div>
 
-    <main>
-      <!-- КОНТРОЛЬ ВРЕМЕНИ -->
-      <section class="mode-section">
-        <h2 class="section-title">Контроль времени</h2>
-        <div class="selection-grid" id="time-grid">
-          <div class="grid-item" data-time="1+0">1+0 <span class="label">Пуля</span></div>
-          <div class="grid-item" data-time="3+2">3+2 <span class="label">Блиц</span></div>
-          <div class="grid-item active" data-time="5+3">5+3 <span class="label">Блиц</span></div>
-          <div class="grid-item" data-time="10+5">10+5 <span class="label">Рапид</span></div>
-          <div class="grid-item" data-time="30+0">30+0 <span class="label">Классика</span></div>
-          <div class="grid-item" data-time="none">∞ <span class="label">Без времени</span></div>
-        </div>
-      </section>
+    <!-- АДАПТИВНЫЙ ДАШБОРД -->
+    <main class="lobby-dashboard">
+      
+      <!-- ЛЕВАЯ КОЛОНКА: СЕЛЕКТОРЫ РЕЖИМА ИГРЫ -->
+      <div class="lobby-setup">
+        <!-- КОНТРОЛЬ ВРЕМЕНИ -->
+        <section class="mode-section">
+          <h2 class="section-title">Контроль времени</h2>
+          <div class="selection-grid" id="time-grid">
+            <div class="grid-item" data-time="1+0">1+0 <span class="label">Пуля</span></div>
+            <div class="grid-item" data-time="3+2">3+2 <span class="label">Блиц</span></div>
+            <div class="grid-item active" data-time="5+3">5+3 <span class="label">Блиц</span></div>
+            <div class="grid-item" data-time="10+5">10+5 <span class="label">Рапид</span></div>
+            <div class="grid-item" data-time="30+0">30+0 <span class="label">Классика</span></div>
+            <div class="grid-item" data-time="none">∞ <span class="label">Без времени</span></div>
+          </div>
+        </section>
 
-      <!-- УРОВНИ ИИ -->
-      <section class="mode-section">
-        <h2 class="section-title">Сложность ИИ</h2>
-        <div class="selection-grid" id="level-grid" style="grid-template-columns: repeat(4, 1fr);">
-          <div class="grid-item" data-lv="1">1</div>
-          <div class="grid-item" data-lv="2">2</div>
-          <div class="grid-item active" data-lv="3">3</div>
-          <div class="grid-item" data-lv="4">4</div>
-          <div class="grid-item" data-lv="5">5</div>
-          <div class="grid-item" data-lv="6">6</div>
-          <div class="grid-item" data-lv="7">7</div>
-          <div class="grid-item" data-lv="8">8</div>
-        </div>
-      </section>
+        <!-- УРОВНИ ИИ -->
+        <section class="mode-section">
+          <h2 class="section-title">Сложность ИИ</h2>
+          <div class="selection-grid" id="level-grid">
+            <div class="grid-item" data-lv="1">1</div>
+            <div class="grid-item" data-lv="2">2</div>
+            <div class="grid-item active" data-lv="3">3</div>
+            <div class="grid-item" data-lv="4">4</div>
+            <div class="grid-item" data-lv="5">5</div>
+            <div class="grid-item" data-lv="6">6</div>
+            <div class="grid-item" data-lv="7">7</div>
+            <div class="grid-item" data-lv="8">8</div>
+          </div>
+        </section>
 
-      <!-- ЦВЕТ -->
-      <section class="mode-section">
-        <h2 class="section-title">Выберите цвет</h2>
-        <div class="selection-grid" id="color-grid">
-          <div class="grid-item active" data-color="w">Белые</div>
-          <div class="grid-item" data-color="random">Случайный</div>
-          <div class="grid-item" data-color="b">Черные</div>
-        </div>
-      </section>
-     
-      <div class="main-actions" id="action-container">
-        <button class="start-btn" id="btn-play-main" onclick="startGame()">Игра против ИИ</button>
-        <button class="start-btn" style="background: #2b5c8f; box-shadow: 0 4px 0px #1a3a5e;" onclick="startMultiplayer()">Играть онлайн (PvP)</button>
-        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-top: 5px;">
-            <button class="start-btn secondary" style="padding: 12px 5px; font-size: 0.9rem;" onclick="openAnalysis()">Анализ</button>
-            <button class="start-btn secondary" style="padding: 12px 5px; font-size: 0.9rem;" onclick="location.href='profile.html'">Профиль</button>
-            <button class="start-btn secondary" style="padding: 12px 5px; font-size: 0.9rem; border-color: var(--accent); color: var(--accent);" onclick="location.href='search.html'">🔍 Поиск</button>
+        <!-- ЦВЕТ -->
+        <section class="mode-section">
+          <h2 class="section-title">Выберите цвет</h2>
+          <div class="selection-grid" id="color-grid">
+            <div class="grid-item active" data-color="w">Белые</div>
+            <div class="grid-item" data-color="random">Случайный</div>
+            <div class="grid-item" data-color="b">Черные</div>
+          </div>
+        </section>
+      </div>
+
+      <!-- ПРАВАЯ КОЛОНКА: ДЕЙСТВИЯ -->
+      <div class="lobby-panel">
+        <div class="main-actions" id="action-container">
+          <h3 class="section-title" style="margin-bottom: 10px;">Игровая панель</h3>
+          <button class="start-btn" id="btn-play-main" onclick="startGame()">Игра против ИИ</button>
+          <button class="start-btn" style="background: #2b5c8f; box-shadow: 0 4px 0px #1a3a5e;" onclick="startMultiplayer()">Играть онлайн (PvP)</button>
+          
+          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-top: 5px;">
+              <button class="start-btn secondary" style="padding: 12px 5px; font-size: 0.9rem;" onclick="openAnalysis()">Анализ</button>
+              <button class="start-btn secondary" style="padding: 12px 5px; font-size: 0.9rem;" onclick="location.href='profile.html'">Профиль</button>
+              <button class="start-btn secondary" style="padding: 12px 5px; font-size: 0.9rem; border-color: var(--accent); color: var(--accent);" onclick="location.href='search.html'">🔍 Поиск</button>
+          </div>
         </div>
       </div>
+
+    </main>
+  </div>
 
   <script type="module">
     import { auth, db, onAuthStateChanged, signOut, doc, getDoc } from "./firebase-logic.js";
