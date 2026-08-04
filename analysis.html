@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Azachess - Анализ и Разбор</title>
-  <link rel="stylesheet" href="style.css">
+  <link class="style-link" rel="stylesheet" href="style.css?v=3.0">
   <script src="https://cdn.jsdelivr.net/npm/chess.js@0.10.3/chess.min.js"></script>
 </head>
 <body>
@@ -17,9 +17,10 @@
       <a href="settings.html" class="nav-link">⚙ Настройки</a>
     </div>
 
+    <!-- ИГРОВОЙ ДВУХКОЛОНОЧНЫЙ ДАШБОРД -->
     <div class="game-container">
       
-      <!-- ЛЕВАЯ ЧАСТЬ: ДОСКА -->
+      <!-- ЛЕВАЯ КОЛОНКА: ДОСКА И УПРАВЛЕНИЕ -->
       <div class="board-wrapper">
         <div id="board" class="chessboard"></div>
         
@@ -32,7 +33,7 @@
         </div>
       </div>
 
-      <!-- ПРАВАЯ ЧАСТЬ: ПАНЕЛЬ УПРАВЛЕНИЯ -->
+      <!-- ПРАВАЯ КОЛОНКА: СТАТУС, ХОДЫ И КНОПКИ -->
       <div class="control-panel">
         
         <div class="status-card">
@@ -54,7 +55,7 @@
         </div>
 
         <!-- Кнопки действий -->
-        <div class="action-footer">
+        <div class="actions">
           <button id="btn-flip" class="btn btn-secondary">Повернуть доску</button>
           <button id="btn-new-game" class="btn btn-danger">Очистить всё</button>
         </div>
