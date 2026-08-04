@@ -5,6 +5,29 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Azachess — Главная</title>
   <link rel="stylesheet" href="home-style.css?v=3.0">
+  <style>
+    /* Кастомная разметка спиннера поиска прямо в лобби */
+    .searching-loader {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 15px;
+      padding: 15px 0;
+      text-align: center;
+    }
+    .spinner {
+      width: 50px;
+      height: 50px;
+      border: 5px solid rgba(255, 255, 255, 0.05);
+      border-top: 5px solid var(--accent);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
 </head>
 <body>
 
@@ -64,31 +87,70 @@
         </section>
       </div>
 
-      <!-- ПРАВАЯ КОЛОНКА: ДЕЙСТВИЯ -->
-      <div class="lobby-panel">
-        <div class="main-actions" id="action-container">
+      <!-- ПРАВАЯ КОЛОНКА: ИНТЕРАКТИВНЫЙ ПУЛЬТ ДЕЙСТВИЙ -->
+      <div class="lobby-panel" id="lobby-panel-container">
+        
+        <!-- ВИД 1: КНОПКИ ЗАПУСКА (ОСНОВНОЙ) -->
+        <div class="main-actions" id="main-actions-view">
           <h3 class="section-title" style="margin-bottom: 10px;">Игровая панель</h3>
           <button class="start-btn" id="btn-play-main" onclick="startGame()">Игра против ИИ</button>
-          <button class="start-btn" style="background: #2b5c8f; box-shadow: 0 4px 0px #1a3a5e;" onclick="startMultiplayer()">Играть онлайн (PvP)</button>
+          <button class="start-btn" style="background: #2b5c8f; box-shadow: 0 4px 0px #1a3a5e;" id="btn-search-pvp">Быстрый поиск PvP</button>
+          <button class="start-btn" style="background: var(--accent); box-shadow: 0 4px 0px #702f20;" id="btn-invite-friend">Сыграть с другом</button>
           
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 5px;">
+          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-top: 5px;">
               <button class="start-btn secondary" style="padding: 12px 5px;" onclick="openAnalysis()">Анализ</button>
-              <button class="start-btn secondary" style="padding: 12px 5px; border-color: var(--accent); color: var(--accent);" onclick="location.href='search.html'">🔍 Поиск игроков</button>
+              <button class="start-btn secondary" style="padding: 12px 5px;" onclick="location.href='profile.html'">Профиль</button>
+              <button class="start-btn secondary" style="padding: 12px 5px; border-color: var(--accent); color: var(--accent);" onclick="location.href='search.html'">🔍 Поиск</button>
           </div>
         </div>
+
+        <!-- ВИД 2: ЭКРАН ПОИСКА PvP (ПО УМОЛЧАНИЮ СКРЫТ) -->
+        <div class="main-actions hidden" id="searching-view">
+          <div class="searching-loader">
+            <div class="spinner"></div>
+            <h3 style="color: #fff; margin: 15px 0 5px 0; font-size: 1.1rem;">Поиск соперника...</h3>
+            <p id="search-timer" style="color: var(--text-dim); font-size: 0.9rem; margin-bottom: 15px;">Вы в очереди: 0 сек</p>
+            <button id="btn-cancel-search" class="start-btn secondary" style="width: 100%;">Отменить поиск</button>
+          </div>
+        </div>
+
+        <!-- ВИД 3: ЭКРАН ОЖИДАНИЯ ДРУГА ПО ССЫЛКЕ (ПО УМОЛЧАНИЮ СКРЫТ) -->
+        <div class="main-actions hidden" id="invite-view">
+          <div class="searching-loader">
+            <div class="spinner"></div>
+            <h3 style="color: #fff; margin: 15px 0 5px 0; font-size: 1.1rem;">Вызов подготовлен!</h3>
+            <p style="color: var(--text-dim); font-size: 0.85rem; margin-bottom: 15px; padding: 0 10px;">Отправьте эту ссылку другу для автоматического подключения к игре:</p>
+            
+            <div style="display: flex; gap: 5px; width: 100%; margin-bottom: 15px; padding: 0 10px;">
+              <input type="text" id="invite-link-input" readonly style="flex-grow: 1; padding: 12px; background: #111; border: 1px solid var(--border); color: #fff; border-radius: 6px; font-size: 0.8rem; outline: none;">
+              <button id="btn-copy-link" class="start-btn secondary" style="padding: 10px 15px; font-size: 0.8rem; min-width: 100px; margin: 0;">Копировать</button>
+            </div>
+            
+            <button id="btn-cancel-invite" class="start-btn secondary" style="width: 100%;">Отменить вызов</button>
+          </div>
+        </div>
+
       </div>
 
     </main>
   </div>
 
   <script type="module">
-    import { auth, db, onAuthStateChanged, signOut, doc, getDoc } from "./firebase-logic.js";
+    import { auth, db, onAuthStateChanged, signOut, doc, getDoc, setDoc, deleteDoc, collection, query, where, getDocs, limit, onSnapshot, runTransaction } from "./firebase-logic.js";
 
-    // Навигация
+    let currentUserId = null;
+    let selectedTimeControl = "5+3";
+    let queueListener = null;
+    let gameListener = null;
+    let searchSeconds = 0;
+    let searchTimerInterval = null;
+
+    // Инициализация сессий
     onAuthStateChanged(auth, async (user) => {
       const info = document.getElementById('user-info');
       const ctrls = document.getElementById('auth-controls');
       if (user) {
+        currentUserId = user.uid;
         localStorage.setItem('azachess-user-id', user.uid);
         
         let username = "Игрок";
@@ -102,11 +164,11 @@
         }
 
         info.innerText = "👤 " + username;
-        // Из шапки убраны шестерёнка и логаут — они теперь внутри Личного Кабинета
         ctrls.innerHTML = `
           <a href="profile.html">Личный кабинет</a>
         `;
       } else {
+        currentUserId = null;
         localStorage.removeItem('azachess-user-id');
         info.innerText = "👣 Гость";
         ctrls.innerHTML = `
@@ -115,13 +177,16 @@
       }
     });
 
-    // Настройка кликов по кнопкам времени/уровня/цвета
+    // Настройка кликов лобби
     function setup(id, key) {
         document.querySelectorAll(`#${id} .grid-item`).forEach(el => {
             el.onclick = () => {
                 document.querySelectorAll(`#${id} .grid-item`).forEach(i => i.classList.remove('active'));
                 el.classList.add('active');
                 localStorage.setItem(key, el.dataset.time || el.dataset.lv || el.dataset.color);
+                if (key === 'selected-time-control') {
+                    selectedTimeControl = el.dataset.time;
+                }
             };
         });
     }
@@ -129,46 +194,252 @@
     setup('level-grid', 'selected-ai-level');
     setup('color-grid', 'selected-player-color');
 
+    // Переключение интерактивных видов
+    function toggleLobbyView(view) {
+        document.getElementById('main-actions-view').classList.add('hidden');
+        document.getElementById('searching-view').classList.add('hidden');
+        document.getElementById('invite-view').classList.add('hidden');
+
+        if (view === 'main') {
+            document.getElementById('main-actions-view').classList.remove('hidden');
+        } else if (view === 'searching') {
+            document.getElementById('searching-view').classList.remove('hidden');
+        } else if (view === 'invite') {
+            document.getElementById('invite-view').classList.remove('hidden');
+        }
+    }
+
+    // --- СЕТЕВОЙ МАТЧМЕЙКИНГ НА ГЛАВНОМ ЭКРАНЕ ---
+    async function startMatchmaking() {
+        if (!currentUserId) { window.location.href = 'auth.html'; return; }
+        const username = await getUserName(currentUserId);
+        const timeControl = selectedTimeControl;
+
+        toggleLobbyView('searching');
+        startSearchTimer();
+
+        try {
+            const qRef = collection(db, "queue");
+            const q = query(qRef, where("timeControl", "==", timeControl), limit(10));
+            const snap = await getDocs(q);
+
+            const sortedDocs = snap.docs
+                .filter(d => d.id !== currentUserId && !d.data().matchedGameId)
+                .sort((a, b) => (a.data().createdAt || 0) - (b.data().createdAt || 0));
+
+            let matchFound = false;
+            let matchedGameId = null;
+
+            for (let candidateDoc of sortedDocs) {
+                const candidate = candidateDoc.data();
+
+                try {
+                    await runTransaction(db, async (transaction) => {
+                        const candidateRef = doc(db, "queue", candidateDoc.id);
+                        const candSnap = await transaction.get(candidateRef);
+                        if (!candSnap.exists() || candSnap.data().matchedGameId) {
+                            throw "Кандидат уже взят";
+                        }
+
+                        const gameId = doc(collection(db, "pvp_games")).id;
+                        const gameRef = doc(db, "pvp_games", gameId);
+
+                        const colors = Math.random() > 0.5 ? ['w', 'b'] : ['b', 'w'];
+                        const isWhite = colors[0] === 'w';
+
+                        const baseTime = parseTimeControl(timeControl).time;
+                        const increment = parseTimeControl(timeControl).inc;
+
+                        const gameData = {
+                            id: gameId,
+                            whiteId: isWhite ? currentUserId : candidateDoc.id,
+                            whiteName: isWhite ? username : candidate.username,
+                            blackId: isWhite ? candidateDoc.id : currentUserId,
+                            blackName: isWhite ? candidate.username : username,
+                            timeControl: timeControl,
+                            fen: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+                            history: [],
+                            turn: "w",
+                            whiteTime: baseTime,
+                            blackTime: baseTime,
+                            increment: increment,
+                            lastMoveTime: Date.now(),
+                            status: "active",
+                            winner: null,
+                            createdAt: Date.now()
+                        };
+
+                        transaction.update(candidateRef, { matchedGameId: gameId });
+                        transaction.set(gameRef, gameData);
+                        matchedGameId = gameId;
+                        matchFound = true;
+                    });
+
+                    if (matchFound) break;
+                } catch (txErr) {
+                    console.warn("Транзакция сорвалась:", txErr);
+                }
+            }
+
+            if (matchFound) {
+                stopSearchTimer();
+                window.location.href = `multiplayer.html?room=${matchedGameId}`;
+            } else {
+                const myQueueRef = doc(db, "queue", currentUserId);
+                await setDoc(myQueueRef, {
+                    userId: currentUserId,
+                    username,
+                    timeControl,
+                    matchedGameId: null,
+                    createdAt: Date.now()
+                });
+
+                queueListener = onSnapshot(myQueueRef, (docSnap) => {
+                    if (docSnap.exists()) {
+                        const queueData = docSnap.data();
+                        if (queueData.matchedGameId) {
+                            if (queueListener) queueListener();
+                            queueListener = null;
+
+                            deleteDoc(myQueueRef).catch(() => {});
+                            stopSearchTimer();
+                            window.location.href = `multiplayer.html?room=${queueData.matchedGameId}`;
+                        }
+                    }
+                });
+            }
+
+        } catch (err) {
+            console.error("Matchmaking error:", err);
+            alert("Произошла ошибка подбора.");
+            cancelMatchmaking();
+        }
+    }
+
+    async function cancelMatchmaking() {
+        stopSearchTimer();
+        if (queueListener) { queueListener(); queueListener = null; }
+        if (currentUserId) {
+            await deleteDoc(doc(db, "queue", currentUserId)).catch(() => {});
+        }
+        toggleLobbyView('main');
+    }
+
+    // --- СОЗДАНИЕ ВЫЗОВА С ДРУГОМ НА ГЛАВНОМ ЭКРАНЕ ---
+    async function createInviteRoom() {
+        if (!currentUserId) { window.location.href = 'auth.html'; return; }
+        const username = await getUserName(currentUserId);
+        const timeControl = selectedTimeControl;
+
+        try {
+            const gameId = doc(collection(db, "pvp_games")).id;
+            const gameRef = doc(db, "pvp_games", gameId);
+
+            const creatorIsWhite = Math.random() > 0.5;
+            const baseTime = parseTimeControl(timeControl).time;
+            const increment = parseTimeControl(timeControl).inc;
+
+            const gameData = {
+                id: gameId,
+                whiteId: creatorIsWhite ? currentUserId : null,
+                whiteName: creatorIsWhite ? username : "Ожидание соперника...",
+                blackId: creatorIsWhite ? null : currentUserId,
+                blackName: creatorIsWhite ? "Ожидание соперника..." : username,
+                timeControl: timeControl,
+                fen: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+                history: [],
+                turn: "w",
+                whiteTime: baseTime,
+                blackTime: baseTime,
+                increment: increment,
+                lastMoveTime: Date.now(),
+                status: "waiting",
+                winner: null,
+                createdAt: Date.now()
+            };
+
+            await setDoc(gameRef, gameData);
+
+            // Формируем ссылку
+            const inviteUrl = `${window.location.origin}${window.location.pathname.replace('index.html', '')}multiplayer.html?room=${gameId}`;
+            document.getElementById('invite-link-input').value = inviteUrl;
+
+            // Кнопка Копирования
+            document.getElementById('btn-copy-link').onclick = () => {
+                navigator.clipboard.writeText(inviteUrl);
+                document.getElementById('btn-copy-link').innerText = "Готово!";
+                setTimeout(() => { document.getElementById('btn-copy-link').innerText = "Копировать"; }, 1500);
+            };
+
+            // Отмена вызова
+            document.getElementById('btn-cancel-invite').onclick = async () => {
+                if (gameListener) { gameListener(); gameListener = null; }
+                await deleteDoc(gameRef).catch(() => {});
+                toggleLobbyView('main');
+            };
+
+            toggleLobbyView('invite');
+
+            // Слушаем коннект друга
+            gameListener = onSnapshot(gameRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    if (data.status === 'active') {
+                        if (gameListener) gameListener();
+                        gameListener = null;
+                        window.location.href = `multiplayer.html?room=${gameId}`;
+                    }
+                }
+            });
+
+        } catch (err) {
+            console.error(err);
+            alert("Не удалось создать вызов.");
+        }
+    }
+
+    // Хелперы
+    async function getUserName(uid) {
+        try {
+            const snap = await getDoc(doc(db, "users", uid));
+            return snap.exists() ? snap.data().username : "Игрок";
+        } catch (e) { return "Игрок"; }
+    }
+
+    function parseTimeControl(tc) {
+        if (!tc || tc === 'none') return { time: 999999, inc: 0 };
+        const parts = tc.split('+');
+        return { time: parseInt(parts[0]) * 60, inc: parseInt(parts[1]) || 0 };
+    }
+
+    function startSearchTimer() {
+        searchSeconds = 0;
+        const el = document.getElementById('search-timer');
+        searchTimerInterval = setInterval(() => {
+            searchSeconds++;
+            if (el) el.textContent = `Вы в очереди: ${searchSeconds} сек`;
+        }, 1000);
+    }
+
+    function stopSearchTimer() {
+        if (searchTimerInterval) clearInterval(searchTimerInterval);
+        searchTimerInterval = null;
+    }
+
+    // Привязка кнопок лобби
+    document.getElementById('btn-search-pvp').onclick = startMatchmaking;
+    document.getElementById('btn-invite-friend').onclick = createInviteRoom;
+    document.getElementById('btn-cancel-search').onclick = cancelMatchmaking;
+
+    // Навигация
     window.startGame = () => {
         if (!localStorage.getItem('azachess-user-id')) { window.location.href = 'auth.html'; return; }
         window.location.href = 'play.html';
     };
-
-    window.startMultiplayer = () => {
-        if (!localStorage.getItem('azachess-user-id')) { window.location.href = 'auth.html'; return; }
-        window.location.href = 'multiplayer.html';
-    };
-
     window.openAnalysis = () => {
         if (!localStorage.getItem('azachess-user-id')) { window.location.href = 'auth.html'; return; }
         window.location.href = 'analysis.html';
     };
-
-    // Динамическая кнопка "Продолжить партию"
-    document.addEventListener('DOMContentLoaded', () => {
-        const playBtn = document.getElementById('btn-play-main');
-        if (playBtn) {
-            const hasSave = localStorage.getItem('azachess-save-game');
-            if (hasSave) {
-                playBtn.innerText = "Продолжить партию";
-                
-                if (!document.getElementById('btn-new-game-main')) {
-                    const newGameBtn = document.createElement('button');
-                    newGameBtn.id = 'btn-new-game-main';
-                    newGameBtn.className = 'start-btn secondary';
-                    newGameBtn.innerText = "Новая игра";
-                    newGameBtn.style.marginTop = "10px";
-                    newGameBtn.onclick = () => {
-                        if (confirm("Начать новую игру? Текущая партия будет безвозвратно удалена.")) {
-                            localStorage.removeItem('azachess-save-game');
-                            window.location.href = 'play.html';
-                        }
-                    };
-                    playBtn.parentNode.insertBefore(newGameBtn, playBtn.nextSibling);
-                }
-            }
-        }
-    });
   </script>
 </body>
 </html>
