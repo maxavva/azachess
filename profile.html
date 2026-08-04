@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Azachess - Профиль игрока</title>
-  <link rel="stylesheet" href="home-style.css">
+  <link rel="stylesheet" href="home-style.css?v=3.0">
   <style>
     .profile-card {
       background: var(--bg-panel);
@@ -34,7 +34,10 @@
 
   <div class="top-profile-bar">
     <a href="index.html" style="color: var(--accent); text-decoration: none; font-weight: bold;">← НА ГЛАВНУЮ</a>
-    <div id="header-title" style="font-weight: bold; color: #fff;">Профиль шахматиста</div>
+    <div id="header-title" style="font-weight: bold; color: #fff;">Личный кабинет</div>
+    <div id="profile-actions-header" style="display: flex; gap: 8px;">
+       <!-- Сюда JS вставляет кнопки "Настройки" и "Выйти", если вы на своей странице -->
+    </div>
   </div>
 
   <div class="hub-container" style="max-width: 800px;">
@@ -52,19 +55,19 @@
       <!-- Блок простой статистики -->
       <div id="stats-container" style="margin-top: 20px; display: none; padding-top: 15px; border-top: 1px solid var(--border);">
         <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; text-align: center;">
-          <div style="background: rgba(0,0,0,0.2); padding: 8px; border-radius: 8px;">
+          <div style="background: rgba(0,0,0,0.25); padding: 10px 5px; border-radius: 8px; border: 1px solid var(--border);">
             <div id="stat-played" style="font-size: 1.2rem; font-weight: bold; color: #fff;">0</div>
             <div style="font-size: 0.7rem; color: #888; margin-top: 2px;">Игры</div>
           </div>
-          <div style="background: rgba(0,0,0,0.2); padding: 8px; border-radius: 8px;">
+          <div style="background: rgba(0,0,0,0.25); padding: 10px 5px; border-radius: 8px; border: 1px solid var(--border);">
             <div id="stat-wins" style="font-size: 1.2rem; font-weight: bold; color: #5cb365;">0</div>
             <div style="font-size: 0.7rem; color: #888; margin-top: 2px;">Победы</div>
           </div>
-          <div style="background: rgba(0,0,0,0.2); padding: 8px; border-radius: 8px;">
+          <div style="background: rgba(0,0,0,0.25); padding: 10px 5px; border-radius: 8px; border: 1px solid var(--border);">
             <div id="stat-losses" style="font-size: 1.2rem; font-weight: bold; color: #d9534f;">0</div>
             <div style="font-size: 0.7rem; color: #888; margin-top: 2px;">Пораж.</div>
           </div>
-          <div style="background: rgba(0,0,0,0.2); padding: 8px; border-radius: 8px;">
+          <div style="background: rgba(0,0,0,0.25); padding: 10px 5px; border-radius: 8px; border: 1px solid var(--border);">
             <div id="stat-draws" style="font-size: 1.2rem; font-weight: bold; color: #e0a800;">0</div>
             <div style="font-size: 0.7rem; color: #888; margin-top: 2px;">Ничьи</div>
           </div>
@@ -82,7 +85,7 @@
   </div>
 
  <script type="module">
-    import { db, collection, query, getDocs, getDoc, doc, orderBy, limit, startAfter } from "./firebase-logic.js";
+    import { auth, db, collection, query, getDocs, getDoc, doc, orderBy, limit, startAfter, signOut } from "./firebase-logic.js";
 
     const PAGE_SIZE = 5;
     let lastVisibleDoc = null;
@@ -93,14 +96,30 @@
 
     async function initProfile() {
         const urlParams = new URLSearchParams(window.location.search);
-        // Если uid в строке нет — смотрим свой собственный профиль
-        targetUid = urlParams.get('uid') || localStorage.getItem('azachess-user-id');
+        const myUid = localStorage.getItem('azachess-user-id');
+        targetUid = urlParams.get('uid') || myUid;
 
         if (!targetUid) {
             document.getElementById('prof-username').innerText = "Гость";
             document.getElementById('prof-status').innerText = "Статистика и архив недоступны в режиме гостя";
             document.getElementById('loader').style.display = 'none';
             return;
+        }
+
+        // Если это НАШ профиль, рисуем шестерёнку настроек и кнопку логаута в шапке
+        if (targetUid === myUid) {
+            document.getElementById('profile-actions-header').innerHTML = `
+                <a href="settings.html">⚙ Настройки</a>
+                <button id="btn-logout" style="color: #d9534f; border-color: rgba(217, 83, 79, 0.3);">Выйти</button>
+            `;
+            document.getElementById('btn-logout').onclick = () => {
+                if (confirm("Выйти из аккаунта?")) {
+                    signOut(auth).then(() => {
+                        localStorage.clear();
+                        window.location.href = "index.html";
+                    });
+                }
+            };
         }
 
         // Загружаем карточку профиля
