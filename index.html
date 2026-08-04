@@ -4,10 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Azachess — Главная</title>
-  <link rel="stylesheet" href="home-style.css">
+  <link rel="stylesheet" href="home-style.css?v=3.0">
 </head>
 <body>
 
+  <!-- МИНИМАЛИСТИЧНЫЙ И ПОНЯТНЫЙ ХЕДЕР -->
   <div class="top-profile-bar">
     <div id="user-info" style="font-weight: bold; color: #fff;">👣 Загрузка...</div>
     <div id="auth-controls"></div>
@@ -70,10 +71,9 @@
           <button class="start-btn" id="btn-play-main" onclick="startGame()">Игра против ИИ</button>
           <button class="start-btn" style="background: #2b5c8f; box-shadow: 0 4px 0px #1a3a5e;" onclick="startMultiplayer()">Играть онлайн (PvP)</button>
           
-          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-top: 5px;">
-              <button class="start-btn secondary" style="padding: 12px 5px; font-size: 0.9rem;" onclick="openAnalysis()">Анализ</button>
-              <button class="start-btn secondary" style="padding: 12px 5px; font-size: 0.9rem;" onclick="location.href='profile.html'">Профиль</button>
-              <button class="start-btn secondary" style="padding: 12px 5px; font-size: 0.9rem; border-color: var(--accent); color: var(--accent);" onclick="location.href='search.html'">🔍 Поиск</button>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 5px;">
+              <button class="start-btn secondary" style="padding: 12px 5px;" onclick="openAnalysis()">Анализ</button>
+              <button class="start-btn secondary" style="padding: 12px 5px; border-color: var(--accent); color: var(--accent);" onclick="location.href='search.html'">🔍 Поиск игроков</button>
           </div>
         </div>
       </div>
@@ -84,7 +84,7 @@
   <script type="module">
     import { auth, db, onAuthStateChanged, signOut, doc, getDoc } from "./firebase-logic.js";
 
-    // Отслеживание авторизации с обработкой ошибок сети
+    // Навигация
     onAuthStateChanged(auth, async (user) => {
       const info = document.getElementById('user-info');
       const ctrls = document.getElementById('auth-controls');
@@ -98,34 +98,22 @@
             username = snap.data().username;
           }
         } catch (err) {
-          console.warn("Сбой получения профиля, переход в локальный режим:", err);
           username = "Игрок (офлайн)";
         }
 
         info.innerText = "👤 " + username;
+        // Из шапки убраны шестерёнка и логаут — они теперь внутри Личного Кабинета
         ctrls.innerHTML = `
-          <a href="settings.html" class="grid-item" style="padding: 5px 15px; font-size: 0.8rem; text-decoration: none; margin-right: 8px;">⚙ Настройки</a>
-          <button id="l-btn" class="grid-item" style="padding: 5px 15px; font-size: 0.8rem; color: #d9534f; border-color: #d9534f; background: none;">Выйти</button>
+          <a href="profile.html">Личный кабинет</a>
         `;
-        document.getElementById('l-btn').onclick = window.logout;
       } else {
         localStorage.removeItem('azachess-user-id');
         info.innerText = "👣 Гость";
         ctrls.innerHTML = `
-          <a href="settings.html" class="grid-item" style="padding: 5px 15px; font-size: 0.8rem; text-decoration: none; margin-right: 8px;">⚙ Настройки</a>
-          <a href="auth.html" class="grid-item" style="padding: 5px 15px; font-size: 0.8rem; text-decoration: none;">Войти</a>
+          <a href="auth.html">Войти</a>
         `;
       }
     });
-
-    window.logout = () => { 
-        if(confirm("Выйти?")) { 
-            signOut(auth).then(() => { 
-                localStorage.clear(); 
-                location.reload(); 
-            }); 
-        } 
-    };
 
     // Настройка кликов по кнопкам времени/уровня/цвета
     function setup(id, key) {
@@ -141,7 +129,6 @@
     setup('level-grid', 'selected-ai-level');
     setup('color-grid', 'selected-player-color');
 
-    // Навигация
     window.startGame = () => {
         if (!localStorage.getItem('azachess-user-id')) { window.location.href = 'auth.html'; return; }
         window.location.href = 'play.html';
