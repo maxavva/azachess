@@ -4,15 +4,17 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Azachess - Игра против ИИ</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=3.0">
+  
   <!-- Библиотека шахмат (глобальная) -->
-<script src="https://cdn.jsdelivr.net/npm/chess.js@0.10.3/chess.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chess.js@0.10.3/chess.min.js"></script>
 
-<!-- Звуки (обычный скрипт) -->
-<script src="sounds.js"></script>
+  <!-- Звуки (обычный скрипт) -->
+  <script src="sounds.js"></script>
 
-<!-- Твой код (ОБЯЗАТЕЛЬНО type="module") -->
-<script type="module" src="app.js"></script>
+  <!-- Твой код (ОБЯЗАТЕЛЬНО type="module") -->
+  <script type="module" src="app.js"></script>
+</head>
 <body>
 
   <div class="game-wrapper-root">
@@ -21,9 +23,13 @@
       <a href="settings.html" class="nav-link">⚙ Настройки</a>
     </div>
 
+    <!-- ИГРОВОЙ ДВУХКОЛОНОЧНЫЙ ДАШБОРД -->
     <div class="game-container">
+      
+      <!-- ЛЕВАЯ КОЛОНКА: ДОСКА И УПРАВЛЕНИЕ -->
       <div class="board-wrapper">
         <div id="board" class="chessboard"></div>
+        
         <div class="navigation-controls">
           <button id="btn-nav-first" class="btn btn-secondary nav-btn">|&lt;</button>
           <button id="btn-nav-prev" class="btn btn-secondary nav-btn">&lt;</button>
@@ -31,7 +37,7 @@
           <button id="btn-nav-last" class="btn btn-secondary nav-btn">&gt;|</button>
         </div>
         
-       <!-- Модалка настроек -->
+        <!-- Модалка настроек -->
         <div id="settings-modal" class="modal hidden">
           <div class="modal-content" style="text-align: left; max-width: 380px; width: 90%;">
             <h3 style="text-align: center; margin-bottom: 20px; color: var(--text-bright);">Настройки</h3>
@@ -64,9 +70,10 @@
             <button id="btn-settings-close" class="btn" style="width: 100%; margin-top: 15px;">Сохранить и закрыть</button>
           </div>
         </div>
+      </div> <!-- ИСПРАВЛЕНО: закрыли board-wrapper вовремя! -->
 
+      <!-- ПРАВАЯ КОЛОНКА: ЧАСЫ, ХОДЫ И КНОПКИ -->
       <div class="control-panel">
-        <!-- ТУТ БЫЛА ОШИБКА В ТЕКСТЕ -->
         <div class="status-display" id="status-text">Подготовка партии...</div>
 
         <div id="clocks-wrapper" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 15px;">
@@ -84,9 +91,9 @@
           <button id="btn-flip" class="btn btn-secondary">Повернуть доску</button>
         </div>
       </div>
+
     </div>
   </div>
-
 
 </body>
 </html>
