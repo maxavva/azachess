@@ -1,16 +1,16 @@
 /* ==========================================================================
-   Azachess Master Theme & Dashboard Styles (Charcoal Theme)
+   Azachess Lobby Theme - Nordic Terracotta & Warm Obsidian
    ========================================================================== */
 :root {
-  --bg-dark: #161512;       /* Глубокий премиальный графит */
-  --bg-panel: #262421;      /* Фон карточек и боковых панелей */
-  --accent: #258039;        /* Зеленый акцент (Lichess style) */
-  --accent-hover: #2c9943;
-  --border: #3c3934;        /* Цвет границ */
-  --text-bright: #ffffff;   /* Яркий белый */
-  --text-dim: #bababa;      /* Приглушенный серый */
-  --glass: rgba(255, 255, 255, 0.03);
-  --glass-hover: rgba(255, 255, 255, 0.08);
+  --bg-dark: #1c1a17;       /* Глубокий обсидиановый графит */
+  --bg-panel: #282421;      /* Теплая глина / Орех */
+  --accent: #b15139;        /* Благородная теплая терракота (без неона) */
+  --accent-hover: #c95e45;  /* Мягкая терракота при наведении */
+  --border: #3e3833;        /* Цвет швов */
+  --text-bright: #ffffff;   
+  --text-dim: #bab6b2;      /* Мягкий песочный серый */
+  --glass: rgba(255, 255, 255, 0.02);
+  --glass-hover: rgba(255, 255, 255, 0.06);
 }
 
 * {
@@ -19,7 +19,7 @@
 
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   background-color: var(--bg-dark);
   color: var(--text-dim);
   display: flex;
@@ -29,7 +29,7 @@ body {
   overflow-x: hidden;
 }
 
-/* Стилизация скроллбара */
+/* Скроллбар */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -40,9 +40,6 @@ body {
 ::-webkit-scrollbar-thumb {
   background: var(--border);
   border-radius: 3px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #555;
 }
 
 /* ВЕРХНЯЯ НАВИГАЦИОННАЯ ПАНЕЛЬ */
@@ -62,7 +59,6 @@ body {
   box-shadow: 0 8px 32px rgba(0,0,0,0.5);
 }
 
-/* Аккуратные кнопки в шапке (без плиточных рамок) */
 .top-profile-bar a, .top-profile-bar button {
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--border);
@@ -80,7 +76,7 @@ body {
 
 .top-profile-bar a:hover, .top-profile-bar button:hover {
   background: var(--glass-hover);
-  border-color: #555;
+  border-color: #5a524c;
   color: var(--text-bright);
 }
 
@@ -93,7 +89,7 @@ body {
   flex-direction: column;
 }
 
-/* ЛОГ ТАЙТЛЫ */
+/* ЛОББИ ХЕДЕР */
 .lobby-header {
   text-align: center;
   margin-bottom: 35px;
@@ -114,7 +110,7 @@ body {
 
 .tagline {
   font-size: 0.95rem;
-  color: #666;
+  color: #6a625a;
   margin-top: 5px;
   letter-spacing: 0.5px;
 }
@@ -140,24 +136,24 @@ body {
   gap: 20px;
 }
 
-/* СЕКЦИИ КАРТОЧЕК */
+/* КАРТОЧКИ РЕЖИМОВ */
 .mode-section {
   background: var(--bg-panel);
   border: 1px solid var(--border);
   padding: 22px;
   border-radius: 12px;
-  box-shadow: 0 6px 20px rgba(0,0,0,0.2);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.25);
 }
 
 .section-title {
   font-size: 0.85rem;
   text-transform: uppercase;
-  color: #888;
+  color: #8a827a;
   margin-top: 0;
   margin-bottom: 18px;
   font-weight: bold;
   letter-spacing: 1px;
-  border-bottom: 1px solid rgba(255,255,255,0.05);
+  border-bottom: 1px solid rgba(255,255,255,0.03);
   padding-bottom: 10px;
 }
 
@@ -171,7 +167,7 @@ body {
 #level-grid { grid-template-columns: repeat(4, 1fr); }
 #color-grid { grid-template-columns: repeat(3, 1fr); }
 
-/* ПЛИТКА НАСТРОЕК */
+/* ПЛИТКА */
 .grid-item {
   background: var(--glass);
   border: 1px solid var(--border);
@@ -191,13 +187,13 @@ body {
 
 .grid-item:hover {
   background: var(--glass-hover);
-  border-color: #555;
+  border-color: #5a524c;
 }
 
 .grid-item.active {
   background: var(--accent);
   border-color: var(--accent);
-  box-shadow: 0 0 15px rgba(37, 128, 57, 0.4);
+  box-shadow: 0 0 15px rgba(177, 81, 57, 0.4);
 }
 
 .grid-item span.label {
@@ -217,7 +213,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  box-shadow: 0 6px 20px rgba(0,0,0,0.2);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.25);
 }
 
 .start-btn {
@@ -232,18 +228,19 @@ body {
   transition: transform 0.1s active, filter 0.2s, background-color 0.2s;
   text-decoration: none;
   text-align: center;
-  box-shadow: 0 4px 0px #1a5e26;
+  box-shadow: 0 4px 0px #702f20;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
 .start-btn:hover {
   background-color: var(--accent-hover);
+  filter: brightness(1.05);
 }
 
 .start-btn:active {
   transform: translateY(2px);
-  box-shadow: 0 2px 0px #1a5e26;
+  box-shadow: 0 2px 0px #702f20;
 }
 
 .start-btn.secondary {
@@ -253,14 +250,21 @@ body {
   font-size: 0.95rem;
   padding: 14px;
   font-weight: 700;
+  color: var(--text-dim);
 }
 
 .start-btn.secondary:hover {
   background: rgba(255,255,255,0.08);
+  color: #fff;
 }
 
 .start-btn.secondary:active {
   transform: scale(0.98);
+}
+
+/* Скрытые элементы */
+.hidden {
+  display: none !important;
 }
 
 /* АДАПТИВНОСТЬ */
