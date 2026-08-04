@@ -1,23 +1,23 @@
 /* ==========================================================================
-   Master Theme & Responsive Chess View Layout (VH-Scaling Enabled)
+   Master Theme & Responsive Chess View Layout (Nordic Warm Palette)
    ========================================================================== */
 :root {
-  --bg-dark: #161512;       /* Глубокий темный фон страницы */
-  --bg-panel: #262421;      /* Фон карточек и боковых панелей */
-  --text-main: #bababa;     /* Основной приглушенный текст */
+  --bg-dark: #1c1a17;       /* Глубокий премиальный обсидиан */
+  --bg-panel: #282421;      /* Фон боковых панелей (глина / орех) */
+  --text-main: #bab6b2;     /* Мягкий песочный серый */
   --text-bright: #ffffff;   /* Яркий белый для акцентов */
-  --accent: #258039;        /* Фирменный зеленый */
-  --accent-hover: #2c9943;  
-  --border: #3c3934;        /* Мягкие разделительные границы */
-  --border-focus: #555551;  
+  --accent: #b15139;        /* Теплая скандинавская терракота (без неона) */
+  --accent-hover: #c95e45;  
+  --border: #3e3833;        /* Цвет швов */
+  --border-focus: #5a524c;  
   
-  /* Emerald & Sand */
-  --square-light: #ececd7;
-  --square-dark: #739552;
+  /* Cozy Sand & Walnut Wood */
+  --square-light: #ebdcb9;
+  --square-dark: #816654;
   
-  /* Подсветка ходов и полей */
-  --color-selected: rgba(247, 236, 116, 0.5);      /* Выделенная фигура */
-  --color-last-move: rgba(186, 202, 43, 0.45);     /* Предыдущий ход */
+  /* Подсветка ходов в стиле терракоты и глины */
+  --color-selected: rgba(177, 81, 57, 0.35);      /* Терракотовое выделение */
+  --color-last-move: rgba(129, 102, 84, 0.45);     /* Песочно-глиняное выделение */
   --color-check: radial-gradient(circle, rgba(231, 76, 60, 0.9) 0%, rgba(231, 76, 60, 0) 70%); /* Свечение под шахом */
 }
 
@@ -70,18 +70,30 @@ body {
   width: 100%;
 }
 
-.nav-link {
-  color: var(--text-main);
+.nav-bar a, .nav-bar button {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
   text-decoration: none;
-  font-weight: 700;
-  font-size: 0.9rem;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-  transition: color 0.2s ease;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
 }
 
-.nav-link:hover, .nav-link.active {
+.nav-bar a:hover, .nav-bar button:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: #5a524c;
   color: var(--text-bright);
+}
+
+.nav-link.active {
+  color: var(--text-bright);
+  border-color: var(--accent);
 }
 
 /* ДВУХКОЛОНОЧНЫЙ ИГРОВОЙ ДАШБОРД */
@@ -109,8 +121,7 @@ body {
 
 @media (min-width: 900px) {
   .board-wrapper {
-    /* ВЫСОТНО-ЗАВИСИМОЕ МАСШТАБИРОВАНИЕ */
-    max-width: 72vh; /* Доска никогда не превысит 72% высоты экрана на ноутбуках */
+    max-width: 72vh; /* Доска никогда не превысит 72% высоты экрана */
     margin: 0 auto;
   }
 }
@@ -245,7 +256,6 @@ body {
 
 @media (min-width: 900px) {
   .control-panel {
-    /* Синхронизируем высоту панели с доской */
     height: calc(72vh + 60px); 
     max-height: 700px;
   }
@@ -278,10 +288,10 @@ body {
 }
 
 .clock.active {
-  background: var(--text-bright);
-  color: #000;
-  border-color: var(--text-bright);
-  box-shadow: 0 0 15px rgba(255, 255, 255, 0.15);
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+  box-shadow: 0 0 15px rgba(177, 81, 57, 0.3);
 }
 
 /* Контейнер истории ходов */
@@ -361,6 +371,7 @@ body {
   cursor: pointer;
   text-transform: uppercase;
   transition: background-color 0.15s ease, transform 0.1s ease;
+  box-shadow: 0 4px 0px #702f20;
 }
 
 .btn:hover { background-color: var(--accent-hover); }
@@ -370,6 +381,7 @@ body {
   background-color: rgba(255, 255, 255, 0.05);
   border: 1px solid var(--border);
   color: var(--text-main);
+  box-shadow: none;
 }
 
 .btn-secondary:hover {
@@ -381,6 +393,7 @@ body {
   background-color: rgba(231, 76, 60, 0.15);
   border: 1px solid rgba(231, 76, 60, 0.3);
   color: #e74c3c;
+  box-shadow: none;
 }
 
 .btn-danger:hover {
@@ -388,7 +401,7 @@ body {
   color: var(--text-bright);
 }
 
-/* Альтернативные темы доски */
+/* Темы доски */
 .chessboard.theme-emerald { --square-light: #ececd7; --square-dark: #739552; }
 .chessboard.theme-classic { --square-light: #f0d9b5; --square-dark: #b58863; }
 .chessboard.theme-blue { --square-light: #dee3e6; --square-dark: #8ca2ad; }
