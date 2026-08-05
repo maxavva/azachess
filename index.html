@@ -186,7 +186,7 @@
         const el = document.getElementById(id);
         if (el) {
             el.onclick = fn;
-            console.log(`[Azachess-Lobby] Кнопка '${id}' успешно привязана.`);
+            console.log(`[Azachess-Lobby] Кнопка '${id}' успешно привязан.`);
         } else {
             console.warn(`[Azachess-Lobby] Предупреждение: Кнопка с ID '${id}' не найдена.`);
         }
@@ -550,10 +550,19 @@
         searchTimerInterval = null;
     }
 
-    // Навигация ИИ
+    // Привязка кнопок лобби
+    document.getElementById('btn-search-pvp').onclick = startMatchmaking;
+    document.getElementById('btn-invite-friend').onclick = createInviteRoom;
+    document.getElementById('btn-cancel-search').onclick = cancelMatchmaking;
+
+    // Навигация ИИ и АНАЛИЗА (ТЕПЕРЬ ПОЛНОСТЬЮ ВОССТАНОВЛЕНА!)
     window.startGame = () => {
         if (!localStorage.getItem('azachess-user-id')) { window.location.href = 'auth.html'; return; }
         window.location.href = 'play.html';
+    };
+    window.openAnalysis = () => {
+        if (!localStorage.getItem('azachess-user-id')) { window.location.href = 'auth.html'; return; }
+        window.location.href = 'analysis.html';
     };
 
     // Запуск инициализации в зависимости от готовности DOM
