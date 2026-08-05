@@ -2,7 +2,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, setDoc, getDoc, collection, addDoc, query, where, getDocs, orderBy, limit, startAfter, onSnapshot, runTransaction, deleteDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-// КОНФИГ FIREBASE
+// ТВОЙ КОНФИГ FIREBASE
 const firebaseConfig = {
   apiKey: "AIzaSyBocj4buVq00osycrLRSnJDW_6PgapHu0o",
   authDomain: "azachess.firebaseapp.com",
@@ -16,7 +16,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 
-// Стабильный современный офлайн кэш без deprecation-предупреждений (SDK v10+)
+// Стабильный офлайн-кэш на базе IndexedDB (Firebase SDK v10)
 const db = initializeFirestore(app, {
   localCache: persistentLocalCache({
     tabManager: persistentMultipleTabManager()
