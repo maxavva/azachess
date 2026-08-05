@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Azachess - Игра против ИИ</title>
+  <title>Azachess - Игра против искусственного интеллекта</title>
   <link rel="stylesheet" href="style.css?v=3.0">
   
   <!-- Библиотека шахмат (глобальная) -->
@@ -19,8 +19,8 @@
 
   <div class="game-wrapper-root">
     <div class="nav-bar">
-      <a href="index.html" class="nav-link">← На главную</a>
-      <a href="settings.html" class="nav-link">⚙ Настройки</a>
+      <a href="index.html" class="nav-link">На главную</a>
+      <a href="settings.html" class="nav-link">Настройки</a>
     </div>
 
     <!-- ИГРОВОЙ ДВУХКОЛОНОЧНЫЙ ДАШБОРД -->
@@ -70,7 +70,7 @@
             <button id="btn-settings-close" class="btn" style="width: 100%; margin-top: 15px;">Сохранить и закрыть</button>
           </div>
         </div>
-      </div> <!-- ИСПРАВЛЕНО: закрыли board-wrapper вовремя! -->
+      </div>
 
       <!-- ПРАВАЯ КОЛОНКА: ЧАСЫ, ХОДЫ И КНОПКИ -->
       <div class="control-panel">
@@ -92,6 +92,14 @@
         </div>
       </div>
 
+    </div>
+  </div>
+
+  <!-- МОДАЛКА ПРЕВРАЩЕНИЯ ПЕШКИ (ТЕПЕРЬ НА СВОЕМ МЕСТЕ!) -->
+  <div id="promotion-modal" class="modal hidden">
+    <div class="modal-content">
+      <h3>Выберите фигуру</h3>
+      <div class="promotion-choices"></div>
     </div>
   </div>
 
