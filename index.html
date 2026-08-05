@@ -6,7 +6,6 @@
   <title>Azachess — Главная</title>
   <link rel="stylesheet" href="home-style.css?v=3.0">
   <style>
-    /* Кастомная разметка спиннера поиска прямо в лобби */
     .searching-loader {
       display: flex;
       flex-direction: column;
@@ -31,7 +30,7 @@
 </head>
 <body>
 
-  <!-- ХЕДЕР БЕЗ СМАЙЛИКОВ -->
+  <!-- ХЕДЕР -->
   <div class="top-profile-bar">
     <div id="user-info" style="font-weight: bold; color: #fff;">Загрузка...</div>
     <div id="auth-controls"></div>
@@ -46,65 +45,89 @@
     <!-- АДАПТИВНЫЙ ДАШБОРД -->
     <main class="lobby-dashboard">
       
-      <!-- ЛЕВАЯ КОЛОНКА: СЕЛЕКТОРЫ РЕЖИМА ИГРЫ -->
+      <!-- ЛЕВАЯ КОЛОНКА -->
       <div class="lobby-setup">
-        <!-- КОНТРОЛЬ ВРЕМЕНИ -->
-        <section class="mode-section">
-          <h2 class="section-title">Контроль времени</h2>
-          <div class="selection-grid" id="time-grid">
-            <div class="grid-item" data-time="1+0">1+0 <span class="label">Пуля</span></div>
-            <div class="grid-item" data-time="3+2">3+2 <span class="label">Блиц</span></div>
-            <div class="grid-item active" data-time="5+3">5+3 <span class="label">Блиц</span></div>
-            <div class="grid-item" data-time="10+5">10+5 <span class="label">Рапид</span></div>
-            <div class="grid-item" data-time="30+0">30+0 <span class="label">Классика</span></div>
-            <div class="grid-item" data-time="none">∞ <span class="label">Без времени</span></div>
-          </div>
-        </section>
+        
+        <!-- НАСТРОЙКИ ОНЛАЙН-ИГРЫ (АКТИВНЫ ПО УМОЛЧАНИЮ) -->
+        <div id="online-setup-container">
+          <!-- КОНТРОЛЬ ВРЕМЕНИ -->
+          <section class="mode-section" style="margin-bottom: 20px;">
+            <h2 class="section-title">Контроль времени онлайн-игры</h2>
+            <div class="selection-grid" id="time-grid">
+              <div class="grid-item" data-time="1+0">1+0 <span class="label">Пуля</span></div>
+              <div class="grid-item" data-time="3+2">3+2 <span class="label">Блиц</span></div>
+              <div class="grid-item active" data-time="5+3">5+3 <span class="label">Блиц</span></div>
+              <div class="grid-item" data-time="10+5">10+5 <span class="label">Рапид</span></div>
+              <div class="grid-item" data-time="30+0">30+0 <span class="label">Классика</span></div>
+              <div class="grid-item" data-time="none">∞ <span class="label">Без времени</span></div>
+            </div>
+          </section>
 
-        <!-- УРОВНИ ИИ -->
-        <section class="mode-section">
-          <h2 class="section-title">Сложность ИИ</h2>
-          <div class="selection-grid" id="level-grid">
-            <div class="grid-item" data-lv="1">1</div>
-            <div class="grid-item" data-lv="2">2</div>
-            <div class="grid-item active" data-lv="3">3</div>
-            <div class="grid-item" data-lv="4">4</div>
-            <div class="grid-item" data-lv="5">5</div>
-            <div class="grid-item" data-lv="6">6</div>
-            <div class="grid-item" data-lv="7">7</div>
-            <div class="grid-item" data-lv="8">8</div>
-          </div>
-        </section>
+          <!-- ЦВЕТ ОНЛАЙН -->
+          <section class="mode-section">
+            <h2 class="section-title">Цвет в онлайн-игре</h2>
+            <div class="selection-grid" id="color-grid">
+              <div class="grid-item active" data-color="w">Белые</div>
+              <div class="grid-item" data-color="random">Случайный</div>
+              <div class="grid-item" data-color="b">Черные</div>
+            </div>
+          </section>
+        </div>
 
-        <!-- ЦВЕТ -->
-        <section class="mode-section">
-          <h2 class="section-title">Выберите цвет</h2>
-          <div class="selection-grid" id="color-grid">
-            <div class="grid-item active" data-color="w">Белые</div>
-            <div class="grid-item" data-color="random">Случайный</div>
-            <div class="grid-item" data-color="b">Черные</div>
-          </div>
-        </section>
+        <!-- НАСТРОЙКИ ИГРЫ С ИИ (СКРЫТЫ ПО УМОЛЧАНИЮ) -->
+        <div id="ai-setup-container" class="hidden">
+          <!-- СЛОЖНОСТЬ ИИ -->
+          <section class="mode-section" style="margin-bottom: 20px;">
+            <h2 class="section-title">Сложность ИИ</h2>
+            <div class="selection-grid" id="level-grid-ai">
+              <div class="grid-item" data-lv="1">1</div>
+              <div class="grid-item" data-lv="2">2</div>
+              <div class="grid-item active" data-lv="3">3</div>
+              <div class="grid-item" data-lv="4">4</div>
+              <div class="grid-item" data-lv="5">5</div>
+              <div class="grid-item" data-lv="6">6</div>
+              <div class="grid-item" data-lv="7">7</div>
+              <div class="grid-item" data-lv="8">8</div>
+            </div>
+          </section>
+
+          <!-- ЦВЕТ ИИ -->
+          <section class="mode-section">
+            <h2 class="section-title">Цвет в игре против ИИ</h2>
+            <div class="selection-grid" id="color-grid-ai">
+              <div class="grid-item active" data-color="w">Белые</div>
+              <div class="grid-item" data-color="random">Случайный</div>
+              <div class="grid-item" data-color="b">Черные</div>
+            </div>
+          </section>
+        </div>
+
       </div>
 
       <!-- ПРАВАЯ КОЛОНКА: ИНТЕРАКТИВНЫЙ ПУЛЬТ ДЕЙСТВИЙ -->
       <div class="lobby-panel" id="lobby-panel-container">
         
-        <!-- ВИД 1: КНОПКИ ЗАПУСКА -->
+        <!-- КНОПКИ ОНЛАЙН-РЕЖИМА (ОСНОВНОЙ) -->
         <div class="main-actions" id="main-actions-view">
-          <h3 class="section-title" style="margin-bottom: 10px;">Игровая панель</h3>
-          <button class="start-btn" id="btn-play-main" onclick="startGame()">Игра против ИИ</button>
-          <button class="start-btn" style="background: #2b5c8f; box-shadow: 0 4px 0px #1a3a5e;" id="btn-search-pvp">Быстрая игра онлайн</button>
-          <button class="start-btn" style="background: var(--accent); box-shadow: 0 4px 0px #702f20;" id="btn-invite-friend">Вызвать друга</button>
+          <h3 class="section-title" style="margin-bottom: 10px;">Онлайн-кабинет</h3>
+          <button class="start-btn" id="btn-search-pvp">Быстрая игра</button>
+          <button class="start-btn" style="background: #2b5c8f; box-shadow: 0 4px 0px #1a3a5e;" id="btn-invite-friend">Вызвать друга по ссылке</button>
+          <button class="start-btn secondary" style="border-color: var(--accent); color: var(--accent);" id="btn-switch-to-ai">Режим игры с ИИ</button>
           
-          <!-- УБРАНА ПУТАНИЦА: КНОПКА ПРОФИЛЬ УДАЛЕНА ИЗ ЛОББИ -->
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 5px;">
-              <button class="start-btn secondary" style="padding: 12px 5px;" onclick="openAnalysis()">Доска для анализа</button>
-              <button class="start-btn secondary" style="padding: 12px 5px; border-color: var(--accent); color: var(--accent);" onclick="location.href='search.html'">Поиск игроков</button>
+              <button class="start-btn secondary" style="padding: 12px 5px;" onclick="openAnalysis()">Анализ</button>
+              <button class="start-btn secondary" style="padding: 12px 5px;" onclick="location.href='search.html'">Поиск игроков</button>
           </div>
         </div>
 
-        <!-- ВИД 2: ЭКРАН ПОИСКА -->
+        <!-- КНОПКИ РЕЖИМА ИИ (ВЫДЕЛЕННЫЙ) -->
+        <div class="main-actions hidden" id="ai-actions-view">
+          <h3 class="section-title" style="margin-bottom: 10px;">Битва с компьютером</h3>
+          <button class="start-btn" id="btn-play-ai-start" onclick="startGame()">Начать игру</button>
+          <button class="start-btn secondary" id="btn-back-to-online">Назад к онлайн-игре</button>
+        </div>
+
+        <!-- ЭКРАН ПОИСКА СОПЕРНИКА -->
         <div class="main-actions hidden" id="searching-view">
           <div class="searching-loader">
             <div class="spinner"></div>
@@ -114,15 +137,15 @@
           </div>
         </div>
 
-        <!-- ВИД 3: ЭКРАН ВЫЗОВА ДРУГА ПО ССЫЛКЕ -->
+        <!-- ЭКРАН ВЫЗОВА ДРУГА ПО ССЫЛКЕ -->
         <div class="main-actions hidden" id="invite-view">
           <div class="searching-loader">
             <div class="spinner"></div>
-            <h3 style="color: #fff; margin: 10px 0 5px 0; font-size: 1.1rem;">Вызов подготовлен!</h3>
-            <p style="color: var(--text-dim); font-size: 0.85rem; margin-bottom: 15px; padding: 0 10px;">Отправьте эту ссылку другу для подключения к игре:</p>
+            <h3 style="color: #fff; margin: 15px 0 5px 0; font-size: 1.1rem;">Вызов подготовлен!</h3>
+            <p style="color: var(--text-dim); font-size: 0.85rem; margin-bottom: 15px; padding: 0 10px;">Отправьте эту ссылку другу для автоматического подключения к игре:</p>
             
             <div style="display: flex; gap: 5px; width: 100%; margin-bottom: 15px; padding: 0 10px;">
-              <input type="text" id="invite-link-input" readonly style="flex-grow: 1; padding: 12px; background: #111; border: 1px solid var(--border); color: #fff; border-radius: 6px; font-size: 0.8rem; outline: none;">
+              <input type="text" id="invite-link-input" readonly style="flex-grow: 1; padding: 12px; background: #111; border: 1px solid var(--border); color: #fff; border-radius: 6px; font-size: 0.85rem; outline: none;">
               <button id="btn-copy-link" class="start-btn secondary" style="padding: 10px 15px; font-size: 0.8rem; min-width: 100px; margin: 0;">Копировать</button>
             </div>
             
@@ -177,24 +200,54 @@
       }
     });
 
-    // Настройка кликов лобби
-    function setup(id, key) {
+    // Настройка селекторов онлайн-матча
+    function setupLobby(id, key) {
         document.querySelectorAll(`#${id} .grid-item`).forEach(el => {
             el.onclick = () => {
                 document.querySelectorAll(`#${id} .grid-item`).forEach(i => i.classList.remove('active'));
                 el.classList.add('active');
-                localStorage.setItem(key, el.dataset.time || el.dataset.lv || el.dataset.color);
+                localStorage.setItem(key, el.dataset.time || el.dataset.color);
                 if (key === 'selected-time-control') {
                     selectedTimeControl = el.dataset.time;
                 }
             };
         });
     }
-    setup('time-grid', 'selected-time-control');
-    setup('level-grid', 'selected-ai-level');
-    setup('color-grid', 'selected-player-color');
+    setupLobby('time-grid', 'selected-time-control');
+    setupLobby('color-grid', 'selected-player-color');
 
-    // Переключение интерактивных видов
+    // Настройка селекторов оффлайн-ИИ
+    function setupAI(id, key) {
+        document.querySelectorAll(`#${id} .grid-item`).forEach(el => {
+            el.onclick = () => {
+                document.querySelectorAll(`#${id} .grid-item`).forEach(i => i.classList.remove('active'));
+                el.classList.add('active');
+                localStorage.setItem(key, el.dataset.lv || el.dataset.color);
+            };
+        });
+    }
+    setupAI('level-grid-ai', 'selected-ai-level');
+    setupAI('color-grid-ai', 'selected-player-color');
+
+    // Переключение режимов Лобби
+    const btnSwitchToAI = document.getElementById('btn-switch-to-ai');
+    const btnBackToOnline = document.getElementById('btn-back-to-online');
+
+    btnSwitchToAI.onclick = () => {
+        document.getElementById('online-setup-container').classList.add('hidden');
+        document.getElementById('ai-setup-container').classList.remove('hidden');
+        document.getElementById('main-actions-view').classList.add('hidden');
+        document.getElementById('ai-actions-view').classList.remove('hidden');
+    };
+
+    btnBackToOnline.onclick = () => {
+        document.getElementById('ai-setup-container').classList.add('hidden');
+        document.getElementById('online-setup-container').classList.remove('hidden');
+        document.getElementById('ai-actions-view').classList.add('hidden');
+        document.getElementById('main-actions-view').classList.remove('hidden');
+    };
+
+    // Переключение интерактивных видов подбора
     function toggleLobbyView(view) {
         document.getElementById('main-actions-view').classList.add('hidden');
         document.getElementById('searching-view').classList.add('hidden');
@@ -209,7 +262,7 @@
         }
     }
 
-    // --- СЕТЕВОЙ МАТЧМЕЙКИНГ НА ГЛАВНОМ ЭКРАНЕ ---
+    // --- СЕТЕВОЙ ПОДБОР ---
     async function startMatchmaking() {
         if (!currentUserId) { window.location.href = 'auth.html'; return; }
         const username = await getUserName(currentUserId);
@@ -325,7 +378,7 @@
         toggleLobbyView('main');
     }
 
-    // --- СОЗДАНИЕ ВЫЗОВА С ДРУГОМ НА ГЛАВНОМ ЭКРАНЕ ---
+    // --- СОЗДАНИЕ ВЫЗОВА С ДРУГОМ ---
     async function createInviteRoom() {
         if (!currentUserId) { window.location.href = 'auth.html'; return; }
         const username = await getUserName(currentUserId);
