@@ -6,7 +6,7 @@
   --bg-panel: #282421;      /* Фон боковых панелей (глина / орех) */
   --text-main: #bab6b2;     /* Мягкий песочный серый */
   --text-bright: #ffffff;   /* Яркий белый для акцентов */
-  --accent: #b15139;        /* Теплая скандинавская терракота (без неона) */
+  --accent: #b15139;        /* Теплая скандинавская терракота */
   --accent-hover: #c95e45;  
   --border: #3e3833;        /* Цвет швов */
   --border-focus: #5a524c;  
@@ -421,7 +421,10 @@ body {
   z-index: 10000;
 }
 
-.modal.hidden { display: none !important; }
+/* Стабильное скрытие модалок */
+.hidden {
+  display: none !important;
+}
 
 .modal-content {
   background-color: var(--bg-panel);
