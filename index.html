@@ -76,6 +76,19 @@
 
         <!-- НАСТРОЙКИ ИГРЫ С ИИ (СКРЫТЫ ПО УМОЛЧАНИЮ) -->
         <div id="ai-setup-container" class="hidden">
+          <!-- КОНТРОЛЬ ВРЕМЕНИ ИИ -->
+          <section class="mode-section" style="margin-bottom: 20px;">
+            <h2 class="section-title">Контроль времени игры с ИИ</h2>
+            <div class="selection-grid" id="time-grid-ai">
+              <div class="grid-item" data-time="1+0">1+0 <span class="label">Пуля</span></div>
+              <div class="grid-item" data-time="3+2">3+2 <span class="label">Блиц</span></div>
+              <div class="grid-item active" data-time="5+3">5+3 <span class="label">Блиц</span></div>
+              <div class="grid-item" data-time="10+5">10+5 <span class="label">Рапид</span></div>
+              <div class="grid-item" data-time="30+0">30+0 <span class="label">Классика</span></div>
+              <div class="grid-item" data-time="none">∞ <span class="label">Без времени</span></div>
+            </div>
+          </section>
+
           <!-- СЛОЖНОСТЬ ИИ -->
           <section class="mode-section" style="margin-bottom: 20px;">
             <h2 class="section-title">Сложность ИИ</h2>
@@ -141,7 +154,7 @@
         <div class="main-actions hidden" id="invite-view">
           <div class="searching-loader">
             <div class="spinner"></div>
-            <h3 style="color: #fff; margin: 10px 0 5px 0; font-size: 1.1rem;">Вызов подготовлен!</h3>
+            <h3 style="color: #fff; margin: 15px 0 5px 0; font-size: 1.1rem;">Вызов подготовлен!</h3>
             <p style="color: var(--text-dim); font-size: 0.85rem; margin-bottom: 15px; padding: 0 10px;">Отправьте эту ссылку другу для автоматического подключения к игре:</p>
             
             <div style="display: flex; gap: 5px; width: 100%; margin-bottom: 15px; padding: 0 10px;">
@@ -216,16 +229,17 @@
     setupLobby('time-grid', 'selected-time-control');
     setupLobby('color-grid', 'selected-player-color');
 
-    // Настройка селекторов оффлайн-ИИ
+    // Настройка селекторов оффлайн-ИИ (считывают и время, и уровень, и цвет!)
     function setupAI(id, key) {
         document.querySelectorAll(`#${id} .grid-item`).forEach(el => {
             el.onclick = () => {
                 document.querySelectorAll(`#${id} .grid-item`).forEach(i => i.classList.remove('active'));
                 el.classList.add('active');
-                localStorage.setItem(key, el.dataset.lv || el.dataset.color);
+                localStorage.setItem(key, el.dataset.time || el.dataset.lv || el.dataset.color);
             };
         });
     }
+    setupAI('time-grid-ai', 'selected-time-control'); // Запись ИИ-времени
     setupAI('level-grid-ai', 'selected-ai-level');
     setupAI('color-grid-ai', 'selected-player-color');
 
@@ -271,7 +285,7 @@
         mActions.classList.add('fade-in');
     };
 
-    // Переключение интерактивных видов подбора (с плавной анимацией)
+    // Переключение интерактивных видов подбора
     function toggleLobbyView(view) {
         const mainView = document.getElementById('main-actions-view');
         const searchView = document.getElementById('searching-view');
@@ -502,31 +516,4 @@
     function startSearchTimer() {
         searchSeconds = 0;
         const el = document.getElementById('search-timer');
-        searchTimerInterval = setInterval(() => {
-            searchSeconds++;
-            if (el) el.textContent = `Вы в очереди: ${searchSeconds} сек`;
-        }, 1000);
-    }
-
-    function stopSearchTimer() {
-        if (searchTimerInterval) clearInterval(searchTimerInterval);
-        searchTimerInterval = null;
-    }
-
-    // Привязка кнопок лобби
-    document.getElementById('btn-search-pvp').onclick = startMatchmaking;
-    document.getElementById('btn-invite-friend').onclick = createInviteRoom;
-    document.getElementById('btn-cancel-search').onclick = cancelMatchmaking;
-
-    // Навигация
-    window.startGame = () => {
-        if (!localStorage.getItem('azachess-user-id')) { window.location.href = 'auth.html'; return; }
-        window.location.href = 'play.html';
-    };
-    window.openAnalysis = () => {
-        if (!localStorage.getItem('azachess-user-id')) { window.location.href = 'auth.html'; return; }
-        window.location.href = 'analysis.html';
-    };
-  </script>
-</body>
-</html>
+        searchTimerIn
