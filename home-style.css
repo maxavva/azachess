@@ -166,6 +166,8 @@ body {
 #time-grid { grid-template-columns: repeat(3, 1fr); }
 #level-grid { grid-template-columns: repeat(4, 1fr); }
 #color-grid { grid-template-columns: repeat(3, 1fr); }
+#level-grid-ai { grid-template-columns: repeat(4, 1fr); }
+#color-grid-ai { grid-template-columns: repeat(3, 1fr); }
 
 /* ПЛИТКА */
 .grid-item {
