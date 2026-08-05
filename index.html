@@ -129,7 +129,7 @@
           
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 5px;">
               <button class="start-btn secondary" style="padding: 12px 5px;" onclick="openAnalysis()">Анализ</button>
-              <button class="start-btn secondary" style="padding: 12px 5px;" onclick="location.href='search.html'">Поиск игроков</button>
+              <button class="start-btn secondary" style="padding: 12px 5px; border-color: var(--accent); color: var(--accent);" onclick="location.href='search.html'">Поиск игроков</button>
           </div>
         </div>
 
@@ -181,43 +181,27 @@
     let searchSeconds = 0;
     let searchTimerInterval = null;
 
-    // Инициализация сессий
-    onAuthStateChanged(auth, async (user) => {
-      const info = document.getElementById('user-info');
-      const ctrls = document.getElementById('auth-controls');
-      if (user) {
-        currentUserId = user.uid;
-        localStorage.setItem('azachess-user-id', user.uid);
-        
-        let username = "Игрок";
-        try {
-          const snap = await getDoc(doc(db, "users", user.uid));
-          if (snap.exists() && snap.data().username) {
-            username = snap.data().username;
-          }
-        } catch (err) {
-          username = "Игрок (офлайн)";
+    // Безопасный оборонительный биндинг кликов
+    const bindClick = (id, fn) => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.onclick = fn;
+            console.log(`[Azachess-Lobby] Кнопка '${id}' успешно привязана.`);
+        } else {
+            console.warn(`[Azachess-Lobby] Предупреждение: Кнопка с ID '${id}' не найдена.`);
         }
-
-        info.innerText = username;
-        ctrls.innerHTML = `
-          <a href="profile.html">Личный кабинет</a>
-        `;
-      } else {
-        currentUserId = null;
-        localStorage.removeItem('azachess-user-id');
-        info.innerText = "Гость";
-        ctrls.innerHTML = `
-          <a href="auth.html">Войти</a>
-        `;
-      }
-    });
+    };
 
     // Настройка селекторов онлайн-матча
     function setupLobby(id, key) {
-        document.querySelectorAll(`#${id} .grid-item`).forEach(el => {
+        const parent = document.getElementById(id);
+        if (!parent) {
+            console.warn(`[Azachess-Lobby] Сетка #${id} не найдена в разметке.`);
+            return;
+        }
+        parent.querySelectorAll('.grid-item').forEach(el => {
             el.onclick = () => {
-                document.querySelectorAll(`#${id} .grid-item`).forEach(i => i.classList.remove('active'));
+                parent.querySelectorAll('.grid-item').forEach(i => i.classList.remove('active'));
                 el.classList.add('active');
                 localStorage.setItem(key, el.dataset.time || el.dataset.color);
                 if (key === 'selected-time-control') {
@@ -226,64 +210,109 @@
             };
         });
     }
-    setupLobby('time-grid', 'selected-time-control');
-    setupLobby('color-grid', 'selected-player-color');
 
-    // Настройка селекторов оффлайн-ИИ (считывают и время, и уровень, и цвет!)
+    // Настройка селекторов оффлайн-ИИ
     function setupAI(id, key) {
-        document.querySelectorAll(`#${id} .grid-item`).forEach(el => {
+        const parent = document.getElementById(id);
+        if (!parent) {
+            console.warn(`[Azachess-Lobby] Сетка #${id} не найдена в разметке.`);
+            return;
+        }
+        parent.querySelectorAll('.grid-item').forEach(el => {
             el.onclick = () => {
-                document.querySelectorAll(`#${id} .grid-item`).forEach(i => i.classList.remove('active'));
+                parent.querySelectorAll('.grid-item').forEach(i => i.classList.remove('active'));
                 el.classList.add('active');
                 localStorage.setItem(key, el.dataset.time || el.dataset.lv || el.dataset.color);
             };
         });
     }
-    setupAI('time-grid-ai', 'selected-time-control'); // Запись ИИ-времени
-    setupAI('level-grid-ai', 'selected-ai-level');
-    setupAI('color-grid-ai', 'selected-player-color');
 
-    // Плавное переключение режимов Лобби
-    const btnSwitchToAI = document.getElementById('btn-switch-to-ai');
-    const btnBackToOnline = document.getElementById('btn-back-to-online');
+    // Инициализация дашборда при старте
+    function initDashboard() {
+        console.log("[Azachess-Lobby] Запуск оборонительной инициализации дашборда...");
+        try {
+            // Инициализация сессий
+            onAuthStateChanged(auth, async (user) => {
+                try {
+                    const info = document.getElementById('user-info');
+                    const ctrls = document.getElementById('auth-controls');
+                    if (user) {
+                        currentUserId = user.uid;
+                        localStorage.setItem('azachess-user-id', user.uid);
+                        
+                        let username = "Игрок";
+                        const snap = await getDoc(doc(db, "users", user.uid));
+                        if (snap.exists() && snap.data().username) {
+                            username = snap.data().username;
+                        }
 
-    btnSwitchToAI.onclick = () => {
-        const oSetup = document.getElementById('online-setup-container');
-        const aSetup = document.getElementById('ai-setup-container');
-        const mActions = document.getElementById('main-actions-view');
-        const aActions = document.getElementById('ai-actions-view');
+                        if (info) info.innerText = username;
+                        if (ctrls) {
+                            ctrls.innerHTML = `<a href="profile.html">Личный кабинет</a>`;
+                        }
+                    } else {
+                        currentUserId = null;
+                        localStorage.removeItem('azachess-user-id');
+                        if (info) info.innerText = "Гость";
+                        if (ctrls) {
+                            ctrls.innerHTML = `<a href="auth.html">Войти</a>`;
+                        }
+                    }
+                } catch(authErr) {
+                    console.error("Ошибка в Auth Listener:", authErr);
+                }
+            });
 
-        oSetup.classList.add('hidden');
-        oSetup.classList.remove('fade-in');
-        
-        aSetup.classList.remove('hidden');
-        aSetup.classList.add('fade-in');
-        
-        mActions.classList.add('hidden');
-        mActions.classList.remove('fade-in');
-        
-        aActions.classList.remove('hidden');
-        aActions.classList.add('fade-in');
-    };
+            // Настройка селекторов
+            setupLobby('time-grid', 'selected-time-control');
+            setupLobby('color-grid', 'selected-player-color');
+            setupAI('time-grid-ai', 'selected-time-control');
+            setupAI('level-grid-ai', 'selected-ai-level');
+            setupAI('color-grid-ai', 'selected-player-color');
 
-    btnBackToOnline.onclick = () => {
-        const oSetup = document.getElementById('online-setup-container');
-        const aSetup = document.getElementById('ai-setup-container');
-        const mActions = document.getElementById('main-actions-view');
-        const aActions = document.getElementById('ai-actions-view');
+            // Плавное переключение режимов Лобби
+            const btnSwitchToAI = document.getElementById('btn-switch-to-ai');
+            const btnBackToOnline = document.getElementById('btn-back-to-online');
 
-        aSetup.classList.add('hidden');
-        aSetup.classList.remove('fade-in');
-        
-        oSetup.classList.remove('hidden');
-        oSetup.classList.add('fade-in');
-        
-        aActions.classList.add('hidden');
-        aActions.classList.remove('fade-in');
-        
-        mActions.classList.remove('hidden');
-        mActions.classList.add('fade-in');
-    };
+            if (btnSwitchToAI) {
+                btnSwitchToAI.onclick = () => {
+                    const oSetup = document.getElementById('online-setup-container');
+                    const aSetup = document.getElementById('ai-setup-container');
+                    const mActions = document.getElementById('main-actions-view');
+                    const aActions = document.getElementById('ai-actions-view');
+
+                    if (oSetup) oSetup.classList.add('hidden');
+                    if (aSetup) aSetup.classList.remove('hidden');
+                    if (mActions) mActions.classList.add('hidden');
+                    if (aActions) aActions.classList.remove('hidden');
+                };
+            }
+
+            if (btnBackToOnline) {
+                btnBackToOnline.onclick = () => {
+                    const oSetup = document.getElementById('online-setup-container');
+                    const aSetup = document.getElementById('ai-setup-container');
+                    const mActions = document.getElementById('main-actions-view');
+                    const aActions = document.getElementById('ai-actions-view');
+
+                    if (aSetup) aSetup.classList.add('hidden');
+                    if (oSetup) oSetup.classList.remove('hidden');
+                    if (aActions) aActions.classList.add('hidden');
+                    if (mActions) mActions.classList.remove('hidden');
+                };
+            }
+
+            // Безопасная привязка кнопок лобби
+            bindClick('btn-search-pvp', startMatchmaking);
+            bindClick('btn-invite-friend', createInviteRoom);
+            bindClick('btn-cancel-search', cancelMatchmaking);
+
+            console.log("[Azachess-Lobby] Дашборд успешно запущен и инициализирован.");
+        } catch(e) {
+            console.error("[Azachess-Lobby] Критический сбой во время запуска:", e);
+            alert(`Ошибка инициализации главного экрана!\n\nДетали: ${e.message}\nСтек: ${e.stack}`);
+        }
+    }
 
     // Переключение интерактивных видов подбора
     function toggleLobbyView(view) {
@@ -291,22 +320,16 @@
         const searchView = document.getElementById('searching-view');
         const inviteView = document.getElementById('invite-view');
 
-        mainView.classList.add('hidden');
-        mainView.classList.remove('fade-in');
-        searchView.classList.add('hidden');
-        searchView.classList.remove('fade-in');
-        inviteView.classList.add('hidden');
-        inviteView.classList.remove('fade-in');
+        if (mainView) mainView.classList.add('hidden');
+        if (searchView) searchView.classList.add('hidden');
+        if (inviteView) inviteView.classList.add('hidden');
 
-        if (view === 'main') {
+        if (view === 'main' && mainView) {
             mainView.classList.remove('hidden');
-            mainView.classList.add('fade-in');
-        } else if (view === 'searching') {
+        } else if (view === 'searching' && searchView) {
             searchView.classList.remove('hidden');
-            searchView.classList.add('fade-in');
-        } else if (view === 'invite') {
+        } else if (view === 'invite' && inviteView) {
             inviteView.classList.remove('hidden');
-            inviteView.classList.add('fade-in');
         }
     }
 
@@ -516,4 +539,29 @@
     function startSearchTimer() {
         searchSeconds = 0;
         const el = document.getElementById('search-timer');
-        searchTimerIn
+        searchTimerInterval = setInterval(() => {
+            searchSeconds++;
+            if (el) el.textContent = `Вы в очереди: ${searchSeconds} сек`;
+        }, 1000);
+    }
+
+    function stopSearchTimer() {
+        if (searchTimerInterval) clearInterval(searchTimerInterval);
+        searchTimerInterval = null;
+    }
+
+    // Навигация ИИ
+    window.startGame = () => {
+        if (!localStorage.getItem('azachess-user-id')) { window.location.href = 'auth.html'; return; }
+        window.location.href = 'play.html';
+    };
+
+    // Запуск инициализации в зависимости от готовности DOM
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initDashboard);
+    } else {
+        initDashboard();
+    }
+  </script>
+</body>
+</html>
