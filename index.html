@@ -42,8 +42,8 @@
       <p class="tagline">игровая шахматная платформа</p>
     </div>
 
-    <!-- АДАПТИВНЫЙ ДАШБОРД -->
-    <main class="lobby-dashboard">
+    <!-- АДАПТИВНЫЙ ДАШБОРД С ПЛАВНЫМ ПРОЯВЛЕНИЕМ НА СТАРТЕ -->
+    <main class="lobby-dashboard fade-in">
       
       <!-- ЛЕВАЯ КОЛОНКА -->
       <div class="lobby-setup">
@@ -141,11 +141,11 @@
         <div class="main-actions hidden" id="invite-view">
           <div class="searching-loader">
             <div class="spinner"></div>
-            <h3 style="color: #fff; margin: 15px 0 5px 0; font-size: 1.1rem;">Вызов подготовлен!</h3>
+            <h3 style="color: #fff; margin: 10px 0 5px 0; font-size: 1.1rem;">Вызов подготовлен!</h3>
             <p style="color: var(--text-dim); font-size: 0.85rem; margin-bottom: 15px; padding: 0 10px;">Отправьте эту ссылку другу для автоматического подключения к игре:</p>
             
             <div style="display: flex; gap: 5px; width: 100%; margin-bottom: 15px; padding: 0 10px;">
-              <input type="text" id="invite-link-input" readonly style="flex-grow: 1; padding: 12px; background: #111; border: 1px solid var(--border); color: #fff; border-radius: 6px; font-size: 0.85rem; outline: none;">
+              <input type="text" id="invite-link-input" readonly style="flex-grow: 1; padding: 12px; background: #111; border: 1px solid var(--border); color: #fff; border-radius: 6px; font-size: 0.8rem; outline: none;">
               <button id="btn-copy-link" class="start-btn secondary" style="padding: 10px 15px; font-size: 0.8rem; min-width: 100px; margin: 0;">Копировать</button>
             </div>
             
@@ -229,36 +229,70 @@
     setupAI('level-grid-ai', 'selected-ai-level');
     setupAI('color-grid-ai', 'selected-player-color');
 
-    // Переключение режимов Лобби
+    // Плавное переключение режимов Лобби
     const btnSwitchToAI = document.getElementById('btn-switch-to-ai');
     const btnBackToOnline = document.getElementById('btn-back-to-online');
 
     btnSwitchToAI.onclick = () => {
-        document.getElementById('online-setup-container').classList.add('hidden');
-        document.getElementById('ai-setup-container').classList.remove('hidden');
-        document.getElementById('main-actions-view').classList.add('hidden');
-        document.getElementById('ai-actions-view').classList.remove('hidden');
+        const oSetup = document.getElementById('online-setup-container');
+        const aSetup = document.getElementById('ai-setup-container');
+        const mActions = document.getElementById('main-actions-view');
+        const aActions = document.getElementById('ai-actions-view');
+
+        oSetup.classList.add('hidden');
+        oSetup.classList.remove('fade-in');
+        
+        aSetup.classList.remove('hidden');
+        aSetup.classList.add('fade-in');
+        
+        mActions.classList.add('hidden');
+        mActions.classList.remove('fade-in');
+        
+        aActions.classList.remove('hidden');
+        aActions.classList.add('fade-in');
     };
 
     btnBackToOnline.onclick = () => {
-        document.getElementById('ai-setup-container').classList.add('hidden');
-        document.getElementById('online-setup-container').classList.remove('hidden');
-        document.getElementById('ai-actions-view').classList.add('hidden');
-        document.getElementById('main-actions-view').classList.remove('hidden');
+        const oSetup = document.getElementById('online-setup-container');
+        const aSetup = document.getElementById('ai-setup-container');
+        const mActions = document.getElementById('main-actions-view');
+        const aActions = document.getElementById('ai-actions-view');
+
+        aSetup.classList.add('hidden');
+        aSetup.classList.remove('fade-in');
+        
+        oSetup.classList.remove('hidden');
+        oSetup.classList.add('fade-in');
+        
+        aActions.classList.add('hidden');
+        aActions.classList.remove('fade-in');
+        
+        mActions.classList.remove('hidden');
+        mActions.classList.add('fade-in');
     };
 
-    // Переключение интерактивных видов подбора
+    // Переключение интерактивных видов подбора (с плавной анимацией)
     function toggleLobbyView(view) {
-        document.getElementById('main-actions-view').classList.add('hidden');
-        document.getElementById('searching-view').classList.add('hidden');
-        document.getElementById('invite-view').classList.add('hidden');
+        const mainView = document.getElementById('main-actions-view');
+        const searchView = document.getElementById('searching-view');
+        const inviteView = document.getElementById('invite-view');
+
+        mainView.classList.add('hidden');
+        mainView.classList.remove('fade-in');
+        searchView.classList.add('hidden');
+        searchView.classList.remove('fade-in');
+        inviteView.classList.add('hidden');
+        inviteView.classList.remove('fade-in');
 
         if (view === 'main') {
-            document.getElementById('main-actions-view').classList.remove('hidden');
+            mainView.classList.remove('hidden');
+            mainView.classList.add('fade-in');
         } else if (view === 'searching') {
-            document.getElementById('searching-view').classList.remove('hidden');
+            searchView.classList.remove('hidden');
+            searchView.classList.add('fade-in');
         } else if (view === 'invite') {
-            document.getElementById('invite-view').classList.remove('hidden');
+            inviteView.classList.remove('hidden');
+            inviteView.classList.add('fade-in');
         }
     }
 
