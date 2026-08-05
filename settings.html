@@ -42,15 +42,13 @@
 </head>
 <body>
 
-  <!-- ЛОГИЧНЫЙ ВОЗВРАТ В ЛИЧНЫЙ КАБИНЕТ -->
   <div class="top-profile-bar">
-    <a href="profile.html" style="color: var(--accent); text-decoration: none; font-weight: bold;">← В ЛИЧНЫЙ КАБИНЕТ</a>
+    <a href="profile.html" style="color: var(--accent); text-decoration: none; font-weight: bold;">← В личный кабинет</a>
     <div style="font-weight: bold; color: #fff;">Настройки интерфейса</div>
   </div>
 
   <div class="hub-container" style="max-width: 500px;">
     
-    <!-- БЛОК НАСТРОЕК (ТЕХНИЧЕСКИ ЧИСТЫЙ) -->
     <div class="settings-card" style="margin-top: 20px;">
       <h3 style="margin-top: 0; margin-bottom: 20px; color: #fff; font-size: 1.1rem; text-transform: uppercase; border-bottom: 1px solid var(--border); padding-bottom: 10px;">Параметры доски</h3>
       
@@ -93,10 +91,8 @@
 
     const setAutoQueen = document.getElementById('set-autoqueen');
 
-    // Читаем значение из памяти
     setAutoQueen.checked = localStorage.getItem('azachess-setting-autoqueen') === 'true';
 
-    // Загрузка текущих настроек из localStorage
     const setSound = document.getElementById('set-sound');
     const setHints = document.getElementById('set-hints');
     const setCoords = document.getElementById('set-coords');
@@ -107,7 +103,6 @@
     setCoords.checked = localStorage.getItem('azachess-setting-coords') !== 'false';
     setTheme.value = localStorage.getItem('azachess-setting-theme') || 'emerald';
 
-    // Сохранение изменений и возврат
     document.getElementById('btn-save-settings').onclick = () => {
       localStorage.setItem('azachess-setting-sound', setSound.checked);
       localStorage.setItem('azachess-setting-hints', setHints.checked);
@@ -116,7 +111,7 @@
       localStorage.setItem('azachess-setting-autoqueen', setAutoQueen.checked);
 
       alert("Настройки сохранены!");
-      window.location.href = "profile.html"; // Возврат в Личный Кабинет
+      window.location.href = "profile.html";
     };
   </script>
 </body>
