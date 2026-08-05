@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Azachess - Профиль игрока</title>
+  <title>Azachess - Личный кабинет</title>
   <link rel="stylesheet" href="home-style.css?v=3.0">
   <style>
     .profile-card {
@@ -33,11 +33,9 @@
 <body>
 
   <div class="top-profile-bar">
-    <a href="index.html" style="color: var(--accent); text-decoration: none; font-weight: bold;">← НА ГЛАВНУЮ</a>
+    <a href="index.html" style="color: var(--accent); text-decoration: none; font-weight: bold;">На главную</a>
     <div id="header-title" style="font-weight: bold; color: #fff;">Личный кабинет</div>
-    <div id="profile-actions-header" style="display: flex; gap: 8px;">
-       <!-- Сюда JS вставляет кнопки "Настройки" и "Выйти", если вы на своей странице -->
-    </div>
+    <div id="profile-actions-header" style="display: flex; gap: 8px;"></div>
   </div>
 
   <div class="hub-container" style="max-width: 800px;">
@@ -47,8 +45,8 @@
       <div style="display: flex; align-items: center; gap: 20px;">
         <div class="avatar-placeholder">👤</div>
         <div>
-          <div id="prof-username" style="font-size: 1.3rem; font-weight: bold; color: #fff;">👣 Загрузка...</div>
-          <div id="prof-status" style="font-size: 0.85rem; color: #888;">Загрузка данных профиля...</div>
+          <div id="prof-username" style="font-size: 1.3rem; font-weight: bold; color: #fff;">Загрузка...</div>
+          <div id="prof-status" style="font-size: 0.85rem; color: #888;">Загрузка данных...</div>
         </div>
       </div>
 
@@ -61,11 +59,11 @@
           </div>
           <div style="background: rgba(0,0,0,0.25); padding: 10px 5px; border-radius: 8px; border: 1px solid var(--border);">
             <div id="stat-wins" style="font-size: 1.2rem; font-weight: bold; color: #5cb365;">0</div>
-            <div style="font-size: 0.7rem; color: #888; margin-top: 2px;">Победы</div>
+            <div style="font-size: 0.7rem; color: #888; margin-top: 2px;">Победиды</div>
           </div>
           <div style="background: rgba(0,0,0,0.25); padding: 10px 5px; border-radius: 8px; border: 1px solid var(--border);">
             <div id="stat-losses" style="font-size: 1.2rem; font-weight: bold; color: #d9534f;">0</div>
-            <div style="font-size: 0.7rem; color: #888; margin-top: 2px;">Пораж.</div>
+            <div style="font-size: 0.7rem; color: #888; margin-top: 2px;">Поражения</div>
           </div>
           <div style="background: rgba(0,0,0,0.25); padding: 10px 5px; border-radius: 8px; border: 1px solid var(--border);">
             <div id="stat-draws" style="font-size: 1.2rem; font-weight: bold; color: #e0a800;">0</div>
@@ -76,7 +74,7 @@
     </div>
 
     <!-- Список партий -->
-    <h3 style="color: #fff; font-size: 1.1rem; text-transform: uppercase; margin-bottom: 15px; border-bottom: 1px solid var(--border); padding-bottom: 8px;">Архив сыгранных партий</h3>
+    <h3 style="color: #fff; font-size: 1.1rem; text-transform: uppercase; margin-bottom: 15px; border-bottom: 1px solid var(--border); padding-bottom: 8px;">Архив партий</h3>
     <div id="loader" class="loader">Получение истории игр...</div>
     
     <main id="archive-list"></main>
@@ -101,15 +99,14 @@
 
         if (!targetUid) {
             document.getElementById('prof-username').innerText = "Гость";
-            document.getElementById('prof-status').innerText = "Статистика и архив недоступны в режиме гостя";
+            document.getElementById('prof-status').innerText = "Статистика недоступна в режиме гостя";
             document.getElementById('loader').style.display = 'none';
             return;
         }
 
-        // Если это НАШ профиль, рисуем шестерёнку настроек и кнопку логаута в шапке
         if (targetUid === myUid) {
             document.getElementById('profile-actions-header').innerHTML = `
-                <a href="settings.html">⚙ Настройки</a>
+                <a href="settings.html">Настройки</a>
                 <button id="btn-logout" style="color: #d9534f; border-color: rgba(217, 83, 79, 0.3);">Выйти</button>
             `;
             document.getElementById('btn-logout').onclick = () => {
@@ -122,7 +119,6 @@
             };
         }
 
-        // Загружаем карточку профиля
         try {
             const userSnap = await getDoc(doc(db, "users", targetUid));
             if (userSnap.exists()) {
@@ -130,7 +126,6 @@
                 document.getElementById('prof-username').innerText = uData.username || "Игрок";
                 document.getElementById('prof-status').innerText = `Зарегистрирован: ${new Date(uData.createdAt).toLocaleDateString()}`;
                 
-                // Наполнение простой статистики
                 document.getElementById('stat-played').innerText = uData.gamesPlayed || 0;
                 document.getElementById('stat-wins').innerText = uData.wins || 0;
                 document.getElementById('stat-losses').innerText = uData.losses || 0;
@@ -140,14 +135,13 @@
                 if (urlParams.get('uid')) {
                     document.getElementById('header-title').innerText = `Профиль: ${uData.username}`;
                 } else {
-                    document.getElementById('header-title').innerText = "Мой профиль";
+                    document.getElementById('header-title').innerText = "Личный кабинет";
                 }
             }
         } catch(e) {
             console.error("Ошибка получения профиля:", e);
         }
 
-        // Загружаем игры
         loadProfileGames();
     }
 
@@ -206,7 +200,7 @@
                         <div class="game-info">
                             <div style="font-size: 0.75rem; color: #888;">${game.date || 'Дата неизвестна'}</div>
                             <div style="font-size: 1.1rem; font-weight: bold; color: #fff; margin: 4px 0;">${game.result || 'Матч завершен'}</div>
-                            <div style="font-size: 0.85rem; color: var(--accent); margin-bottom: 6px;">${game.aiLevel === "PvP-Онлайн" ? "Онлайн PvP" : "Игра против ИИ"} • Режим: ${game.timeControl || 'Без времени'}</div>
+                            <div style="font-size: 0.85rem; color: var(--accent); margin-bottom: 6px;">${game.aiLevel === "PvP-Онлайн" ? "Игра онлайн" : "Игра против ИИ"} • Режим: ${game.timeControl || 'Без времени'}</div>
                             <div class="game-moves" title="${movesStr}">${movesStr}</div>
                         </div>
                         <button class="grid-item" style="padding: 10px 15px; font-size: 0.85rem; min-width: 110px; margin-left: 10px;" onclick="viewGame('${doc.id}')">АНАЛИЗ</button>
