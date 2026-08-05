@@ -38,7 +38,6 @@ let isFlipped = false, userColor = 'w', isGameOverSaved = false;
 let selectedSquare = null, validMoves = [];
 let isDragging = false, dragStartX = 0, dragStartY = 0, dragClone = null, draggedPieceImg = null, draggedSquare = null, dragMovedEnough = false;
 
-// ПЕРЕМЕННЫЕ ИИ С УПРАВЛЕНИЕМ СЕССИЯМИ
 let stockfishWorker = null, isStockfishReady = false, isWaitingForAIMove = false;
 let currentGameSessionId = 0; 
 
@@ -55,7 +54,6 @@ function initApp() {
             return;
         }
 
-        // Применяем настройки
         applyGlobalSettings();
 
         // Привязка кнопок
@@ -63,8 +61,8 @@ function initApp() {
         setup('btn-new-game', startNewGame);
         setup('btn-flip', flipBoard);
         setup('btn-nav-first', () => jumpToMoveIndex(0));
-        setup('btn-nav-prev', () => jumpToMoveIndex(currentMoveIndex - 1));
-        setup('btn-nav-next', () => jumpToMoveIndex(currentMoveIndex + 1));
+        setupNavPrev();
+        setupNavNext();
         setup('btn-nav-last', () => jumpToMoveIndex(fullMoveHistory.length));
 
         // Навешиваем клавиатуру один раз
@@ -81,7 +79,6 @@ function initApp() {
         if (promoModal) {
             promoModal.addEventListener('click', (e) => {
                 if (e.target === promoModal) {
-                    console.log("Аварийное превращение: выбран Ферзь (Q) по клику на фон.");
                     executeMove(promotionFrom, promotionTo, 'q');
                     promoModal.classList.add('hidden');
                 }
@@ -92,6 +89,16 @@ function initApp() {
     } catch (e) {
         console.error("Ошибка при запуске приложения (initApp):", e);
     }
+}
+
+// Безопасная привязка кнопок истории
+function setupNavPrev() {
+    const btn = document.getElementById('btn-nav-prev');
+    if (btn) btn.onclick = () => jumpToMoveIndex(currentMoveIndex - 1);
+}
+function setupNavNext() {
+    const btn = document.getElementById('btn-nav-next');
+    if (btn) btn.onclick = () => jumpToMoveIndex(currentMoveIndex + 1);
 }
 
 if (document.readyState === 'loading') {
@@ -227,12 +234,10 @@ function handlePointerDown(e, sq) {
         draggedPieceImg = e.target.classList.contains('piece') ? e.target : e.target.querySelector('.piece');
         selectedSquare = sq; 
         
-        // Валидация координат ходов
         validMoves = liveGame.moves({ square: sq, verbose: true }).map(m => {
             return m.to.split('=')[0].trim();
         });
         
-        console.log("Доступные ходы для выбранной фигуры:", validMoves);
         renderBoard(false);
         window.onpointermove = handlePointerMove; 
         window.onpointerup = handlePointerUp;
@@ -274,27 +279,20 @@ function handleMoveAttempt(from, to) {
     const targetSquare = String(to).trim();
     const isPromotionRank = (piece?.color?.toLowerCase() === 'w' && targetSquare.endsWith('8')) || (piece?.color?.toLowerCase() === 'b' && targetSquare.endsWith('1'));
 
-    console.log("Попытка хода с:", from, "на:", targetSquare, "Фигура:", piece ? piece.type : "нет");
-
     if (isPawn && isPromotionRank) {
-        // ПРОВЕРКА НАСТРОЙКИ АВТО-ФЕРЗЯ
         const autoQueen = localStorage.getItem('azachess-setting-autoqueen') === 'true';
         if (autoQueen) {
-            console.log("Применено автоматическое превращение в ферзя (Auto-Queen):", from, "->", targetSquare);
             executeMove(from, targetSquare, 'q');
             return;
         }
 
-        // ОТКАТ ПРИ ОТСУТСТВИИ ОКНА: если разметка окна превращения удалена, превращаем в Ферзя автоматически
         const promoModal = document.getElementById('promotion-modal');
         if (promoModal) {
             promotionFrom = from; 
             promotionTo = targetSquare;
-            console.log("Открытие модального окна превращения пешки:", from, "->", targetSquare);
             promoModal.classList.remove('hidden');
             renderPromotionChoices();
         } else {
-            console.warn("Предупреждение: Окно превращения не найдено в HTML. Применен авто-ферзь.");
             executeMove(from, targetSquare, 'q');
         }
     } else {
@@ -302,10 +300,28 @@ function handleMoveAttempt(from, to) {
     }
 }
 
+function renderPromotionChoices() {
+    const container = document.querySelector('.promotion-choices');
+    const turn = liveGame.turn();
+    if (!container) return;
+    container.innerHTML = '';
+    ['q','r','b','n'].forEach(p => {
+        const btn = document.createElement('button'); btn.className = 'promo-btn';
+        btn.innerHTML = `<img src="${PIECE_IMAGES[turn+p.toUpperCase()]}" style="width:100%; height:100%; pointer-events: none;">`;
+        
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            executeMove(promotionFrom, promotionTo, p); 
+            document.getElementById('promotion-modal').classList.add('hidden'); 
+        });
+        
+        container.appendChild(btn);
+    });
+}
+
 function executeMove(from, to, promo = 'q') {
     if (isClockEnabled && (whiteTime <= 0 || blackTime <= 0)) { clearSelection(); return; }
     
-    console.log("Выполнение хода:", from, "->", to, "Превращение в:", promo);
     const res = liveGame.move({ from, to, promotion: promo });
     if (res) {
         if (window.playMoveSound) window.playMoveSound(res);
@@ -390,7 +406,6 @@ function saveGameState() {
     const isTimeout = isClockEnabled && (whiteTime <= 0 || blackTime <= 0);
     
     if ((liveGame && liveGame.game_over()) || isTimeout) {
-        console.log("Сохранение прервано: партия завершена. Файл сохранения удален.");
         localStorage.removeItem('azachess-save-game');
         return;
     }
@@ -508,7 +523,7 @@ function updateStatus() {
 
 async function saveToPermanentArchive(reason) {
     const userId = localStorage.getItem('azachess-user-id');
-    if (!userId || userId === "null" || isGameOverSaved || fullMoveHistory.length < 2) return;
+    if (!userId || userId === "null" || isGameOverSaved) return;
     isGameOverSaved = true;
     
     console.log("Запись партии в архив Firestore...");
@@ -524,7 +539,6 @@ async function saveToPermanentArchive(reason) {
         userColor 
     };
 
-    // Сохраняем локальный кэш
     const archive = JSON.parse(localStorage.getItem('azachess-archive') || '[]');
     archive.unshift(gameData);
     localStorage.setItem('azachess-archive', JSON.stringify(archive));
@@ -571,25 +585,6 @@ function updateMoveLog() {
         ${fullMoveHistory[i+1] ? `<span class="move-text ${i+2===currentMoveIndex?'active-move':''}" onclick="jumpToMoveIndex(${i+2})">${fullMoveHistory[i+1].san}</span>` : ''}`;
         log.appendChild(row);
     }
-}
-
-function renderPromotionChoices() {
-    const container = document.querySelector('.promotion-choices'), turn = liveGame.turn();
-    if (!container) return;
-    container.innerHTML = '';
-    ['q','r','b','n'].forEach(p => {
-        const btn = document.createElement('button'); btn.className = 'promo-btn';
-        btn.innerHTML = `<img src="${PIECE_IMAGES[turn+p.toUpperCase()]}" style="width:100%; height:100%; pointer-events: none;">`;
-        
-        btn.addEventListener('click', (e) => {
-            e.preventDefault();
-            console.log("Игрок выбрал фигуру для превращения:", p);
-            executeMove(promotionFrom, promotionTo, p); 
-            document.getElementById('promotion-modal').classList.add('hidden'); 
-        });
-        
-        container.appendChild(btn);
-    });
 }
 
 function applyGlobalSettings() {
