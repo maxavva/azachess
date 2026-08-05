@@ -31,9 +31,9 @@
 </head>
 <body>
 
-  <!-- МИНИМАЛИСТИЧНЫЙ И ПОНЯТНЫЙ ХЕДЕР -->
+  <!-- ХЕДЕР БЕЗ СМАЙЛИКОВ -->
   <div class="top-profile-bar">
-    <div id="user-info" style="font-weight: bold; color: #fff;">👣 Загрузка...</div>
+    <div id="user-info" style="font-weight: bold; color: #fff;">Загрузка...</div>
     <div id="auth-controls"></div>
   </div>
 
@@ -90,21 +90,21 @@
       <!-- ПРАВАЯ КОЛОНКА: ИНТЕРАКТИВНЫЙ ПУЛЬТ ДЕЙСТВИЙ -->
       <div class="lobby-panel" id="lobby-panel-container">
         
-        <!-- ВИД 1: КНОПКИ ЗАПУСКА (ОСНОВНОЙ) -->
+        <!-- ВИД 1: КНОПКИ ЗАПУСКА -->
         <div class="main-actions" id="main-actions-view">
           <h3 class="section-title" style="margin-bottom: 10px;">Игровая панель</h3>
           <button class="start-btn" id="btn-play-main" onclick="startGame()">Игра против ИИ</button>
-          <button class="start-btn" style="background: #2b5c8f; box-shadow: 0 4px 0px #1a3a5e;" id="btn-search-pvp">Быстрый поиск PvP</button>
-          <button class="start-btn" style="background: var(--accent); box-shadow: 0 4px 0px #702f20;" id="btn-invite-friend">Сыграть с другом</button>
+          <button class="start-btn" style="background: #2b5c8f; box-shadow: 0 4px 0px #1a3a5e;" id="btn-search-pvp">Быстрая игра онлайн</button>
+          <button class="start-btn" style="background: var(--accent); box-shadow: 0 4px 0px #702f20;" id="btn-invite-friend">Вызвать друга</button>
           
-          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-top: 5px;">
-              <button class="start-btn secondary" style="padding: 12px 5px;" onclick="openAnalysis()">Анализ</button>
-              <button class="start-btn secondary" style="padding: 12px 5px;" onclick="location.href='profile.html'">Профиль</button>
-              <button class="start-btn secondary" style="padding: 12px 5px; border-color: var(--accent); color: var(--accent);" onclick="location.href='search.html'">🔍 Поиск</button>
+          <!-- УБРАНА ПУТАНИЦА: КНОПКА ПРОФИЛЬ УДАЛЕНА ИЗ ЛОББИ -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 5px;">
+              <button class="start-btn secondary" style="padding: 12px 5px;" onclick="openAnalysis()">Доска для анализа</button>
+              <button class="start-btn secondary" style="padding: 12px 5px; border-color: var(--accent); color: var(--accent);" onclick="location.href='search.html'">Поиск игроков</button>
           </div>
         </div>
 
-        <!-- ВИД 2: ЭКРАН ПОИСКА PvP (ПО УМОЛЧАНИЮ СКРЫТ) -->
+        <!-- ВИД 2: ЭКРАН ПОИСКА -->
         <div class="main-actions hidden" id="searching-view">
           <div class="searching-loader">
             <div class="spinner"></div>
@@ -114,12 +114,12 @@
           </div>
         </div>
 
-        <!-- ВИД 3: ЭКРАН ОЖИДАНИЯ ДРУГА ПО ССЫЛКЕ (ПО УМОЛЧАНИЮ СКРЫТ) -->
+        <!-- ВИД 3: ЭКРАН ВЫЗОВА ДРУГА ПО ССЫЛКЕ -->
         <div class="main-actions hidden" id="invite-view">
           <div class="searching-loader">
             <div class="spinner"></div>
-            <h3 style="color: #fff; margin: 15px 0 5px 0; font-size: 1.1rem;">Вызов подготовлен!</h3>
-            <p style="color: var(--text-dim); font-size: 0.85rem; margin-bottom: 15px; padding: 0 10px;">Отправьте эту ссылку другу для автоматического подключения к игре:</p>
+            <h3 style="color: #fff; margin: 10px 0 5px 0; font-size: 1.1rem;">Вызов подготовлен!</h3>
+            <p style="color: var(--text-dim); font-size: 0.85rem; margin-bottom: 15px; padding: 0 10px;">Отправьте эту ссылку другу для подключения к игре:</p>
             
             <div style="display: flex; gap: 5px; width: 100%; margin-bottom: 15px; padding: 0 10px;">
               <input type="text" id="invite-link-input" readonly style="flex-grow: 1; padding: 12px; background: #111; border: 1px solid var(--border); color: #fff; border-radius: 6px; font-size: 0.8rem; outline: none;">
@@ -163,14 +163,14 @@
           username = "Игрок (офлайн)";
         }
 
-        info.innerText = "👤 " + username;
+        info.innerText = username;
         ctrls.innerHTML = `
           <a href="profile.html">Личный кабинет</a>
         `;
       } else {
         currentUserId = null;
         localStorage.removeItem('azachess-user-id');
-        info.innerText = "👣 Гость";
+        info.innerText = "Гость";
         ctrls.innerHTML = `
           <a href="auth.html">Войти</a>
         `;
