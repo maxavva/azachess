@@ -163,11 +163,9 @@ body {
   gap: 8px;
 }
 
-#time-grid { grid-template-columns: repeat(3, 1fr); }
-#level-grid { grid-template-columns: repeat(4, 1fr); }
-#color-grid { grid-template-columns: repeat(3, 1fr); }
-#level-grid-ai { grid-template-columns: repeat(4, 1fr); }
-#color-grid-ai { grid-template-columns: repeat(3, 1fr); }
+#time-grid, #time-grid-ai { grid-template-columns: repeat(3, 1fr); }
+#level-grid, #level-grid-ai { grid-template-columns: repeat(4, 1fr); }
+#color-grid, #color-grid-ai { grid-template-columns: repeat(3, 1fr); }
 
 /* ПЛИТКА */
 .grid-item {
@@ -216,7 +214,7 @@ body {
   flex-direction: column;
   gap: 12px;
   box-shadow: 0 6px 20px rgba(0,0,0,0.25);
-  min-height: 290px; /* Фиксируем высоту, чтобы убрать прыжки верстки при смене режимов */
+  min-height: 290px; /* Фиксируем высоту, чтобы убрать прыжки верстки */
 }
 
 .start-btn {
@@ -270,7 +268,7 @@ body {
   display: none !important;
 }
 
-/* АНИМАЦИИ ПЛАВНОГО ПЕРЕХОДА (Cubic-Bezier Motion) */
+/* АНИМАЦИИ ПЛАВНОГО ПЕРЕХОДА */
 @keyframes slideUp {
   from {
     opacity: 0;
