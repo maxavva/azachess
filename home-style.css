@@ -294,7 +294,8 @@ body {
 }
 
 /* Lobby refresh: compact chess-first layout, scoped to the home page. */
-.lobby-page {
+.lobby-page,
+.account-page {
   --bg-dark: #171614;
   --bg-panel: #22211e;
   --accent: #81b64c;
@@ -302,6 +303,24 @@ body {
   --border: #383732;
   --text-dim: #c3c2bd;
   background: radial-gradient(ellipse at 50% -25%, #292922 0, var(--bg-dark) 58%);
+}
+
+.account-page {
+  background: radial-gradient(ellipse at 50% -25%, #292922 0, var(--bg-dark) 58%);
+}
+
+.account-page .start-btn {
+  background: var(--accent);
+  box-shadow: 0 3px 0 #537c2f;
+  color: #172012;
+}
+.account-page .start-btn:hover { background: var(--accent-hover); }
+.account-page .start-btn:active { box-shadow: 0 1px 0 #537c2f; }
+.account-page .start-btn.secondary {
+  border-color: #44433d;
+  background: #2b2a26;
+  box-shadow: none;
+  color: #d1d0c9;
 }
 
 .lobby-page .top-profile-bar {
