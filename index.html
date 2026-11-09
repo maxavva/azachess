@@ -2,9 +2,9 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Azachess — Главная</title>
-  <link rel="stylesheet" href="home-style.css?v=3.0">
+  <link rel="stylesheet" href="home-style.css?v=4.0">
   <style>
     .searching-loader {
       display: flex;
@@ -28,7 +28,7 @@
     }
   </style>
 </head>
-<body>
+<body class="lobby-page">
 
   <!-- ХЕДЕР -->
   <div class="top-profile-bar">
@@ -40,6 +40,11 @@
     <div class="lobby-header">
       <h1 class="logo">AZA<span>CHESS</span></h1>
       <p class="tagline">игровая шахматная платформа</p>
+    </div>
+
+    <div class="mode-switch" role="group" aria-label="Режим игры">
+      <button type="button" class="mode-tab active" id="btn-back-to-online" aria-pressed="true">Онлайн</button>
+      <button type="button" class="mode-tab" id="btn-switch-to-ai" aria-pressed="false">Против компьютера</button>
     </div>
 
     <!-- АДАПТИВНЫЙ ДАШБОРД С ПЛАВНЫМ ПРОЯВЛЕНИЕМ НА СТАРТЕ -->
@@ -54,12 +59,12 @@
           <section class="mode-section" style="margin-bottom: 20px;">
             <h2 class="section-title">Контроль времени онлайн-игры</h2>
             <div class="selection-grid" id="time-grid">
-              <div class="grid-item" data-time="1+0">1+0 <span class="label">Пуля</span></div>
-              <div class="grid-item" data-time="3+2">3+2 <span class="label">Блиц</span></div>
-              <div class="grid-item active" data-time="5+3">5+3 <span class="label">Блиц</span></div>
-              <div class="grid-item" data-time="10+5">10+5 <span class="label">Рапид</span></div>
-              <div class="grid-item" data-time="30+0">30+0 <span class="label">Классика</span></div>
-              <div class="grid-item" data-time="none">∞ <span class="label">Без времени</span></div>
+              <button type="button" class="grid-item" data-time="1+0" aria-pressed="false">1+0 <span class="label">Пуля</span></button>
+              <button type="button" class="grid-item" data-time="3+2" aria-pressed="false">3+2 <span class="label">Блиц</span></button>
+              <button type="button" class="grid-item active" data-time="5+3" aria-pressed="true">5+3 <span class="label">Блиц</span></button>
+              <button type="button" class="grid-item" data-time="10+5" aria-pressed="false">10+5 <span class="label">Рапид</span></button>
+              <button type="button" class="grid-item" data-time="30+0" aria-pressed="false">30+0 <span class="label">Классика</span></button>
+              <button type="button" class="grid-item" data-time="none" aria-pressed="false">∞ <span class="label">Без времени</span></button>
             </div>
           </section>
 
@@ -67,9 +72,9 @@
           <section class="mode-section">
             <h2 class="section-title">Цвет в онлайн-игре</h2>
             <div class="selection-grid" id="color-grid">
-              <div class="grid-item active" data-color="w">Белые</div>
-              <div class="grid-item" data-color="random">Случайный</div>
-              <div class="grid-item" data-color="b">Черные</div>
+              <button type="button" class="grid-item active" data-color="w" aria-pressed="true">Белые</button>
+              <button type="button" class="grid-item" data-color="random" aria-pressed="false">Случайный</button>
+              <button type="button" class="grid-item" data-color="b" aria-pressed="false">Черные</button>
             </div>
           </section>
         </div>
@@ -80,12 +85,12 @@
           <section class="mode-section" style="margin-bottom: 20px;">
             <h2 class="section-title">Контроль времени игры с ИИ</h2>
             <div class="selection-grid" id="time-grid-ai">
-              <div class="grid-item" data-time="1+0">1+0 <span class="label">Пуля</span></div>
-              <div class="grid-item" data-time="3+2">3+2 <span class="label">Блиц</span></div>
-              <div class="grid-item active" data-time="5+3">5+3 <span class="label">Блиц</span></div>
-              <div class="grid-item" data-time="10+5">10+5 <span class="label">Рапид</span></div>
-              <div class="grid-item" data-time="30+0">30+0 <span class="label">Классика</span></div>
-              <div class="grid-item" data-time="none">∞ <span class="label">Без времени</span></div>
+              <button type="button" class="grid-item" data-time="1+0" aria-pressed="false">1+0 <span class="label">Пуля</span></button>
+              <button type="button" class="grid-item" data-time="3+2" aria-pressed="false">3+2 <span class="label">Блиц</span></button>
+              <button type="button" class="grid-item active" data-time="5+3" aria-pressed="true">5+3 <span class="label">Блиц</span></button>
+              <button type="button" class="grid-item" data-time="10+5" aria-pressed="false">10+5 <span class="label">Рапид</span></button>
+              <button type="button" class="grid-item" data-time="30+0" aria-pressed="false">30+0 <span class="label">Классика</span></button>
+              <button type="button" class="grid-item" data-time="none" aria-pressed="false">∞ <span class="label">Без времени</span></button>
             </div>
           </section>
 
@@ -93,14 +98,14 @@
           <section class="mode-section" style="margin-bottom: 20px;">
             <h2 class="section-title">Сложность ИИ</h2>
             <div class="selection-grid" id="level-grid-ai">
-              <div class="grid-item" data-lv="1">1</div>
-              <div class="grid-item" data-lv="2">2</div>
-              <div class="grid-item active" data-lv="3">3</div>
-              <div class="grid-item" data-lv="4">4</div>
-              <div class="grid-item" data-lv="5">5</div>
-              <div class="grid-item" data-lv="6">6</div>
-              <div class="grid-item" data-lv="7">7</div>
-              <div class="grid-item" data-lv="8">8</div>
+              <button type="button" class="grid-item" data-lv="1" aria-pressed="false">1</button>
+              <button type="button" class="grid-item" data-lv="2" aria-pressed="false">2</button>
+              <button type="button" class="grid-item active" data-lv="3" aria-pressed="true">3</button>
+              <button type="button" class="grid-item" data-lv="4" aria-pressed="false">4</button>
+              <button type="button" class="grid-item" data-lv="5" aria-pressed="false">5</button>
+              <button type="button" class="grid-item" data-lv="6" aria-pressed="false">6</button>
+              <button type="button" class="grid-item" data-lv="7" aria-pressed="false">7</button>
+              <button type="button" class="grid-item" data-lv="8" aria-pressed="false">8</button>
             </div>
           </section>
 
@@ -108,9 +113,9 @@
           <section class="mode-section">
             <h2 class="section-title">Цвет в игре против ИИ</h2>
             <div class="selection-grid" id="color-grid-ai">
-              <div class="grid-item active" data-color="w">Белые</div>
-              <div class="grid-item" data-color="random">Случайный</div>
-              <div class="grid-item" data-color="b">Черные</div>
+              <button type="button" class="grid-item active" data-color="w" aria-pressed="true">Белые</button>
+              <button type="button" class="grid-item" data-color="random" aria-pressed="false">Случайный</button>
+              <button type="button" class="grid-item" data-color="b" aria-pressed="false">Черные</button>
             </div>
           </section>
         </div>
@@ -122,11 +127,9 @@
         
         <!-- КНОПКИ ОНЛАЙН-РЕЖИМА (ОСНОВНОЙ) -->
         <div class="main-actions" id="main-actions-view">
-          <h3 class="section-title" style="margin-bottom: 10px;">Онлайн-кабинет</h3>
-          <button class="start-btn" id="btn-search-pvp">Быстрая игра</button>
-          <button class="start-btn" style="background: #2b5c8f; box-shadow: 0 4px 0px #1a3a5e;" id="btn-invite-friend">Вызвать друга по ссылке</button>
-          <button class="start-btn secondary" style="border-color: var(--accent); color: var(--accent);" id="btn-switch-to-ai">Режим игры с ИИ</button>
-          
+          <h3 class="section-title" style="margin-bottom: 10px;">Играть онлайн</h3>
+          <button class="start-btn" id="btn-search-pvp">Найти соперника</button>
+          <button class="start-btn secondary invite-action" id="btn-invite-friend">Пригласить друга</button>
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 5px;">
               <button class="start-btn secondary" style="padding: 12px 5px;" onclick="openAnalysis()">Анализ</button>
               <button class="start-btn secondary" style="padding: 12px 5px; border-color: var(--accent); color: var(--accent);" onclick="location.href='search.html'">Поиск игроков</button>
@@ -135,9 +138,8 @@
 
         <!-- КНОПКИ РЕЖИМА ИИ (ВЫДЕЛЕННЫЙ) -->
         <div class="main-actions hidden" id="ai-actions-view">
-          <h3 class="section-title" style="margin-bottom: 10px;">Битва с компьютером</h3>
+          <h3 class="section-title" style="margin-bottom: 10px;">Игра против компьютера</h3>
           <button class="start-btn" id="btn-play-ai-start" onclick="startGame()">Начать игру</button>
-          <button class="start-btn secondary" id="btn-back-to-online">Назад к онлайн-игре</button>
         </div>
 
         <!-- ЭКРАН ПОИСКА СОПЕРНИКА -->
@@ -201,8 +203,12 @@
         }
         parent.querySelectorAll('.grid-item').forEach(el => {
             el.onclick = () => {
-                parent.querySelectorAll('.grid-item').forEach(i => i.classList.remove('active'));
+                parent.querySelectorAll('.grid-item').forEach(i => {
+                    i.classList.remove('active');
+                    i.setAttribute('aria-pressed', 'false');
+                });
                 el.classList.add('active');
+                el.setAttribute('aria-pressed', 'true');
                 localStorage.setItem(key, el.dataset.time || el.dataset.color);
                 if (key === 'selected-time-control') {
                     selectedTimeControl = el.dataset.time;
@@ -220,11 +226,29 @@
         }
         parent.querySelectorAll('.grid-item').forEach(el => {
             el.onclick = () => {
-                parent.querySelectorAll('.grid-item').forEach(i => i.classList.remove('active'));
+                parent.querySelectorAll('.grid-item').forEach(i => {
+                    i.classList.remove('active');
+                    i.setAttribute('aria-pressed', 'false');
+                });
                 el.classList.add('active');
+                el.setAttribute('aria-pressed', 'true');
                 localStorage.setItem(key, el.dataset.time || el.dataset.lv || el.dataset.color);
             };
         });
+    }
+
+    function restoreSelection(id, key, field) {
+        const parent = document.getElementById(id);
+        const saved = localStorage.getItem(key);
+        if (!parent || !saved) return;
+        const option = [...parent.querySelectorAll('.grid-item')].find(item => item.dataset[field] === saved);
+        if (!option) return;
+        parent.querySelectorAll('.grid-item').forEach(item => {
+            const selected = item === option;
+            item.classList.toggle('active', selected);
+            item.setAttribute('aria-pressed', String(selected));
+        });
+        if (id === 'time-grid') selectedTimeControl = saved;
     }
 
     // Инициализация дашборда при старте
@@ -269,6 +293,11 @@
             setupAI('time-grid-ai', 'selected-time-control');
             setupAI('level-grid-ai', 'selected-ai-level');
             setupAI('color-grid-ai', 'selected-player-color');
+            restoreSelection('time-grid', 'selected-time-control', 'time');
+            restoreSelection('time-grid-ai', 'selected-time-control', 'time');
+            restoreSelection('color-grid', 'selected-player-color', 'color');
+            restoreSelection('color-grid-ai', 'selected-player-color', 'color');
+            restoreSelection('level-grid-ai', 'selected-ai-level', 'lv');
 
             // Плавное переключение режимов Лобби
             const btnSwitchToAI = document.getElementById('btn-switch-to-ai');
@@ -285,6 +314,10 @@
                     if (aSetup) aSetup.classList.remove('hidden');
                     if (mActions) mActions.classList.add('hidden');
                     if (aActions) aActions.classList.remove('hidden');
+                    btnSwitchToAI.classList.add('active');
+                    btnSwitchToAI.setAttribute('aria-pressed', 'true');
+                    btnBackToOnline.classList.remove('active');
+                    btnBackToOnline.setAttribute('aria-pressed', 'false');
                 };
             }
 
@@ -299,6 +332,10 @@
                     if (oSetup) oSetup.classList.remove('hidden');
                     if (aActions) aActions.classList.add('hidden');
                     if (mActions) mActions.classList.remove('hidden');
+                    btnBackToOnline.classList.add('active');
+                    btnBackToOnline.setAttribute('aria-pressed', 'true');
+                    btnSwitchToAI.classList.remove('active');
+                    btnSwitchToAI.setAttribute('aria-pressed', 'false');
                 };
             }
 

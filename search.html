@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Azachess - Поиск игроков</title>
   <link rel="stylesheet" href="home-style.css?v=3.0">
   <style>
@@ -70,6 +70,12 @@
     const resultsEl = document.getElementById('search-results');
     const loaderEl = document.getElementById('loader');
 
+    function escapeHtml(value) {
+        return String(value ?? '').replace(/[&<>"']/g, (char) => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+        })[char]);
+    }
+
     async function executeSearch() {
         const text = searchInput.value.trim();
         if (!text) {
@@ -98,16 +104,18 @@
 
             resultsEl.innerHTML = snap.docs.map(doc => {
                 const user = doc.data();
-                const played = user.gamesPlayed || 0;
-                const wins = user.wins || 0;
+                const played = Number.isFinite(Number(user.gamesPlayed)) ? Math.max(0, Number(user.gamesPlayed)) : 0;
+                const wins = Number.isFinite(Number(user.wins)) ? Math.max(0, Number(user.wins)) : 0;
+                const username = escapeHtml(user.username || 'Игрок');
+                const uid = escapeHtml(doc.id);
 
                 return `
                     <div class="user-card">
                         <div>
-                            <div style="font-weight: bold; color: #fff; font-size: 1.1rem;">${user.username}</div>
+                            <div style="font-weight: bold; color: #fff; font-size: 1.1rem;">${username}</div>
                             <div style="font-size: 0.8rem; color: #888; margin-top: 4px;">Сыграно игр: ${played} • Побед: ${wins}</div>
                         </div>
-                        <button class="grid-item" style="padding: 8px 16px; font-size: 0.85rem;" onclick="location.href='profile.html?uid=${doc.id}'">Профиль</button>
+                        <button class="grid-item" style="padding: 8px 16px; font-size: 0.85rem;" onclick="location.href='profile.html?uid=${uid}'">Профиль</button>
                     </div>
                 `;
             }).join('');

@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Azachess - Личный кабинет</title>
   <link rel="stylesheet" href="home-style.css?v=3.0">
   <style>
@@ -59,7 +59,7 @@
           </div>
           <div style="background: rgba(0,0,0,0.25); padding: 10px 5px; border-radius: 8px; border: 1px solid var(--border);">
             <div id="stat-wins" style="font-size: 1.2rem; font-weight: bold; color: #5cb365;">0</div>
-            <div style="font-size: 0.7rem; color: #888; margin-top: 2px;">Победиды</div>
+            <div style="font-size: 0.7rem; color: #888; margin-top: 2px;">Победы</div>
           </div>
           <div style="background: rgba(0,0,0,0.25); padding: 10px 5px; border-radius: 8px; border: 1px solid var(--border);">
             <div id="stat-losses" style="font-size: 1.2rem; font-weight: bold; color: #d9534f;">0</div>
@@ -83,7 +83,7 @@
   </div>
 
  <script type="module">
-    import { auth, db, collection, query, getDocs, getDoc, doc, orderBy, limit, startAfter, signOut } from "./firebase-logic.js";
+    import { auth, db, collection, query, getDocs, getDoc, doc, orderBy, limit, startAfter, signOut, onAuthStateChanged } from "./firebase-logic.js";
 
     const PAGE_SIZE = 5;
     let lastVisibleDoc = null;
@@ -92,9 +92,18 @@
 
     window.loadedGamesCache = {};
 
-    async function initProfile() {
+    // Все значения из Firestore выводим только как экранированный текст.
+    function escapeHtml(value) {
+        return String(value ?? '').replace(/[&<>"']/g, (char) => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+        })[char]);
+    }
+
+    async function initProfile(user) {
         const urlParams = new URLSearchParams(window.location.search);
-        const myUid = localStorage.getItem('azachess-user-id');
+        const myUid = user?.uid || null;
+        if (myUid) localStorage.setItem('azachess-user-id', myUid);
+        else localStorage.removeItem('azachess-user-id');
         targetUid = urlParams.get('uid') || myUid;
 
         if (!targetUid) {
@@ -112,8 +121,11 @@
             document.getElementById('btn-logout').onclick = () => {
                 if (confirm("Выйти из аккаунта?")) {
                     signOut(auth).then(() => {
-                        localStorage.clear();
+                        localStorage.removeItem('azachess-user-id');
                         window.location.href = "index.html";
+                    }).catch((error) => {
+                        console.error("Ошибка выхода:", error);
+                        alert("Не удалось выйти из аккаунта. Проверьте соединение и попробуйте снова.");
                     });
                 }
             };
@@ -142,7 +154,11 @@
             console.error("Ошибка получения профиля:", e);
         }
 
-        loadProfileGames();
+        if (user) {
+            loadProfileGames();
+        } else {
+            document.getElementById('loader').innerText = "Войдите в аккаунт, чтобы просматривать архив партий.";
+        }
     }
 
     async function loadProfileGames(loadMore = false) {
@@ -189,21 +205,26 @@
 
             const gamesHtml = querySnapshot.docs.map(doc => {
                 const game = doc.data();
-                const movesStr = (game.history && game.history.length > 0) 
-                    ? game.history.map(m => m.san).join(' ') 
+                const movesStr = (Array.isArray(game.history) && game.history.length > 0)
+                    ? game.history.map(m => m && m.san).filter(Boolean).join(' ')
                     : "Ходы отсутствуют";
+                const safeMoves = escapeHtml(movesStr);
+                const safeDate = escapeHtml(game.date || 'Дата неизвестна');
+                const safeResult = escapeHtml(game.result || 'Матч завершен');
+                const safeMode = escapeHtml(game.timeControl || 'Без времени');
+                const safeDocId = escapeHtml(doc.id);
                 
                 window.loadedGamesCache[doc.id] = game;
 
                 return `
                     <div class="game-card">
                         <div class="game-info">
-                            <div style="font-size: 0.75rem; color: #888;">${game.date || 'Дата неизвестна'}</div>
-                            <div style="font-size: 1.1rem; font-weight: bold; color: #fff; margin: 4px 0;">${game.result || 'Матч завершен'}</div>
-                            <div style="font-size: 0.85rem; color: var(--accent); margin-bottom: 6px;">${game.aiLevel === "PvP-Онлайн" ? "Игра онлайн" : "Игра против ИИ"} • Режим: ${game.timeControl || 'Без времени'}</div>
-                            <div class="game-moves" title="${movesStr}">${movesStr}</div>
+                            <div style="font-size: 0.75rem; color: #888;">${safeDate}</div>
+                            <div style="font-size: 1.1rem; font-weight: bold; color: #fff; margin: 4px 0;">${safeResult}</div>
+                            <div style="font-size: 0.85rem; color: var(--accent); margin-bottom: 6px;">${game.aiLevel === "PvP-Онлайн" ? "Игра онлайн" : "Игра против ИИ"} • Режим: ${safeMode}</div>
+                            <div class="game-moves" title="${safeMoves}">${safeMoves}</div>
                         </div>
-                        <button class="grid-item" style="padding: 10px 15px; font-size: 0.85rem; min-width: 110px; margin-left: 10px;" onclick="viewGame('${doc.id}')">АНАЛИЗ</button>
+                        <button class="grid-item" style="padding: 10px 15px; font-size: 0.85rem; min-width: 110px; margin-left: 10px;" onclick="viewGame('${safeDocId}')">АНАЛИЗ</button>
                     </div>
                 `;
             }).join('');
@@ -238,7 +259,7 @@
         }
     };
 
-    initProfile();
+    onAuthStateChanged(auth, (user) => initProfile(user));
 </script>
 </body>
 </html>
