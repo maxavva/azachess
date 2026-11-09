@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Azachess - Вход</title>
-  <link rel="stylesheet" href="home-style.css">
+  <link rel="stylesheet" href="home-style.css?v=4.1">
   <style>
     .auth-box { max-width: 400px; margin: 50px auto; padding: 30px; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 12px; }
     input { width: 100%; padding: 12px; margin: 10px 0; background: #111; border: 1px solid var(--border); color: white; border-radius: 6px; }
@@ -14,7 +14,7 @@
     .auth-message[data-type="success"] { color: #8ed9a2; }
   </style>
 </head>
-<body>
+<body class="account-page">
   <div class="auth-box">
     <h2 id="auth-title" style="color: white;">Вход в аккаунт</h2>
     <input type="text" id="username" aria-label="Никнейм" placeholder="Твой никнейм (только для регистрации)" maxlength="24" autocomplete="nickname" style="display: none;">
