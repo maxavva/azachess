@@ -1,4 +1,4 @@
-import { db, collection, addDoc } from "./firebase-logic.js";
+import { auth, onAuthStateChanged, db, doc, setDoc } from "./firebase-logic.js";
 
 const PIECE_IMAGES = {
     'wP': 'https://upload.wikimedia.org/wikipedia/commons/4/45/Chess_plt45.svg',
@@ -44,15 +44,19 @@ let currentGameSessionId = 0;
 let promotionFrom = null, promotionTo = null;
 const DRAG_THRESHOLD = 10;
 
+function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, (char) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    })[char]);
+}
+
 // ЗАПУСК
-function initApp() {
+function initApp(user) {
     try {
         console.log("Запуск Azachess...");
-        const uid = localStorage.getItem('azachess-user-id');
-        if (!uid || uid === "null") {
-            window.location.href = 'auth.html';
-            return;
-        }
+        if (!user) return;
+        // Firebase Auth является источником истины; localStorage хранится только для совместимости.
+        localStorage.setItem('azachess-user-id', user.uid);
 
         applyGlobalSettings();
 
@@ -101,10 +105,20 @@ function setupNavNext() {
     if (btn) btn.onclick = () => jumpToMoveIndex(currentMoveIndex + 1);
 }
 
+function startAuthenticatedApp() {
+    onAuthStateChanged(auth, (user) => {
+        if (!user) {
+            localStorage.removeItem('azachess-user-id');
+            window.location.replace('auth.html');
+            return;
+        }
+        initApp(user);
+    });
+}
 if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initApp);
+    document.addEventListener('DOMContentLoaded', startAuthenticatedApp, { once: true });
 } else {
-    initApp();
+    startAuthenticatedApp();
 }
 
 function terminateStockfish() {
@@ -395,26 +409,34 @@ function updateClockDisplay() {
     const t = document.getElementById('clock-top'), b = document.getElementById('clock-bottom');
     if (!t || !b) return;
     const format = (s) => `${Math.floor(s/60)}:${(s%60).toString().padStart(2, '0')}`;
-    (isFlipped ? t : b).textContent = format(whiteTime);
-    (isFlipped ? b : t).textContent = format(blackTime);
+    const whiteClock = isFlipped ? t : b;
+    const blackClock = isFlipped ? b : t;
+    whiteClock.textContent = format(whiteTime);
+    blackClock.textContent = format(blackTime);
+    whiteClock.dataset.label = userColor === 'w' ? 'Вы' : 'Компьютер';
+    blackClock.dataset.label = userColor === 'b' ? 'Вы' : 'Компьютер';
     const turn = liveGame.turn(), active = isGameStarted && !liveGame.game_over() && whiteTime > 0 && blackTime > 0;
     t.classList.toggle('active', active && ((isFlipped && turn === 'w') || (!isFlipped && turn === 'b')));
     b.classList.toggle('active', active && ((!isFlipped && turn === 'w') || (isFlipped && turn === 'b')));
 }
 
 function saveGameState() {
-    const isTimeout = isClockEnabled && (whiteTime <= 0 || blackTime <= 0);
-    
-    if ((liveGame && liveGame.game_over()) || isTimeout) {
-        localStorage.removeItem('azachess-save-game');
-        return;
-    }
+    try {
+        const isTimeout = isClockEnabled && (whiteTime <= 0 || blackTime <= 0);
+        if ((liveGame && liveGame.game_over()) || isTimeout) {
+            localStorage.removeItem('azachess-save-game');
+            return;
+        }
 
-    const state = {
-        fen: liveGame.fen(), history: fullMoveHistory, currentIdx: currentMoveIndex,
-        whiteTime, blackTime, lastTick, isGameStarted, userColor, isFlipped, isClockEnabled, increment
-    };
-    localStorage.setItem('azachess-save-game', JSON.stringify(state));
+        const state = {
+            fen: liveGame.fen(), history: fullMoveHistory, currentIdx: currentMoveIndex,
+            whiteTime, blackTime, lastTick, isGameStarted, userColor, isFlipped, isClockEnabled, increment
+        };
+        localStorage.setItem('azachess-save-game', JSON.stringify(state));
+    } catch (error) {
+        // Storage can be unavailable or full; the active game should keep running.
+        console.warn("Не удалось сохранить локальное состояние партии:", error);
+    }
 }
 
 function resetGameSettings() {
@@ -522,8 +544,8 @@ function updateStatus() {
 }
 
 async function saveToPermanentArchive(reason) {
-    const userId = localStorage.getItem('azachess-user-id');
-    if (!userId || userId === "null" || isGameOverSaved) return;
+    const userId = auth.currentUser?.uid;
+    if (!userId || isGameOverSaved) return;
     isGameOverSaved = true;
     
     console.log("Запись партии в архив Firestore...");
@@ -539,13 +561,23 @@ async function saveToPermanentArchive(reason) {
         userColor 
     };
 
-    const archive = JSON.parse(localStorage.getItem('azachess-archive') || '[]');
+    let archive = [];
+    try {
+        const savedArchive = JSON.parse(localStorage.getItem('azachess-archive') || '[]');
+        if (Array.isArray(savedArchive)) archive = savedArchive;
+    } catch (error) {
+        console.warn("Локальный архив повреждён, создаём новый:", error);
+    }
     archive.unshift(gameData);
-    localStorage.setItem('azachess-archive', JSON.stringify(archive));
+    try {
+        localStorage.setItem('azachess-archive', JSON.stringify(archive));
+    } catch (error) {
+        console.warn("Не удалось сохранить локальную копию архива:", error);
+    }
 
     try {
-        const userHistoryRef = collection(db, "users", userId, "history");
-        await addDoc(userHistoryRef, gameData);
+        const userHistoryRef = doc(db, "users", userId, "history", String(gameData.id));
+        await setDoc(userHistoryRef, gameData);
         console.log("Партия успешно записана в облачную историю Firestore!");
     } catch (e) { 
         console.error("Firebase Error при сохранении архива:", e); 
@@ -558,8 +590,11 @@ function checkAndTriggerAI() {
 }
 
 function triggerEngineMove() {
-    if (!isStockfishReady || isWaitingForAIMove) return;
-    const lv = localStorage.getItem('selected-ai-level') || 3;
+    if (!isStockfishReady || !stockfishWorker || isWaitingForAIMove) return;
+    const configuredLevel = Number(localStorage.getItem('selected-ai-level'));
+    const lv = Number.isInteger(configuredLevel) && AI_LEVELS[configuredLevel]
+        ? configuredLevel
+        : 3;
     isWaitingForAIMove = true;
     stockfishWorker.postMessage(`setoption name Skill Level value ${AI_LEVELS[lv].skill}`);
     stockfishWorker.postMessage(`position fen ${liveGame.fen()}`);
@@ -580,9 +615,11 @@ function updateMoveLog() {
     const log = document.getElementById('move-log'); if(!log) return; log.innerHTML = '';
     for (let i = 0; i < fullMoveHistory.length; i += 2) {
         const row = document.createElement('div'); row.className = 'move-row';
+        const whiteSan = escapeHtml(fullMoveHistory[i]?.san || '');
+        const blackSan = fullMoveHistory[i+1] ? escapeHtml(fullMoveHistory[i+1].san || '') : '';
         row.innerHTML = `<span style="color:#666;width:25px;display:inline-block;">${(i/2)+1}.</span>
-        <span class="move-text ${i+1===currentMoveIndex?'active-move':''}" onclick="jumpToMoveIndex(${i+1})">${fullMoveHistory[i].san}</span>
-        ${fullMoveHistory[i+1] ? `<span class="move-text ${i+2===currentMoveIndex?'active-move':''}" onclick="jumpToMoveIndex(${i+2})">${fullMoveHistory[i+1].san}</span>` : ''}`;
+        <span class="move-text ${i+1===currentMoveIndex?'active-move':''}" onclick="jumpToMoveIndex(${i+1})">${whiteSan}</span>
+        ${fullMoveHistory[i+1] ? `<span class="move-text ${i+2===currentMoveIndex?'active-move':''}" onclick="jumpToMoveIndex(${i+2})">${blackSan}</span>` : ''}`;
         log.appendChild(row);
     }
 }
@@ -592,7 +629,8 @@ function applyGlobalSettings() {
         const boardEl = document.getElementById('board');
         if (!boardEl) return;
 
-        const theme = localStorage.getItem('azachess-setting-theme') || 'emerald';
+        const savedTheme = localStorage.getItem('azachess-setting-theme');
+        const theme = ['emerald', 'classic', 'blue', 'charcoal'].includes(savedTheme) ? savedTheme : 'emerald';
         const coords = localStorage.getItem('azachess-setting-coords') !== 'false';
 
         boardEl.classList.remove('theme-emerald', 'theme-classic', 'theme-blue', 'theme-charcoal');

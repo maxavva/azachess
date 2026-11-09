@@ -1,4 +1,4 @@
-import { auth, db, doc, setDoc, getDoc, collection, query, where, getDocs, orderBy, limit, onSnapshot, runTransaction, deleteDoc, updateDoc, onAuthStateChanged } from "./firebase-logic.js";
+import { auth, db, doc, setDoc, getDoc, collection, query, where, getDocs, orderBy, limit, onSnapshot, runTransaction, deleteDoc, onAuthStateChanged } from "./firebase-logic.js";
 
 const PIECE_IMAGES = {
     'wP': 'https://upload.wikimedia.org/wikipedia/commons/4/45/Chess_plt45.svg',
@@ -27,6 +27,17 @@ const safeLocalStorage = {
         try { localStorage.removeItem(key); } catch (e) {}
     }
 };
+
+function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, (char) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    })[char]);
+}
+
+function finiteInt(value, fallback, max = 86400) {
+    const parsed = Number(value);
+    return Number.isSafeInteger(parsed) && parsed >= 0 && parsed <= max ? parsed : fallback;
+}
 
 // СОСТОЯНИЕ ИГРЫ
 let liveGame = null;
@@ -83,6 +94,10 @@ function initMultiplayer() {
 
     onAuthStateChanged(auth, async (user) => {
         if (!user) {
+            const roomId = new URLSearchParams(window.location.search).get('room');
+            if (roomId && /^[A-Za-z0-9_-]{1,128}$/.test(roomId)) {
+                safeLocalStorage.setItem('azachess-join-room-after-auth', roomId);
+            }
             window.location.href = 'auth.html';
             return;
         }
@@ -127,7 +142,8 @@ function applyGlobalSettings() {
         const boardEl = document.getElementById('board');
         if (!boardEl) return;
 
-        const theme = safeLocalStorage.getItem('azachess-setting-theme') || 'emerald';
+        const savedTheme = safeLocalStorage.getItem('azachess-setting-theme');
+        const theme = ['emerald', 'classic', 'blue', 'charcoal'].includes(savedTheme) ? savedTheme : 'emerald';
         const coords = safeLocalStorage.getItem('azachess-setting-coords') !== 'false';
 
         boardEl.className = 'chessboard';
@@ -177,6 +193,13 @@ async function checkInviteQuery() {
 
         const gameData = gameSnap.data();
 
+        // Создатель ссылки не может занять оба места одной учётной записью.
+        if (gameData.status === 'waiting' && (userId === gameData.whiteId || userId === gameData.blackId)) {
+            alert("Это ваша ссылка на игру. Отправьте её сопернику, чтобы он присоединился.");
+            window.location.href = 'index.html';
+            return;
+        }
+
         // Если игра уже активна
         if (gameData.status === 'active') {
             if (userId === gameData.whiteId || userId === gameData.blackId) {
@@ -199,10 +222,15 @@ async function checkInviteQuery() {
 
         await runTransaction(db, async (transaction) => {
             const txSnap = await transaction.get(gameRef);
+            if (!txSnap.exists()) throw new Error("Комната больше не существует.");
             const data = txSnap.data();
 
             if (data.status !== 'waiting') {
-                throw "Комната уже заполнена.";
+                throw new Error("Комната уже заполнена.");
+            }
+
+            if (data.whiteId === userId || data.blackId === userId) {
+                throw new Error("Нельзя присоединиться к своей ссылке вторым игроком.");
             }
 
             const updates = {
@@ -217,6 +245,8 @@ async function checkInviteQuery() {
             } else if (data.blackId === null) {
                 updates.blackId = userId;
                 updates.blackName = username;
+            } else {
+                throw new Error("В комнате уже нет свободного места.");
             }
 
             transaction.update(gameRef, updates);
@@ -258,7 +288,9 @@ function joinRoom(gameId) {
             else currentRole = 'spectator';
 
             isFlipped = (currentRole === 'b');
-            document.getElementById('multiplayer-header').textContent = `Онлайн-Матч: ${data.whiteName} vs ${data.blackName}`;
+            const whiteName = typeof data.whiteName === 'string' ? data.whiteName : 'Белые';
+            const blackName = typeof data.blackName === 'string' ? data.blackName : 'Черные';
+            document.getElementById('multiplayer-header').textContent = `Онлайн-Матч: ${whiteName} vs ${blackName}`;
 
             const fenToLoad = (data.fen && typeof data.fen === 'string') ? data.fen : "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
@@ -266,7 +298,7 @@ function joinRoom(gameId) {
             window.game = liveGame;
 
             const previousLength = fullMoveHistory.length;
-            fullMoveHistory = data.history || [];
+            fullMoveHistory = Array.isArray(data.history) ? data.history : [];
 
             // Плавный переход при новом ходе
             if (fullMoveHistory.length > previousLength || currentMoveIndex === previousLength) {
@@ -280,10 +312,11 @@ function joinRoom(gameId) {
             }
 
             // Защищенное чтение таймеров (Safe Defaults для исключения NaN)
-            whiteTime = parseInt(data.whiteTime !== undefined ? data.whiteTime : 300);
-            blackTime = parseInt(data.blackTime !== undefined ? data.blackTime : 300);
-            increment = parseInt(data.increment !== undefined ? data.increment : 0);
-            lastTick = parseInt(data.lastMoveTime !== undefined ? data.lastMoveTime : Date.now());
+            whiteTime = finiteInt(data.whiteTime, 300);
+            blackTime = finiteInt(data.blackTime, 300);
+            increment = finiteInt(data.increment, 0, 3600);
+            const receivedTick = finiteInt(data.lastMoveTime, Date.now(), Number.MAX_SAFE_INTEGER);
+            lastTick = receivedTick > 0 && receivedTick <= Date.now() + 60000 ? receivedTick : Date.now();
 
             // Скрытие часов, если выбран режим "Без времени"
             const clocksWrapper = document.getElementById('clocks-wrapper');
@@ -309,7 +342,8 @@ function joinRoom(gameId) {
             }
         } catch (roomErr) {
             console.error("[Room] Ошибка внутри onSnapshot игрового цикла:", roomErr);
-            alert(`Ошибка отрисовки игры!\n\nСообщение: ${roomErr.message}\n\nСтек трейс:\n${roomErr.stack}`);
+            const status = document.getElementById('status-text');
+            if (status) status.textContent = "Не удалось обновить игру. Попробуйте перезагрузить страницу.";
         }
     }, (error) => {
         // Ловим ошибку авторизации/доступа (Permission Denied) со стороны Firebase
@@ -325,6 +359,9 @@ function updateStatusMultiplayer(data) {
 
     let statusText = "";
     let isOver = false;
+    const winnerName = data.winner === 'w'
+        ? (typeof data.whiteName === 'string' ? data.whiteName : 'Белые')
+        : (typeof data.blackName === 'string' ? data.blackName : 'Черные');
 
     // Внедряем Ролевой Инспектор
     if (currentRole === 'spectator') {
@@ -336,18 +373,15 @@ function updateStatusMultiplayer(data) {
             statusText = `Ход соперника (${data.turn === 'w' ? 'Белые' : 'Черные'})`;
         }
     } else if (data.status === 'checkmate') {
-        const winnerName = data.winner === 'w' ? data.whiteName : data.blackName;
         statusText = `Мат! Победитель: ${winnerName}`;
         isOver = true;
     } else if (data.status === 'draw') {
         statusText = "Ничья!";
         isOver = true;
     } else if (data.status === 'resign') {
-        const winnerName = data.winner === 'w' ? data.whiteName : data.blackName;
         statusText = `Сдача! Победитель: ${winnerName}`;
         isOver = true;
     } else if (data.status === 'timeout') {
-        const winnerName = data.winner === 'w' ? data.whiteName : data.blackName;
         statusText = `Время истекло! Победитель: ${winnerName}`;
         isOver = true;
     }
@@ -409,12 +443,20 @@ function stopTimerMultiplayer() {
 
 // Запись падения по времени
 async function triggerTimeout() {
+    if (!currentGameId || !['w', 'b'].includes(currentRole)) return;
     stopTimerMultiplayer();
     try {
         const gameRef = doc(db, "pvp_games", currentGameId);
-        await updateDoc(gameRef, {
-            status: "timeout",
-            winner: currentRole === 'w' ? 'b' : 'w'
+        await runTransaction(db, async (transaction) => {
+            const snap = await transaction.get(gameRef);
+            if (!snap.exists() || snap.data().status !== 'active') return;
+            const data = snap.data();
+            const isMember = currentRole === 'w' ? data.whiteId === currentUserId : data.blackId === currentUserId;
+            if (!isMember || data.turn !== currentRole) return;
+            transaction.update(gameRef, {
+                status: "timeout",
+                winner: currentRole === 'w' ? 'b' : 'w'
+            });
         });
     } catch(e) {
         console.error("Timeout trigger failed:", e);
@@ -423,12 +465,20 @@ async function triggerTimeout() {
 
 // Сдача
 async function resignGame() {
+    if (!currentGameId || !['w', 'b'].includes(currentRole) || !currentUserId) return;
     if (confirm("Вы уверены, что хотите сдаться?")) {
         try {
             const gameRef = doc(db, "pvp_games", currentGameId);
-            await updateDoc(gameRef, {
-                status: "resign",
-                winner: currentRole === 'w' ? 'b' : 'w'
+            await runTransaction(db, async (transaction) => {
+                const snap = await transaction.get(gameRef);
+                if (!snap.exists() || snap.data().status !== 'active') return;
+                const data = snap.data();
+                const isMember = currentRole === 'w' ? data.whiteId === currentUserId : data.blackId === currentUserId;
+                if (!isMember) return;
+                transaction.update(gameRef, {
+                    status: "resign",
+                    winner: currentRole === 'w' ? 'b' : 'w'
+                });
             });
         } catch(e) {
             console.error(e);
@@ -453,10 +503,8 @@ async function saveOnlineGameToArchive(data) {
     const userId = currentUserId;
     if (!userId) return; // Убрали лимит на длину истории ходов!
 
-    const archiveKey = `pvp-archived-${data.id}`;
+    const archiveKey = `pvp-archived-${userId}-${data.id}`;
     if (safeLocalStorage.getItem(archiveKey)) return;
-
-    safeLocalStorage.setItem(archiveKey, "true");
 
     let statusReason = "Игра окончена";
     let outcome = 0.5;
@@ -474,23 +522,6 @@ async function saveOnlineGameToArchive(data) {
         outcome = 0.5;
     }
 
-    const stats = await getUserStats(userId);
-    const newWins = stats.wins + (outcome === 1 ? 1 : 0);
-    const newLosses = stats.losses + (outcome === 0 ? 1 : 0);
-    const newDraws = stats.draws + (outcome === 0.5 ? 1 : 0);
-    const newPlayed = stats.gamesPlayed + 1;
-
-    try {
-        await setDoc(doc(db, "users", userId), {
-            wins: newWins,
-            losses: newLosses,
-            draws: newDraws,
-            gamesPlayed: newPlayed
-        }, { merge: true });
-    } catch (err) {
-        console.error("Ошибка обновления статистики в профиле:", err);
-    }
-
     const gameData = {
         id: data.id,
         userId,
@@ -503,18 +534,36 @@ async function saveOnlineGameToArchive(data) {
         userColor: userId === data.whiteId ? 'w' : 'b'
     };
 
-    let archive = [];
     try {
-        archive = JSON.parse(safeLocalStorage.getItem('azachess-archive') || '[]');
-    } catch(e) { archive = []; }
-    archive.unshift(gameData);
-    safeLocalStorage.setItem('azachess-archive', JSON.stringify(archive));
+        const userRef = doc(db, "users", userId);
+        const userHistoryRef = doc(db, "users", userId, "history", String(data.id));
+        const savedNow = await runTransaction(db, async (transaction) => {
+            const historySnap = await transaction.get(userHistoryRef);
+            if (historySnap.exists()) return false;
 
-    try {
-        const userHistoryRef = doc(db, "users", userId, "history", data.id);
-        await setDoc(userHistoryRef, gameData);
-    } catch(e) {
-        console.error("Ошибка синхронизации истории PvP:", e);
+            const userSnap = await transaction.get(userRef);
+            const stats = userSnap.exists() ? userSnap.data() : {};
+            transaction.set(userRef, {
+                wins: Number(stats.wins || 0) + (outcome === 1 ? 1 : 0),
+                losses: Number(stats.losses || 0) + (outcome === 0 ? 1 : 0),
+                draws: Number(stats.draws || 0) + (outcome === 0.5 ? 1 : 0),
+                gamesPlayed: Number(stats.gamesPlayed || 0) + 1
+            }, { merge: true });
+            transaction.set(userHistoryRef, gameData);
+            return true;
+        });
+
+        safeLocalStorage.setItem(archiveKey, "true");
+        if (!savedNow) return;
+        let archive = [];
+        try {
+            const saved = JSON.parse(safeLocalStorage.getItem('azachess-archive') || '[]');
+            if (Array.isArray(saved)) archive = saved;
+        } catch(e) { /* Поврежденный локальный кэш не мешает облачному сохранению. */ }
+        archive.unshift(gameData);
+        safeLocalStorage.setItem('azachess-archive', JSON.stringify(archive));
+    } catch (e) {
+        console.error("Ошибка синхронизации истории или статистики PvP:", e);
     }
 }
 
@@ -733,9 +782,18 @@ function handleMoveAttempt(from, to) {
 
 // Отправка хода на Firestore с мгновенной компенсацией задержки (Optimistic UI)
 async function executeMoveMultiplayer(from, to, promo = 'q') {
-    if (currentRole !== liveGame.turn()) return;
+    if (!currentGameId || !currentUserId || !['w', 'b'].includes(currentRole) || currentRole !== liveGame.turn()) return;
 
-    const gameClone = new Chess(liveGame.fen());
+    const baseFen = liveGame.fen();
+    const previousState = {
+        fen: baseFen,
+        history: fullMoveHistory,
+        moveIndex: currentMoveIndex,
+        whiteTime,
+        blackTime,
+        lastTick
+    };
+    const gameClone = new Chess(baseFen);
     const res = gameClone.move({ from, to, promotion: promo });
     if (!res) {
         clearSelection();
@@ -813,20 +871,41 @@ async function executeMoveMultiplayer(from, to, promo = 'q') {
 
     try {
         const gameRef = doc(db, "pvp_games", currentGameId);
-        await updateDoc(gameRef, {
-            fen: gameClone.fen(),
-            history: newHistory,
-            turn: gameClone.turn(),
-            whiteTime: newWhiteTime,
-            blackTime: newBlackTime,
-            lastMoveTime: now,
-            status: status,
-            winner: winner
+        await runTransaction(db, async (transaction) => {
+            const snap = await transaction.get(gameRef);
+            if (!snap.exists()) throw new Error("Комната больше не существует.");
+            const serverGame = snap.data();
+            const ownsTurn = currentRole === 'w'
+                ? serverGame.whiteId === currentUserId
+                : serverGame.blackId === currentUserId;
+            const serverHistoryLength = Array.isArray(serverGame.history) ? serverGame.history.length : 0;
+            if (serverGame.status !== 'active' || serverGame.turn !== currentRole || !ownsTurn || serverGame.fen !== baseFen || serverHistoryLength !== previousState.history.length) {
+                throw new Error("Позиция уже изменилась. Доска будет синхронизирована с сервером.");
+            }
+            transaction.update(gameRef, {
+                fen: gameClone.fen(), history: newHistory, turn: gameClone.turn(),
+                whiteTime: newWhiteTime, blackTime: newBlackTime,
+                lastMoveTime: now, status, winner
+            });
         });
     } catch (err) {
         console.error("Firestore move update error:", err);
         alert("Не удалось зафиксировать ход на сервере.");
+        liveGame = new Chess(previousState.fen);
+        window.game = liveGame;
+        displayGame = new Chess(previousState.fen);
+        fullMoveHistory = previousState.history;
+        currentMoveIndex = previousState.moveIndex;
+        whiteTime = previousState.whiteTime;
+        blackTime = previousState.blackTime;
+        lastTick = previousState.lastTick;
+        stopTimerMultiplayer();
+        selectedSquare = null;
+        validMoves = [];
         renderBoard(false);
+        updateMoveLog();
+        updateClockDisplay();
+        updateStatusMultiplayer({status:'active', turn:currentRole});
     }
 }
 
@@ -853,8 +932,12 @@ function updateClockDisplay() {
     const clockTop = document.getElementById('clock-top');
     const clockBottom = document.getElementById('clock-bottom');
     if (clockTop && clockBottom) {
-        (isFlipped ? clockTop : clockBottom).textContent = format(whiteTime);
-        (isFlipped ? clockBottom : clockTop).textContent = format(blackTime);
+        const whiteClock = isFlipped ? clockTop : clockBottom;
+        const blackClock = isFlipped ? clockBottom : clockTop;
+        whiteClock.textContent = format(whiteTime);
+        blackClock.textContent = format(blackTime);
+        whiteClock.dataset.label = currentRole === 'w' ? 'Вы' : currentRole === 'b' ? 'Соперник' : 'Белые';
+        blackClock.dataset.label = currentRole === 'b' ? 'Вы' : currentRole === 'w' ? 'Соперник' : 'Черные';
     }
 }
 
@@ -875,9 +958,11 @@ function updateMoveLog() {
     const log = document.getElementById('move-log'); if(!log) return; log.innerHTML = '';
     for (let i = 0; i < fullMoveHistory.length; i += 2) {
         const row = document.createElement('div'); row.className = 'move-row';
+        const whiteSan = escapeHtml(fullMoveHistory[i]?.san || '');
+        const blackSan = fullMoveHistory[i+1] ? escapeHtml(fullMoveHistory[i+1].san || '') : '';
         row.innerHTML = `<span style="color:#666;width:25px;display:inline-block;">${(i/2)+1}.</span>
-        <span class="move-text ${i+1===currentMoveIndex?'active-move':''}" onclick="jumpToMoveIndex(${i+1})">${fullMoveHistory[i].san}</span>
-        ${fullMoveHistory[i+1] ? `<span class="move-text ${i+2===currentMoveIndex?'active-move':''}" onclick="jumpToMoveIndex(${i+2})">${fullMoveHistory[i+1].san}</span>` : ''}`;
+        <span class="move-text ${i+1===currentMoveIndex?'active-move':''}" onclick="jumpToMoveIndex(${i+1})">${whiteSan}</span>
+        ${fullMoveHistory[i+1] ? `<span class="move-text ${i+2===currentMoveIndex?'active-move':''}" onclick="jumpToMoveIndex(${i+2})">${blackSan}</span>` : ''}`;
         log.appendChild(row);
     }
 }

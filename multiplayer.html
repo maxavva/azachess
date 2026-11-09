@@ -2,9 +2,9 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Azachess - Онлайн Мультиплеер (PvP)</title>
-  <link rel="stylesheet" href="style.css?v=3.0">
+  <link rel="stylesheet" href="style.css?v=4.0">
   <link rel="stylesheet" href="home-style.css">
   <style>
     body {
@@ -60,7 +60,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chess.js@0.10.3/chess.min.js"></script>
   <script src="sounds.js"></script>
 </head>
-<body>
+<body class="game-page">
 
   <div class="game-wrapper-root">
     
@@ -123,10 +123,10 @@
       <div class="board-wrapper">
         <div id="board" class="chessboard"></div>
         <div class="navigation-controls">
-          <button id="btn-nav-first" class="btn btn-secondary nav-btn">|&lt;</button>
-          <button id="btn-nav-prev" class="btn btn-secondary nav-btn">&lt;</button>
-          <button id="btn-nav-next" class="btn btn-secondary nav-btn">&gt;</button>
-          <button id="btn-nav-last" class="btn btn-secondary nav-btn">&gt;|</button>
+          <button id="btn-nav-first" class="btn btn-secondary nav-btn" title="К началу">|&lt;</button>
+          <button id="btn-nav-prev" class="btn btn-secondary nav-btn" title="Предыдущий ход">&lt;</button>
+          <button id="btn-nav-next" class="btn btn-secondary nav-btn" title="Следующий ход">&gt;</button>
+          <button id="btn-nav-last" class="btn btn-secondary nav-btn" title="К последнему ходу">&gt;|</button>
         </div>
       </div>
 

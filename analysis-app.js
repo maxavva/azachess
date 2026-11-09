@@ -27,12 +27,10 @@ let isDragging = false, dragStartX = 0, dragStartY = 0, dragClone = null, dragge
 let promotionFrom = null, promotionTo = null;
 
 // ФУНКЦИЯ ИНИЦИАЛИЗАЦИИ
-function initAnalysis() {
-    const uid = localStorage.getItem('azachess-user-id');
-    if (!uid || uid === "null") {
-        window.location.href = 'auth.html';
-        return;
-    }
+function initAnalysis(user) {
+    if (!user) return;
+    // Firebase Auth является источником истины; localStorage хранится только для совместимости.
+    localStorage.setItem('azachess-user-id', user.uid);
 
     // Применяем настройки при загрузке страницы анализа
     applyGlobalSettings();
@@ -82,10 +80,20 @@ function initAnalysis() {
 }
 
 // Запуск
+function startAuthenticatedAnalysis() {
+    onAuthStateChanged(auth, (user) => {
+        if (!user) {
+            localStorage.removeItem('azachess-user-id');
+            window.location.replace('auth.html');
+            return;
+        }
+        initAnalysis(user);
+    });
+}
 if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initAnalysis);
+    document.addEventListener('DOMContentLoaded', startAuthenticatedAnalysis, { once: true });
 } else {
-    initAnalysis();
+    startAuthenticatedAnalysis();
 }
 
 // --- ЛОГИКА ДОСКИ ---
@@ -381,7 +389,8 @@ function applyGlobalSettings() {
     const boardEl = document.getElementById('board');
     if (!boardEl) return;
 
-    const theme = localStorage.getItem('azachess-setting-theme') || 'emerald';
+    const savedTheme = localStorage.getItem('azachess-setting-theme');
+    const theme = ['emerald', 'classic', 'blue', 'charcoal'].includes(savedTheme) ? savedTheme : 'emerald';
     const coords = localStorage.getItem('azachess-setting-coords') !== 'false';
 
     boardEl.classList.remove('theme-emerald', 'theme-classic', 'theme-blue', 'theme-charcoal');

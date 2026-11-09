@@ -2,24 +2,29 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Azachess - Вход</title>
   <link rel="stylesheet" href="home-style.css">
   <style>
     .auth-box { max-width: 400px; margin: 50px auto; padding: 30px; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 12px; }
     input { width: 100%; padding: 12px; margin: 10px 0; background: #111; border: 1px solid var(--border); color: white; border-radius: 6px; }
-    .toggle-link { color: var(--accent); cursor: pointer; text-decoration: underline; font-size: 0.9rem; }
+    .toggle-link { color: var(--accent); cursor: pointer; text-decoration: underline; font-size: 0.9rem; background: none; border: 0; padding: 0; font-family: inherit; }
+    .auth-message { min-height: 1.4em; margin: 12px 0 0; font-size: 0.9rem; line-height: 1.5; }
+    .auth-message[data-type="error"] { color: #ff8d8d; }
+    .auth-message[data-type="success"] { color: #8ed9a2; }
   </style>
 </head>
 <body>
   <div class="auth-box">
     <h2 id="auth-title" style="color: white;">Вход в аккаунт</h2>
-    <input type="text" id="username" placeholder="Твой никнейм (только для регистрации)" style="display: none;">
-    <input type="email" id="email" placeholder="Email">
-    <input type="password" id="password" placeholder="Пароль">
+    <input type="text" id="username" aria-label="Никнейм" placeholder="Твой никнейм (только для регистрации)" maxlength="24" autocomplete="nickname" style="display: none;">
+    <input type="email" id="email" aria-label="Email" placeholder="Email" autocomplete="email">
+    <input type="password" id="password" aria-label="Пароль" placeholder="Пароль" autocomplete="current-password">
     <button class="start-btn" id="auth-btn" style="margin-top: 15px;">ВОЙТИ</button>
+    <p id="auth-message" class="auth-message" role="status" aria-live="polite"></p>
     <p style="margin-top: 20px; font-size: 0.9rem;">
       <span id="toggle-text">Нет аккаунта?</span> 
-      <span class="toggle-link" id="toggle-auth">Зарегистрироваться</span>
+      <button type="button" class="toggle-link" id="toggle-auth">Зарегистрироваться</button>
     </p>
     <a href="index.html" style="display: block; margin-top: 15px; color: #666; text-decoration: none;">← На главную</a>
   </div>
@@ -31,21 +36,58 @@
     const authBtn = document.getElementById('auth-btn');
     const toggleAuth = document.getElementById('toggle-auth');
     const usernameInput = document.getElementById('username');
+    const message = document.getElementById('auth-message');
+
+    const authErrors = {
+      'auth/invalid-credential': 'Почта или пароль не подходят. Проверь их и попробуй ещё раз.',
+      'auth/user-not-found': 'Аккаунт с такой почтой не найден. Проверь адрес или зарегистрируйся.',
+      'auth/wrong-password': 'Неверный пароль. Проверь раскладку и попробуй ещё раз.',
+      'auth/invalid-email': 'Проверь формат адреса электронной почты.',
+      'auth/missing-password': 'Введи пароль.',
+      'auth/weak-password': 'Пароль слишком простой. Используй не менее 6 символов.',
+      'auth/too-many-requests': 'Слишком много попыток. Подожди немного и попробуй снова.',
+      'auth/network-request-failed': 'Не удалось связаться с Firebase. Проверь подключение к интернету.',
+      'auth/operation-not-allowed': 'Вход по почте отключён в настройках Firebase проекта.',
+      'auth/unauthorized-domain': 'Адрес сайта не разрешён в Firebase Authentication. Добавь домен сайта в Authorized domains.',
+      'auth/user-disabled': 'Этот аккаунт отключён. Обратись к администратору.',
+      'auth/email-already-in-use': 'Эта почта уже зарегистрирована. Переключись на вход.',
+      'auth/invalid-api-key': 'Firebase настроен неверно: проверь API key в firebase-logic.js.'
+    };
+
+    function showMessage(text, type = 'error', code = '') {
+      message.textContent = code ? `${text} (код: ${code})` : text;
+      message.dataset.type = type;
+    }
 
     toggleAuth.onclick = () => {
       isLogin = !isLogin;
+      showMessage('');
       document.getElementById('auth-title').innerText = isLogin ? 'Вход в аккаунт' : 'Регистрация';
       authBtn.innerText = isLogin ? 'ВОЙТИ' : 'СОЗДАТЬ АККАУНТ';
       usernameInput.style.display = isLogin ? 'none' : 'block';
+      document.getElementById('password').autocomplete = isLogin ? 'current-password' : 'new-password';
       document.getElementById('toggle-text').innerText = isLogin ? 'Нет аккаунта?' : 'Уже есть аккаунт?';
       toggleAuth.innerText = isLogin ? 'Зарегистрироваться' : 'Войти';
     };
 
     authBtn.onclick = async () => {
-      const email = document.getElementById('email').value;
+      const email = document.getElementById('email').value.trim();
       const password = document.getElementById('password').value;
       const username = usernameInput.value;
 
+      showMessage('');
+      if (!email) {
+        showMessage('Введи адрес электронной почты.');
+        document.getElementById('email').focus();
+        return;
+      }
+      if (!password) {
+        showMessage('Введи пароль.');
+        document.getElementById('password').focus();
+        return;
+      }
+
+      authBtn.disabled = true;
       try {
         let userCredential;
         if (isLogin) {
@@ -53,15 +95,18 @@
           localStorage.setItem('azachess-user-id', userCredential.user.uid); // Моментальная запись сессии
           alert("С возвращением!");
         } else {
-          if (!username.trim()) {
-            alert("Пожалуйста, введите ваш никнейм!");
+          const cleanUsername = username.trim();
+          if (cleanUsername.length < 3 || cleanUsername.length > 24) {
+            showMessage('Никнейм должен содержать от 3 до 24 символов.');
+            usernameInput.focus();
+            authBtn.disabled = false;
             return;
           }
           userCredential = await createUserWithEmailAndPassword(auth, email, password);
           localStorage.setItem('azachess-user-id', userCredential.user.uid); // Моментальная запись сессии
           
           await setDoc(doc(db, "users", userCredential.user.uid), {
-            username: username,
+            username: cleanUsername,
             createdAt: new Date().toISOString(),
             rating: 1200,
             wins: 0,
@@ -76,12 +121,15 @@
         const joinAfter = localStorage.getItem('azachess-join-room-after-auth');
         if (joinAfter) {
             localStorage.removeItem('azachess-join-room-after-auth');
-            window.location.href = "multiplayer.html?room=" + joinAfter;
+            window.location.href = "multiplayer.html?room=" + encodeURIComponent(joinAfter);
         } else {
             window.location.href = "index.html";
         }
       } catch (error) {
-        alert("Ошибка: " + error.message);
+        const code = error?.code || 'auth/unknown';
+        showMessage(authErrors[code] || 'Не удалось войти. Проверь данные и попробуй ещё раз.', 'error', code);
+      } finally {
+        authBtn.disabled = false;
       }
     };
   </script>
