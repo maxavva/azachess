@@ -147,7 +147,9 @@
           <div class="searching-loader">
             <div class="spinner"></div>
             <h3 style="color: #fff; margin: 15px 0 5px 0; font-size: 1.1rem;">Поиск соперника...</h3>
-            <p id="search-timer" style="color: var(--text-dim); font-size: 0.9rem; margin-bottom: 15px;">Вы в очереди: 0 сек</p>
+            <p id="search-status" role="status" aria-live="polite" style="color: var(--text-dim); margin: 0;">Ищем соперника с таким же контролем времени.</p>
+            <p id="search-timer" style="color: var(--text-dim); font-size: 0.9rem; margin: 0 0 8px;">В поиске: 0 сек</p>
+            <button id="btn-retry-search" class="start-btn secondary hidden" style="width: 100%;">Повторить подключение</button>
             <button id="btn-cancel-search" class="start-btn secondary" style="width: 100%;">Отменить поиск</button>
           </div>
         </div>
@@ -174,7 +176,7 @@
   </div>
 
   <script type="module">
-    import { auth, db, onAuthStateChanged, signOut, doc, getDoc, setDoc, deleteDoc, collection, query, where, getDocs, limit, onSnapshot, runTransaction } from "./firebase-logic.js";
+    import { auth, db, onAuthStateChanged, signOut, doc, getDoc, setDoc, deleteDoc, updateDoc, collection, query, where, getDocs, limit, onSnapshot, runTransaction } from "./firebase-logic.js";
 
     let currentUserId = null;
     let selectedTimeControl = "5+3";
@@ -182,6 +184,9 @@
     let gameListener = null;
     let searchSeconds = 0;
     let searchTimerInterval = null;
+    let matchmakingInProgress = false;
+    let queueSessionId = null;
+    let queueHeartbeatInterval = null;
 
     // Безопасный оборонительный биндинг кликов
     const bindClick = (id, fn) => {
@@ -343,6 +348,7 @@
             bindClick('btn-search-pvp', startMatchmaking);
             bindClick('btn-invite-friend', createInviteRoom);
             bindClick('btn-cancel-search', cancelMatchmaking);
+            bindClick('btn-retry-search', startMatchmaking);
 
             console.log("[Azachess-Lobby] Дашборд успешно запущен и инициализирован.");
         } catch(e) {
@@ -372,20 +378,46 @@
 
     // --- СЕТЕВОЙ ПОДБОР ---
     async function startMatchmaking() {
+        if (matchmakingInProgress) return;
         if (!currentUserId) { window.location.href = 'auth.html'; return; }
+        matchmakingInProgress = true;
         const username = await getUserName(currentUserId);
         const timeControl = selectedTimeControl;
 
         toggleLobbyView('searching');
+        setSearchStatus('Подключаемся к серверу и ищем игрока.', false);
         startSearchTimer();
 
         try {
+            const myQueueRef = doc(db, "queue", currentUserId);
+            queueSessionId = crypto.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+            const sessionId = queueSessionId;
+            // Сначала ставим игрока в очередь и открываем подписку, чтобы не
+            // пропустить матч, созданный во время первоначального поиска.
+            await setDoc(myQueueRef, { userId: currentUserId, username, timeControl, status: 'waiting', matchedGameId: null, sessionId, createdAt: Date.now(), updatedAt: Date.now() });
+            clearInterval(queueHeartbeatInterval);
+            queueHeartbeatInterval = setInterval(() => updateDoc(myQueueRef, { updatedAt: Date.now() }).catch(() => {}), 25000);
+            queueListener?.();
+            queueListener = onSnapshot(myQueueRef, (docSnap) => {
+                if (!docSnap.exists()) return;
+                const queueData = docSnap.data();
+                if (queueData.sessionId !== queueSessionId || !queueData.matchedGameId) return;
+                stopSearchTimer();
+                setSearchStatus('Соперник найден. Подключаемся к партии…', false);
+                window.location.href = `multiplayer.html?room=${encodeURIComponent(queueData.matchedGameId)}`;
+            }, (error) => {
+                console.error('Queue subscription failed:', error);
+                queueListener = null;
+                matchmakingInProgress = false;
+                setSearchStatus('Связь с сервером потеряна. Проверьте интернет и повторите подключение.', true);
+            });
+
             const qRef = collection(db, "queue");
             const q = query(qRef, where("timeControl", "==", timeControl), limit(10));
             const snap = await getDocs(q);
 
             const sortedDocs = snap.docs
-                .filter(d => d.id !== currentUserId && !d.data().matchedGameId)
+                .filter(d => d.id !== currentUserId && d.data().status === 'waiting' && !d.data().matchedGameId && Date.now() - (d.data().updatedAt || d.data().createdAt || 0) < 90000)
                 .sort((a, b) => (a.data().createdAt || 0) - (b.data().createdAt || 0));
 
             let matchFound = false;
@@ -393,17 +425,17 @@
 
             for (let candidateDoc of sortedDocs) {
                 const candidate = candidateDoc.data();
+                const gameId = doc(collection(db, "pvp_games")).id;
+                const gameRef = doc(db, "pvp_games", gameId);
 
                 try {
                     await runTransaction(db, async (transaction) => {
                         const candidateRef = doc(db, "queue", candidateDoc.id);
+                        const mySnap = await transaction.get(myQueueRef);
                         const candSnap = await transaction.get(candidateRef);
-                        if (!candSnap.exists() || candSnap.data().matchedGameId) {
-                            throw "Кандидат уже взят";
-                        }
-
-                        const gameId = doc(collection(db, "pvp_games")).id;
-                        const gameRef = doc(db, "pvp_games", gameId);
+                        if (!mySnap.exists() || mySnap.data().sessionId !== sessionId || mySnap.data().matchedGameId) throw new Error('Текущий поиск уже завершён');
+                        if (!candSnap.exists() || candSnap.data().status !== 'waiting' || candSnap.data().matchedGameId || Date.now() - (candSnap.data().updatedAt || candSnap.data().createdAt || 0) >= 90000) throw new Error('Кандидат уже найден');
+                        const candidate = candSnap.data();
 
                         const colors = Math.random() > 0.5 ? ['w', 'b'] : ['b', 'w'];
                         const isWhite = colors[0] === 'w';
@@ -414,9 +446,9 @@
                         const gameData = {
                             id: gameId,
                             whiteId: isWhite ? currentUserId : candidateDoc.id,
-                            whiteName: isWhite ? username : candidate.username,
+                            whiteName: isWhite ? username : (candidate.username || 'Игрок'),
                             blackId: isWhite ? candidateDoc.id : currentUserId,
-                            blackName: isWhite ? candidate.username : username,
+                            blackName: isWhite ? (candidate.username || 'Игрок') : username,
                             timeControl: timeControl,
                             fen: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
                             history: [],
@@ -430,15 +462,16 @@
                             createdAt: Date.now()
                         };
 
-                        transaction.update(candidateRef, { matchedGameId: gameId });
+                        transaction.update(candidateRef, { status: 'matched', matchedGameId: gameId });
+                        transaction.update(myQueueRef, { status: 'matched', matchedGameId: gameId });
                         transaction.set(gameRef, gameData);
-                        matchedGameId = gameId;
-                        matchFound = true;
                     });
-
+                    matchedGameId = gameId;
+                    matchFound = true;
                     if (matchFound) break;
                 } catch (txErr) {
-                    console.warn("Транзакция сорвалась:", txErr);
+                    if (txErr?.message === 'Текущий поиск уже завершён') break;
+                    console.info("Кандидат очереди изменился; проверяем следующего.", txErr);
                 }
             }
 
@@ -446,43 +479,37 @@
                 stopSearchTimer();
                 window.location.href = `multiplayer.html?room=${matchedGameId}`;
             } else {
-                const myQueueRef = doc(db, "queue", currentUserId);
-                await setDoc(myQueueRef, {
-                    userId: currentUserId,
-                    username,
-                    timeControl,
-                    matchedGameId: null,
-                    createdAt: Date.now()
-                });
-
-                queueListener = onSnapshot(myQueueRef, (docSnap) => {
-                    if (docSnap.exists()) {
-                        const queueData = docSnap.data();
-                        if (queueData.matchedGameId) {
-                            if (queueListener) queueListener();
-                            queueListener = null;
-
-                            deleteDoc(myQueueRef).catch(() => {});
-                            stopSearchTimer();
-                            window.location.href = `multiplayer.html?room=${queueData.matchedGameId}`;
-                        }
-                    }
-                });
+                setSearchStatus('Вы в очереди. Подключение сохраняется — матч откроется автоматически.', false);
             }
 
         } catch (err) {
             console.error("Matchmaking error:", err);
-            alert("Произошла ошибка подбора.");
-            cancelMatchmaking();
+            setSearchStatus(navigator.onLine ? 'Не удалось связаться с сервером. Повторите подключение.' : 'Нет интернета. Восстановите связь и повторите подключение.', true);
+            matchmakingInProgress = false;
         }
+    }
+
+    function setSearchStatus(message, showRetry) {
+        const status = document.getElementById('search-status');
+        const retry = document.getElementById('btn-retry-search');
+        if (status) status.textContent = message;
+        if (retry) retry.classList.toggle('hidden', !showRetry);
     }
 
     async function cancelMatchmaking() {
         stopSearchTimer();
+        clearInterval(queueHeartbeatInterval);
+        queueHeartbeatInterval = null;
+        matchmakingInProgress = false;
         if (queueListener) { queueListener(); queueListener = null; }
-        if (currentUserId) {
-            await deleteDoc(doc(db, "queue", currentUserId)).catch(() => {});
+        if (currentUserId && queueSessionId) {
+            const queueRef = doc(db, "queue", currentUserId);
+            await runTransaction(db, async (transaction) => {
+                const snap = await transaction.get(queueRef);
+                if (snap.exists() && snap.data().sessionId === queueSessionId) transaction.delete(queueRef);
+            }).catch(() => {});
         }
+        queueSessionId = null;
         toggleLobbyView('main');
     }
 
