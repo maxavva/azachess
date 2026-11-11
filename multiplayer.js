@@ -161,13 +161,30 @@ function applyGlobalSettings() {
 
 // Управление экранами
 function showView() {
-    const views = ['lobby-view', 'searching-view', 'invite-view', 'game-view'];
+    const views = ['room-loading', 'room-error-view', 'lobby-view', 'searching-view', 'invite-view', 'game-view'];
     views.forEach(id => {
         const el = document.getElementById(id);
         if (el) el.classList.add('hidden');
     });
     const el = document.getElementById('game-view');
     if (el) el.classList.remove('hidden');
+}
+
+function showRoomLoading(message = 'Проверяем комнату и восстанавливаем соединение.') {
+    const loading = document.getElementById('room-loading');
+    const label = document.getElementById('room-loading-message');
+    document.getElementById('room-error-view')?.classList.add('hidden');
+    if (label) label.textContent = message;
+    if (loading) loading.classList.remove('hidden');
+}
+
+function showRoomError(message) {
+    document.getElementById('room-loading')?.classList.add('hidden');
+    document.getElementById('lobby-view')?.classList.add('hidden');
+    const errorView = document.getElementById('room-error-view');
+    const errorMessage = document.getElementById('room-error-message');
+    if (errorMessage) errorMessage.textContent = message;
+    if (errorView) errorView.classList.remove('hidden');
 }
 
 // Проверка входящего подключения по ссылке и проведение транзакций в базе
@@ -179,6 +196,15 @@ async function checkInviteQuery() {
         return;
     }
 
+    if (!/^[A-Za-z0-9_-]{1,128}$/.test(roomId)) {
+        showRoomError('Ссылка на комнату повреждена. Попросите соперника отправить её ещё раз.');
+        return;
+    }
+
+    showRoomLoading();
+    const retryButton = document.getElementById('btn-retry-room-entry');
+    if (retryButton) retryButton.onclick = checkInviteQuery;
+
     const userId = currentUserId;
     console.log(`[Invite] Обнаружен переход по ссылке вызова. Комната: ${roomId}`);
     const gameRef = doc(db, "pvp_games", roomId);
@@ -186,8 +212,7 @@ async function checkInviteQuery() {
     try {
         const gameSnap = await getDoc(gameRef);
         if (!gameSnap.exists()) {
-            alert("Данный вызов не существует или был отменен.");
-            window.location.href = 'index.html';
+            showRoomError('Комната не найдена или вызов уже отменён. Попросите соперника создать новую ссылку.');
             return;
         }
 
@@ -195,8 +220,7 @@ async function checkInviteQuery() {
 
         // Создатель ссылки не может занять оба места одной учётной записью.
         if (gameData.status === 'waiting' && (userId === gameData.whiteId || userId === gameData.blackId)) {
-            alert("Это ваша ссылка на игру. Отправьте её сопернику, чтобы он присоединился.");
-            window.location.href = 'index.html';
+            showRoomError('Это ваша ссылка на вызов. Отправьте её сопернику и дождитесь его подключения.');
             return;
         }
 
@@ -205,15 +229,13 @@ async function checkInviteQuery() {
             if (userId === gameData.whiteId || userId === gameData.blackId) {
                 joinRoom(roomId);
             } else {
-                alert("В этой комнате уже играют двое.");
-                window.location.href = 'index.html';
+                showRoomError('В этой комнате уже играют двое. Попросите соперника создать новую.');
             }
             return;
         }
 
         if (gameData.status !== 'waiting') {
-            alert("Этот матч уже завершен.");
-            window.location.href = 'index.html';
+            showRoomError('Эта партия уже завершена. Вернитесь в лобби, чтобы начать новую.');
             return;
         }
 
@@ -257,8 +279,12 @@ async function checkInviteQuery() {
 
     } catch (err) {
         console.error("Ошибка при входе в вызов:", err);
-        alert(`Не удалось войти в игру. Код ошибки:\n${err}`);
-        window.location.href = 'index.html';
+        const code = err?.code || '';
+        showRoomError(code === 'permission-denied'
+            ? 'Сервер не разрешил открыть эту комнату. Убедитесь, что вы вошли в нужный аккаунт.'
+            : (navigator.onLine
+                ? 'Сервер временно не ответил. Комната сохранена — нажмите «Повторить подключение».'
+                : 'Нет интернета. После восстановления связи нажмите «Повторить подключение».'));
     }
 }
 
