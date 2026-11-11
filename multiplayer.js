@@ -264,6 +264,7 @@ async function checkInviteQuery() {
 
 // Подключение к комнате
 function joinRoom(gameId) {
+    if (gameListener) { gameListener(); gameListener = null; }
     currentGameId = gameId;
     const userId = currentUserId;
 
@@ -272,8 +273,11 @@ function joinRoom(gameId) {
 
     const gameRef = doc(db, "pvp_games", gameId);
     
+    const reconnectButton = document.getElementById('btn-reconnect-room');
+    if (reconnectButton) reconnectButton.onclick = () => joinRoom(gameId);
     gameListener = onSnapshot(gameRef, (docSnap) => {
         try {
+            if (reconnectButton) reconnectButton.classList.add('hidden');
             if (!docSnap.exists()) {
                 alert("Игра завершена или удалена.");
                 leaveRoom();
@@ -346,11 +350,24 @@ function joinRoom(gameId) {
             if (status) status.textContent = "Не удалось обновить игру. Попробуйте перезагрузить страницу.";
         }
     }, (error) => {
-        // Ловим ошибку авторизации/доступа (Permission Denied) со стороны Firebase
         console.error("[Room] Ошибка подписки на документ pvp_games:", error);
-        alert(`Ошибка доступа к серверу игры!\n\nСистемный код: ${error.code}\nТекст: ${error.message}\n\nВозможно, не обновились правила базы данных или сбилась сессия.`);
+        const status = document.getElementById('status-text');
+        if (status) status.textContent = error.code === 'permission-denied'
+            ? 'Сервер отказал в доступе к комнате. Проверьте аккаунт и обновите страницу.'
+            : (navigator.onLine ? 'Соединение с партией потеряно. Firebase попробует восстановить его автоматически.' : 'Нет интернета. Игра продолжится после восстановления связи.');
+        if (reconnectButton) reconnectButton.classList.remove('hidden');
     });
 }
+
+window.addEventListener('online', () => {
+    const status = document.getElementById('status-text');
+    if (status && currentGameId) status.textContent = 'Интернет восстановлен. Синхронизируем партию…';
+    if (currentGameId && !gameListener) joinRoom(currentGameId);
+});
+window.addEventListener('offline', () => {
+    const status = document.getElementById('status-text');
+    if (status && currentGameId) status.textContent = 'Соединение потеряно. Ходы временно недоступны до восстановления интернета.';
+});
 
 // Обновление игрового статуса
 function updateStatusMultiplayer(data) {
