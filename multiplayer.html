@@ -71,7 +71,24 @@
     </div>
 
     <!-- ЛОББИ ПОДБОРА ИГРЫ -->
-    <div id="lobby-view" class="lobby-container">
+    <div id="room-loading" class="lobby-container" role="status" aria-live="polite">
+      <div class="searching-loader">
+        <div class="spinner" aria-hidden="true"></div>
+        <h2 style="color: #fff; margin: 8px 0;">Подключаемся к партии…</h2>
+        <p id="room-loading-message" style="color: var(--text-dim); margin: 0;">Проверяем комнату и восстанавливаем соединение.</p>
+      </div>
+    </div>
+
+    <div id="room-error-view" class="lobby-container hidden" role="alert">
+      <div class="searching-loader">
+        <h2 style="color: #fff; margin: 8px 0;">Не удалось открыть партию</h2>
+        <p id="room-error-message" style="color: var(--text-dim); margin: 0;">Проверьте подключение и попробуйте ещё раз.</p>
+        <button id="btn-retry-room-entry" class="start-btn" type="button" style="width: 100%;">Повторить подключение</button>
+        <a href="index.html" class="start-btn secondary" style="width: 100%;">На главную</a>
+      </div>
+    </div>
+
+    <div id="lobby-view" class="lobby-container hidden">
       <h2 style="color: #fff; margin-bottom: 25px;">Выбор контроля времени для PvP</h2>
       
       <section class="mode-section" style="text-align: left;">
@@ -159,6 +176,6 @@
     </div>
   </div>
 
-  <script type="module" src="multiplayer.js?v=4.1"></script>
+  <script type="module" src="multiplayer.js?v=4.2"></script>
 </body>
 </html>
