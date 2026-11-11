@@ -1,4 +1,4 @@
-import { auth, db, doc, setDoc, getDoc, collection, query, where, getDocs, orderBy, limit, onSnapshot, runTransaction, deleteDoc, onAuthStateChanged } from "./firebase-logic.js";
+import { auth, db, doc, setDoc, getDoc, collection, query, where, getDocs, orderBy, limit, onSnapshot, runTransaction, updateDoc, deleteDoc, onAuthStateChanged } from "./firebase-logic.js";
 
 const PIECE_IMAGES = {
     'wP': 'https://upload.wikimedia.org/wikipedia/commons/4/45/Chess_plt45.svg',
@@ -914,22 +914,13 @@ async function executeMoveMultiplayer(from, to, promo = 'q') {
 
     try {
         const gameRef = doc(db, "pvp_games", currentGameId);
-        await runTransaction(db, async (transaction) => {
-            const snap = await transaction.get(gameRef);
-            if (!snap.exists()) throw new Error("Комната больше не существует.");
-            const serverGame = snap.data();
-            const ownsTurn = currentRole === 'w'
-                ? serverGame.whiteId === currentUserId
-                : serverGame.blackId === currentUserId;
-            const serverHistoryLength = Array.isArray(serverGame.history) ? serverGame.history.length : 0;
-            if (serverGame.status !== 'active' || serverGame.turn !== currentRole || !ownsTurn || serverGame.fen !== baseFen || serverHistoryLength !== previousState.history.length) {
-                throw new Error("Позиция уже изменилась. Доска будет синхронизирована с сервером.");
-            }
-            transaction.update(gameRef, {
-                fen: gameClone.fen(), history: newHistory, turn: gameClone.turn(),
-                whiteTime: newWhiteTime, blackTime: newBlackTime,
-                lastMoveTime: now, status, winner
-            });
+        // Firestore applies updateDoc to its local cache immediately, so the opponent's
+        // onSnapshot can render the move as soon as the write reaches the server. The
+        // server rules remain responsible for rejecting unauthorized/out-of-turn writes.
+        await updateDoc(gameRef, {
+            fen: gameClone.fen(), history: newHistory, turn: gameClone.turn(),
+            whiteTime: newWhiteTime, blackTime: newBlackTime,
+            lastMoveTime: now, status, winner
         });
     } catch (err) {
         console.error("Firestore move update error:", err);
